@@ -121,8 +121,8 @@
 
 | 组 | 方法 | 形态 |
 | --- | --- | --- |
-| 线/点/柱/面积 | plot, scatter, bar, barh, errorbar, fill_between, stackplot, stem, step, stairs, broken_barh, eventplot, vlines, hlines, axline | 独立 kind 或 `figure.shapes` |
-| 统计 | hist, hist2d, boxplot, violinplot, bxp, pie, ecdf, hexbin | 独立 kind |
+| 线/点/柱/面积 | plot, scatter, bar, barh, errorbar, fill_between, stackplot, stem, step, stairs, broken_barh, eventplot, vlines, hlines, axline | 独立 kind 或 `figure.shapes`（P13-05 完成 barh/stackplot/step/stem；errorbar 走 line 的 error_x/y；vlines/hlines/axline 走 shapes；stairs/broken_barh/eventplot 暂缺） |
+| 统计 | hist, hist2d, boxplot, violinplot, bxp, pie, ecdf, hexbin | 独立 kind（P13-05 完成 boxplot/violinplot/ecdf/hexbin；hist2d 用 heatmap 表达，bxp 暂缺） |
 | 图像/场 | imshow, matshow, pcolor, pcolormesh, contour, contourf, clabel, spy, figimage | 独立 kind（clabel 作为 contour 的 `labels=True`） |
 | 矢量 | quiver, quiverkey, streamplot, barbs | 独立 kind（quiverkey 作为 quiver 的 `key=True`） |
 | 三角/非结构 | triplot, tricontour, tricontourf, tripcolor | 独立 kind |
@@ -185,7 +185,8 @@
 | P13-02 | heatmap / contour / contourf / correlation | ✅ 完成：`tests/test_kinds_field.py` 14 项，全库 **165 passed**；相关矩阵与 `np.corrcoef` 差 <1e-12；浏览器截图见 §6 |
 | P13-03 | quiver（含 quiverkey）/ streamplot / barbs | ✅ 完成：`tests/test_kinds_vector.py` 15 项，全库 **180 passed**；vmin/vmax、纯色流线、color_by 白名单均已封口；浏览器截图见 §6 |
 | P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
-| P13-05…07 | 统计/信号族（mpl 兜底）、动画、附属能力（colorbar/表格/Science/字体） | 未开工 |
+| P13-05 | boxplot / violinplot / ecdf / hexbin / barh / stackplot / step / stem | ✅ 首批 8 种完成：`tests/test_kinds_stats.py` 14 项，全库 **208 passed**；浏览器四联截图见 §6。**未做**：stairs / broken_barh / eventplot / bxp / psd / specgram / csd / cohere / acorr / xcorr / 频谱族（转 P13-07） |
+| P13-06…07 | 动画、附属能力（colorbar 细化/表格高亮/Science/字体链） | 未开工 |
 | P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
@@ -228,7 +229,11 @@
 26. **3D 分支提前 `return` 会丢标题与轴标签**：`_apply_view` 里 3D 分支原本直接返回，而 `set_xlabel/set_ylabel/set_title` 写在 2D 分支之后——评审发现 3D 子图的标题与轴标签全部静默丢失。3D 分支必须自己补 `xlabel/ylabel/zlabel/title`。
 27. **`surface` 的 x/y 必须与 z 同形**：给了 x/y 却不校验形状，会静默画错位；现在形状不符直接报错。
 28. **3D + colorbar 在小图里会触发 `constrained_layout not applied ... collapsed to zero`**：只是告警，mpl 会退回默认布局，出图正常；图再小就要手动调 `fraction/pad`。
-29. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+29. **二维数据"按行还是按列"必须先定死**：boxplot/violinplot 原来按列切，传 (2,120) 的小提琴图画出 **120 个琴**糊成一片（截图才发现）。现在全库统一 **一行 = 一组 / 一条序列**（与 stackplot 同口径）。
+30. **`boxplot(patch_artist=True)` 的箱体在 `ax.patches`，不在 `ax.artists`**：写断言时别数错集合。
+31. **`ax.stem()` 不要用 `for line in ax.lines` 染色**：那会把同一子图里**其他图层**已经画好的 Line2D 一起改掉（评审发现）。要改就改 `StemContainer` 的 `markerline` / `stemlines`（茎线是 LineCollection，不在 `ax.lines` 里）。
+32. **单序列 kind 收到二维数据要直接报错**：`step`/`stem`/`barh`/`ecdf`/`hexbin` 用 `_flat()` 取值，二维会抛「需要一维数据」并提示改用多图层——否则会把 (2,120) 拉成一条横跨两条序列的锯齿线。
+33. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 
@@ -242,3 +247,4 @@
 - `docs/p13_field.png`：P13-02 场类四联（heatmap / contour+clabel / contourf / correlation 带列名刻度）
 - `docs/p13_vector.png`：P13-03 矢量场（quiver 按模长上色 + streamplot，各带 colorbar）
 - `docs/p13_3d.png`：P13-04 3D 四联（surface / line3d / scatter3d / hist3d）
+- `docs/p13_stats.png`：P13-05 统计族四联（boxplot / violinplot / hexbin+colorbar / stackplot）

@@ -46,6 +46,16 @@ KIND_PRESETS: dict[str, dict[str, Any]] = {
                  "view": {"elev": 30, "azim": -60, "grid": True}},
     "stream3d": {"style": {"cmap": "viridis", "density": 0.6, "colorbar": False},
                  "view": {"elev": 30, "azim": -60, "grid": True}},
+    # P13-05：统计/信号族
+    "boxplot": {"style": {"showfliers": True, "widths": 0.6}, "view": {}},
+    "violinplot": {"style": {"showmeans": True, "widths": 0.8}, "view": {}},
+    "ecdf": {"style": {"width": 1.8}, "view": {}},
+    "hexbin": {"style": {"cmap": "viridis", "gridsize": 20, "mincnt": 1, "colorbar": True},
+               "view": {"grid": False}},
+    "barh": {"style": {"width": 0.8}, "view": {}},
+    "stackplot": {"style": {"opacity": 0.85}, "view": {}},
+    "step": {"style": {"where": "pre", "width": 1.6}, "view": {}},
+    "stem": {"style": {"width": 1.4}, "view": {}},
 }
 
 

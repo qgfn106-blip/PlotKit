@@ -48,6 +48,15 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     "quiver3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
                  "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
                  "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
+    # P13-05：统计/信号族
+    "boxplot": {"y": ("series", "field", "auto")},
+    "violinplot": {"y": ("series", "field", "auto")},
+    "ecdf": {"x": ("series", "coord", "auto")},
+    "hexbin": {"x": ("coord", "series", "auto"), "y": ("series", "auto")},
+    "barh": {"x": ("coord", "series", "auto"), "y": ("series", "auto")},
+    "stackplot": {"x": ("coord", "series", "auto"), "y": ("series", "field", "auto")},
+    "step": {"x": ("coord", "series", "auto"), "y": ("series", "auto")},
+    "stem": {"x": ("coord", "series", "auto"), "y": ("series", "auto")},
     "stream3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
                  "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
                  "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
@@ -70,6 +79,8 @@ KNOWN_STYLE_KEYS = {
     "scale", "density", "arrowsize", "color_by", "shaft", "key",
     # P13-04：3D
     "stride", "shade", "length", "normalize",
+    # P13-05：统计/信号族
+    "where", "gridsize", "widths", "showfliers", "showmeans", "mincnt",
 }
 KNOWN_FIGURE_KEYS = {
     "window",

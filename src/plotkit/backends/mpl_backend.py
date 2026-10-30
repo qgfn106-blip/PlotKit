@@ -615,6 +615,137 @@ def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) 
                     ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], color=color,
                             linewidth=float(style.get("width", 1.0) or 1.0), alpha=0.9)
 
+
+
+# ---------------- P13-05：统计/信号族 ----------------
+
+def _flat(layer, store, key: str) -> np.ndarray:
+    """取单序列数据：只接受一维。二维会静默拉成锯齿线，这里直接报错让人改用多图层。"""
+    data = layer.get("data") or {}
+    arr = np.asarray(store.values(data[key]), dtype=float)
+    if arr.ndim > 1:
+        raise ValueError(
+            f"{layer.get('kind')} 的 {key} 需要一维数据，收到 {arr.shape}；"
+            f"多序列请拆成多个图层（多组/多条用 boxplot/violinplot/stackplot）")
+    return arr
+
+
+def _y_matrix(layer, store, key: str = "y"):
+    """取一列或多列数据：1D 视为单列，返回 (n,) 或 (n, m)。"""
+    data = layer.get("data") or {}
+    return np.asarray(store.values(data[key]), dtype=float)
+
+
+def _columns(arr) -> list[np.ndarray]:
+    """二维数据按**行**分组（一行 = 一组 / 一条序列），与 stackplot 同一约定。
+
+    之前按列切，导致 (2,120) 的小提琴图画出 120 个"琴"糊成一片（2026-10-31 截图发现）。
+    """
+    arr = np.asarray(arr, dtype=float)
+    if arr.ndim == 1:
+        return [arr[np.isfinite(arr)]]
+    return [arr[i][np.isfinite(arr[i])] for i in range(arr.shape[0])]
+
+
+def _draw_boxplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    cols = _columns(_y_matrix(layer, store))
+    color = str(style.get("color") or color_for(index))
+    ax.boxplot(cols, patch_artist=True, widths=float(style.get("widths", 0.6) or 0.6),
+               showfliers=bool(style.get("showfliers", True)),
+               medianprops={"color": color, "linewidth": 1.6},
+               boxprops={"facecolor": color, "alpha": 0.35, "edgecolor": color},
+               whiskerprops={"color": color}, capprops={"color": color})
+
+
+def _draw_violinplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    cols = _columns(_y_matrix(layer, store))
+    res = ax.violinplot(cols, showmeans=bool(style.get("showmeans", True)),
+                        widths=float(style.get("widths", 0.8) or 0.8), showextrema=False)
+    color = str(style.get("color") or color_for(index))
+    for body in res["bodies"]:
+        body.set_facecolor(color)
+        body.set_edgecolor(color)
+        body.set_alpha(float(style.get("opacity", 0.6)))
+
+
+def ecdf_points(values) -> tuple[np.ndarray, np.ndarray]:
+    """经验分布：排序后的取值与累计概率（重复值各占一个台阶）。"""
+    arr = np.sort(np.asarray(values, dtype=float)[np.isfinite(values)])
+    if arr.size == 0:
+        return arr, arr
+    return arr, np.arange(1, arr.size + 1) / float(arr.size)
+
+
+def _draw_ecdf(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    xs, ys = ecdf_points(_flat(layer, store, "x"))
+    ax.step(xs, ys, where="post", color=str(style.get("color") or color_for(index)),
+            linewidth=float(style.get("width", 1.8) or 1.8),
+            label=layer.get("label") or layer.get("data", {}).get("x"))
+
+
+def _draw_hexbin(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    if x.size != y.size:
+        raise ValueError(f"hexbin 的 x/y 长度必须一致：{x.size} vs {y.size}")
+    mincnt = style.get("mincnt")
+    hb = ax.hexbin(x, y, gridsize=int(style.get("gridsize", 20) or 20),
+                   cmap=str(style.get("cmap") or "viridis"),
+                   norm=_color_norm(style),
+                   mincnt=1 if mincnt is None else int(mincnt),
+                   linewidths=0.2)
+    _maybe_colorbar(ax, hb, style)
+
+
+def _draw_barh(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    ax.barh(x, y, height=float(style.get("width", 0.8) or 0.8),
+            color=str(style.get("color") or color_for(index)),
+            alpha=float(style.get("opacity", 1.0)),
+            label=layer.get("label") or data.get("y"))
+
+
+def _draw_stackplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x = np.ravel(np.asarray(store.values(data["x"]), dtype=float))
+    y = np.asarray(store.values(data["y"]), dtype=float)
+    rows = [y] if y.ndim == 1 else [y[i] for i in range(y.shape[0])]
+    if style.get("color"):
+        colors = [str(style["color"])]
+    else:
+        colors = [PALETTE[(index + i) % len(PALETTE)] for i in range(len(rows))]
+    ax.stackplot(x, *rows, colors=colors, alpha=float(style.get("opacity", 0.85)),
+                 labels=[f"{layer.get('label') or data.get('y')} #{i + 1}" for i in range(len(rows))])
+
+
+def _draw_step(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    ax.step(x, y, where=str(style.get("where") or "pre"),
+            color=str(style.get("color") or color_for(index)),
+            linewidth=float(style.get("width", 1.6) or 1.6),
+            label=layer.get("label") or data.get("y"))
+
+
+def _draw_stem(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    color = str(style.get("color") or color_for(index))
+    container = ax.stem(x, y, linefmt="-", markerfmt="o", basefmt=" ", bottom=0.0)
+    # 只改自己这三件，别遍历 ax.lines——那会把其他图层已经画好的线一起染掉
+    container.markerline.set_color(color)
+    container.stemlines.set_color(color)
+    container.stemlines.set_linewidth(float(style.get("width", 1.4) or 1.4))
+
 DRAWERS = {
     "line": _draw_line, "marker": _draw_scatter, "bar": _draw_bar,
     "hist": _draw_hist, "pie": _draw_pie, "image": _draw_image, "table": _draw_table,
@@ -624,6 +755,9 @@ DRAWERS = {
     "surface": _draw_surface, "line3d": _draw_line3d, "scatter3d": _draw_scatter3d,
     "bar3d": _draw_bar3d, "hist3d": _draw_hist3d, "quiver3d": _draw_quiver3d,
     "stream3d": _draw_stream3d,
+    "boxplot": _draw_boxplot, "violinplot": _draw_violinplot, "ecdf": _draw_ecdf,
+    "hexbin": _draw_hexbin, "barh": _draw_barh, "stackplot": _draw_stackplot,
+    "step": _draw_step, "stem": _draw_stem,
 }
 
 
@@ -990,3 +1124,13 @@ reg.register("bar3d", 3, None, defaults={"shade": True}, description="三维柱�
 reg.register("hist3d", 3, None, defaults={"bins": 8}, description="三维直方（二维分箱 + 柱）")
 reg.register("quiver3d", 3, None, defaults={"length": 0.6}, description="三维矢量箭头")
 reg.register("stream3d", 3, None, defaults={"density": 0.6}, description="三维流线（RK2 积分）")
+
+# ---------------- 注册 P13-05 的统计/信号族 ----------------
+reg.register("boxplot", 2, None, defaults={"widths": 0.6}, description="箱线图（多列 = 多箱）")
+reg.register("violinplot", 2, None, defaults={"widths": 0.8}, description="小提琴图")
+reg.register("ecdf", 2, None, defaults={}, description="经验分布函数")
+reg.register("hexbin", 2, None, defaults={"gridsize": 20}, description="六边形分箱密度图")
+reg.register("barh", 2, None, defaults={"width": 0.8}, description="横向柱状")
+reg.register("stackplot", 2, None, defaults={}, description="堆叠面积（多行 = 多条序列）")
+reg.register("step", 2, None, defaults={"where": "pre"}, description="阶梯线")
+reg.register("stem", 2, None, defaults={}, description="火柴杆图")
