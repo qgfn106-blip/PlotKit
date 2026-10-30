@@ -135,3 +135,12 @@ def test_init_defaults_apply_to_layers():
     assert layer["view"]["grid"] is False
     explicit = f.add_plot("line", x=np.arange(3), y=np.arange(3), view={"xlabel": "x"})
     assert explicit["view"]["xlabel"] == "x"
+
+
+def test_html_embeds_svg_not_plotly(fig):
+    """自包含导出改内联 mpl SVG（D33），不再内联 1.1 MB 的 plotly bundle。"""
+    page = fig.html(title="导出")
+    assert page.lstrip().startswith("<!DOCTYPE html>")
+    assert "<svg" in page
+    assert "plotly" not in page.lower()
+    assert "导出" in page

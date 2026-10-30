@@ -420,6 +420,30 @@ class Figure:
                        duration=max(1, int(round(1000.0 / rate))), loop=0, disposal=2)
         return buffer.getvalue()
 
+    def animate_mp4(self, *, width: int = 640, height: int = 400, dpi: int = 100,
+                    fps: float | None = None) -> bytes:
+        """把各帧交给 ffmpeg 合成 MP4（需要系统里有 ffmpeg；没有就抛可读错误）。"""
+        import shutil
+        import subprocess
+        import tempfile
+        from pathlib import Path
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise RuntimeError("导出 MP4 需要 ffmpeg，请先安装并加入 PATH（GIF 不依赖它）")
+        cfg = self.anim_settings()
+        rate = float(fps or cfg["fps"])
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            for i, png in enumerate(self.render_frames(width=width, height=height, dpi=dpi)):
+                (folder / f"f{i:04d}.png").write_bytes(png)
+            target = folder / "out.mp4"
+            cmd = [ffmpeg, "-y", "-loglevel", "error", "-framerate", f"{rate:g}",
+                   "-i", str(folder / "f%04d.png"), "-pix_fmt", "yuv420p",
+                   "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", str(target)]
+            subprocess.run(cmd, check=True, capture_output=True)
+            return target.read_bytes()
+
     def set_view(self, subplot: int, **kwargs: Any) -> "Figure":
         for layer in self.spec["layers"]:
             if int(layer.get("subplot", 0)) == int(subplot):
@@ -545,11 +569,21 @@ class Figure:
             figure.savefig(buffer, format="png", dpi=dpi or int(self.spec["figure"]["dpi"]))
         return buffer.getvalue()
 
-    def html(self, *, title: str | None = None) -> str:
-        """自包含 HTML（内联 vendored plotly bundle，零 CDN）。"""
-        from ..server.assets import self_contained_html
+    def html(self, *, title: str | None = None, width: int = 900, height: int = 520) -> str:
+        """自包含 HTML（内联 matplotlib 的 SVG，零 CDN、零 JS 依赖，D33）。
 
-        return self_contained_html(self.plotly(), title=title or str(self.spec["figure"].get("title") or "PlotKit"))
+        以前内联的是 vendored plotly bundle（1.1 MB）；渲染统一走 mpl 之后
+        直接嵌 SVG 即可，导出文件更小、也不需要任何脚本。
+        """
+        svg = self.render(width=width, height=height, fmt="svg").decode("utf-8")
+        head = title or str(self.spec["figure"].get("title") or "PlotKit")
+        return (
+            "<!DOCTYPE html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+            f"<title>{head}</title><style>"
+            "html,body{margin:0;padding:0;background:#fff}"
+            "svg{display:block;width:100%;height:auto}"
+            "</style></head><body>" + svg + "</body></html>"
+        )
 
     def show(self, sink: str | None = None, *, port: int = 0, open_browser: bool | None = None) -> Any:
         """展示：inline → window → browser 三级探测（D9）。"""

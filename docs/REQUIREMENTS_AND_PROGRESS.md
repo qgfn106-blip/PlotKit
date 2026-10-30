@@ -54,7 +54,7 @@
 | D18 | "软件怎么摆"进 `layout.json`，不进 spec | 分组/停靠不是图的一部分 |
 | D19 | 撤销 = 前端 spec 快照栈 | 50 步足够，不引命令模式 |
 | D20 | 菜单栏 + 快捷键 + 右键 | 对齐 netlab 的操作习惯 |
-| D21 | 门槛修正：热重绘 <50 ms、冷启动 <1 s（**2026-10-31 起 mpl 重绘门槛改为 <120 ms，见 §3.6**） | `Plotly.react` 冷启动 ~180 ms，"首帧 <100 ms" 不可达 |
+| D21 | 门槛修正：热重绘 <50 ms、冷启动 <1 s（**2026-10-31 修订**：mpl 单后端下 1200×700×6×20k 实测 **214 ms**，120 ms 未达；已试 `constrained_layout=False`（137 ms 但布局风险）、path simplify / chunksize / PNG compress_level 均无收益。真正达标要「持久 Figure + 艺术家增量更新」，记 P13-09） | `Plotly.react` 冷启动 ~180 ms，"首帧 <100 ms" 不可达 |
 | D22 | GZip + 服务端构图缓存（`X-PlotKit-Cache`） | 同一 spec 反复取图不该重算 |
 | D23 | 时间窗进 spec（`figure.window`），回放游标属 L3 不回写 | 静态导出与交互共用同一份数据口径 |
 | D24 | `kind` 唯一图层类型；`layer.data` 按 kind 声明多键（`z/u/v/labels/values/image/cells`），`REQUIRED_DATA` 表驱动校验 | 不为每种图造新字段 |
@@ -169,6 +169,65 @@
 本文（PK-R 现状 / D 台账 / 进度表 / 经验）→ `../README.md` 的「当前状态」→ netlab 侧**只在 R32 留一行指针**，不复制结论。
 
 
+### 3.9 覆盖率表（`tools/coverage.py` 生成，230 passed 时）
+
+| kind | 维 | mpl 绘制器 | 数据键 | 预设 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| bar | 2 | ✅ | x, y | ✅ | 柱状图 |
+| bar3d | 3 | ✅ | x, y, z | ✅ | 三维柱状 |
+| barbs | 2 | ✅ | x, y, u, v | ✅ | 风羽图（barbs） |
+| barh | 2 | ✅ | x, y | ✅ | 横向柱状 |
+| boxplot | 2 | ✅ | y | ✅ | 箱线图（多列 = 多箱） |
+| broken_barh | 2 | ✅ | y | ✅ | 分段条形（甘特式） |
+| bxp | 2 | ✅ | y | ✅ | 箱线图（由数据算统计量） |
+| contour | 2 | ✅ | z | ✅ | 等值线（可 clabel） |
+| contourf | 2 | ✅ | z | ✅ | 填充等值线 |
+| correlation | 2 | ✅ | z | ✅ | 相关系数矩阵（init-only 聚合） |
+| ecdf | 2 | ✅ | x | ✅ | 经验分布函数 |
+| eventplot | 2 | ✅ | x | ✅ | 事件栅格图 |
+| heatmap | 2 | ✅ | z | ✅ | 热图（z 或 x/y/z） |
+| hexbin | 2 | ✅ | x, y | ✅ | 六边形分箱密度图 |
+| hist | 2 | ✅ | x | ✅ | 直方图（服务端分箱） |
+| hist3d | 3 | ✅ | x, y | ✅ | 三维直方（二维分箱 + 柱） |
+| image | 2 | ✅ | image | ✅ | 图像 / 热图 |
+| line | 2 | ✅ | x, y | ✅ | 折线 / 曲线（时间序列主力） |
+| line3d | 3 | ✅ | x, y, z | ✅ | 三维折线 |
+| marker | 2 | ✅ | — | ✅ | 散点 |
+| pie | 2 | ✅ | labels, values | ✅ | 饼图 |
+| psd | 2 | ✅ | x | ✅ | 功率谱密度 |
+| quiver | 2 | ✅ | x, y, u, v | ✅ | 矢量箭头图 |
+| quiver3d | 3 | ✅ | x, y, z, u, v, w | ✅ | 三维矢量箭头 |
+| scatter3d | 3 | ✅ | x, y, z | ✅ | 三维散点 |
+| specgram | 2 | ✅ | x | ✅ | 时频谱图 |
+| stackplot | 2 | ✅ | x, y | ✅ | 堆叠面积（多行 = 多条序列） |
+| stairs | 2 | ✅ | y | ✅ | 阶梯面积/阶梯线 |
+| stem | 2 | ✅ | x, y | ✅ | 火柴杆图 |
+| step | 2 | ✅ | x, y | ✅ | 阶梯线 |
+| stream3d | 3 | ✅ | x, y, z, u, v, w | ✅ | 三维流线（RK2 积分） |
+| streamplot | 2 | ✅ | x, y, u, v | ✅ | 流线图（需二维网格） |
+| surface | 3 | ✅ | z | ✅ | 三维曲面 |
+| table | 2 | ✅ | cells | ✅ | 表格 |
+| violinplot | 2 | ✅ | y | ✅ | 小提琴图 |
+
+- registry 共 **35** 种；18 种矩阵覆盖 **18/18**
+- 缺绘制器：无
+- 18 种矩阵缺口：无
+
+> 重跑：`PYTHONPATH=src python tools/coverage.py`；CI 用 `--check`（有缺项返回非零）。
+
+### 3.10 plotly 退役清单（D33）
+
+| # | 项 | 状态 |
+| --- | --- | --- |
+| 1 | 页面不再加载 plotly（`index.html` 无 vendor script） | ✅ P13-00 |
+| 2 | 前端渲染改 `<img>` + `/api/render` | ✅ P13-00 |
+| 3 | 自包含导出 `fig.html()` 改内联 mpl SVG（不再内联 bundle） | ✅ P13-07 |
+| 4 | `/api/figure.json` 仅遗留，遇到无 builder 的 kind 跳过而不是 500 | ✅ P13-02 |
+| 5 | 删除 `backends/plotly_backend.py`（603 行）+ `static/vendor/plotly-basic.min.js`（1.1 MB） | ⬜ 待办：需同步删 6 个测试文件里约 100 条 plotly 用例，单列一票（P13-09） |
+| 6 | 删除 `Figure.plotly()` / `self_contained_html()` / `/api/figure.json` | ⬜ 同上 |
+
+> 保留到 P13-09 的原因：`plotly()` 仍是「给浏览器出 {data, layout}」的独立出口，删它要连带改测试与文档口径；按「测试只增不减」的约定，不在收尾票里顺手删。
+
 ## 4. 当前进度
 
 | 阶段 | 内容 | 状态 |
@@ -187,8 +246,8 @@
 | P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
 | P13-05 | boxplot / violinplot / ecdf / hexbin / barh / stackplot / step / stem | ✅ 首批 8 种完成：`tests/test_kinds_stats.py` 14 项，全库 **208 passed**；浏览器四联截图见 §6。**未做**：stairs / broken_barh / eventplot / bxp / psd / specgram / csd / cohere / acorr / xcorr / 频谱族（转 P13-07） |
 | P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 10 项，全库 **218 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
-| P13-07 | 附属能力（colorbar 细化/表格高亮/Science/字体链）+ 本票漏项 | 未开工 |
-| P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
+| P13-07 | 漏项 6 种（stairs/broken_barh/eventplot/bxp/psd/specgram）+ 表格高亮 + MP4 + 自包含导出改内联 SVG | ✅ 完成：`tests/test_kinds_extra.py` 8 项；MP4 走 ffmpeg（无 ffmpeg 时跳过用例）；`fig.html()` 不再内联 plotly |
+| P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **部分完成**：覆盖率 **18/18 + 35 种全部有绘制器**（`tools/coverage.py --check` 退出 0，表见 §3.9）；**性能未达**：1200×700 × 6×20k 实测 **214 ms**（目标 120 ms）；plotly 退役清单见 §3.10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 
@@ -239,7 +298,10 @@
 35. **动画接口是秒级的**：40 帧 / 700×440 首次 6.3 s（每帧 ~150 ms 的 mpl 渲染），必须走 ETag 缓存；前端点按钮后要等首帧，CDP 测试等待时间别设太短（我第一次等 6 s 只看到"没反应"）。
 36. **动画必须锁视窗**：每帧都用 `t_end` 重新渲染时，mpl 会按"当前帧的数据"自动缩放，看起来是整幅图在放大而不是波形生长（评审发现）。`anim_limits()` 先用完整数据取一次范围，所有帧共用。
 37. **`img.onload` 里 revoke 会漏**：并发/连点会覆盖回调，旧 blob URL 永不释放。改成设置新 src 后**立即** revoke 旧的；动画请求加 `state.animBusy` 守卫。
-38. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+38. **`broken_barh` 的产物在 `ax.collections`**（BrokenBarHCollection），不在 `ax.patches`；`eventplot` 同理。
+39. **`psd`/`specgram` 的 `noverlap` 必须 < `NFFT`**：默认值在小 NFFT 下会直接抛 `noverlap must be less than NFFT`，显式传 `nfft // 2` 最稳。
+40. **自包含 HTML 改内联 SVG 后体积不小**：6×1200 点的图约 1 MB（SVG 是逐点路径），比内联 plotly bundle + 数据略小；点特别多时建议导出 PNG。
+41. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 

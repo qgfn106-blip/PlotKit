@@ -143,3 +143,13 @@ def test_render_endpoint_serves_new_kind():
     res = client.get("/api/render", params={"w": 360, "h": 240})
     assert res.status_code == 200
     assert _png_size(res.content) == (360, 240)
+
+
+def test_table_highlight_max_changes_pixels():
+    cells = np.array([[1.0, 9.0], [3.0, 4.0]])
+    fig = pk.figure(size=(4.0, 2.8))
+    fig.add_data("cells", cells, role="table")
+    fig.add("table", {"cells": "cells"})
+    plain = fig.render(width=360, height=240)
+    fig.spec["layers"][0]["style"]["highlight"] = "max"
+    assert fig.render(width=360, height=240) != plain

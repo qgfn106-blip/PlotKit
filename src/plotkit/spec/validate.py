@@ -48,6 +48,13 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     "quiver3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
                  "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
                  "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
+    # P13-07：方法表漏项
+    "stairs": {"y": ("series", "field", "auto")},
+    "broken_barh": {"y": ("field", "series", "auto")},
+    "eventplot": {"x": ("series", "coord", "auto")},
+    "bxp": {"y": ("series", "field", "auto")},
+    "psd": {"x": ("coord", "series", "auto")},
+    "specgram": {"x": ("coord", "series", "auto")},
     # P13-05：统计/信号族
     "boxplot": {"y": ("series", "field", "auto")},
     "violinplot": {"y": ("series", "field", "auto")},
@@ -81,6 +88,8 @@ KNOWN_STYLE_KEYS = {
     "stride", "shade", "length", "normalize",
     # P13-05：统计/信号族
     "where", "gridsize", "widths", "showfliers", "showmeans", "mincnt",
+    # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram
+    "nfft", "fs", "orientation", "lineoffsets", "linelengths", "row", "height", "whis",
 }
 KNOWN_FIGURE_KEYS = {
     "window",

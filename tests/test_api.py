@@ -118,13 +118,15 @@ def test_png_bytes_nonempty():
 
 
 def test_html_is_self_contained():
+    """D33 后自包含导出内联 mpl SVG（不再内联 plotly bundle）。"""
     fig = pk.figure()
     fig.add_plot("line", x=[0, 1], y=[1, 2])
     html = fig.html()
-    assert "plotly.js (basic" in html
-    # 没有任何外链脚本/样式：断网也能打开
+    assert "<svg" in html
+    # 没有任何外链脚本/样式，也没有 plotly：断网也能打开
     assert "<script src=" not in html
     assert "<link rel=\"stylesheet\"" not in html
+    assert "plotly" not in html.lower()
 
 
 def test_set_default_store_switches_proxy():

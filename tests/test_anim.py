@@ -110,3 +110,30 @@ def test_spec_rejects_bad_anim():
     assert not validate_spec(fig.spec, store=fig.store).ok
     fig.spec["figure"]["anim"] = {"frames": 3, "fps": 0}
     assert not validate_spec(fig.spec, store=fig.store).ok
+
+
+def test_animate_mp4_when_ffmpeg_available():
+    """有 ffmpeg 时导出 MP4；没有就跳过（不把环境缺失算成失败）。"""
+    import shutil
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("没有 ffmpeg")
+    fig = _fig(4)
+    payload = fig.animate_mp4(width=240, height=160)
+    assert payload[4:8] == b"ftyp", "MP4 文件头应包含 ftyp box"
+
+
+def test_anim_endpoint_serves_mp4():
+    import shutil
+
+    from fastapi.testclient import TestClient
+
+    from plotkit.server.app import create_app
+
+    if not shutil.which("ffmpeg"):
+        pytest.skip("没有 ffmpeg")
+    client = TestClient(create_app(_fig(3)))
+    res = client.get("/api/anim", params={"w": 200, "h": 140, "fmt": "mp4"})
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "video/mp4"
+    assert client.get("/api/anim", params={"w": 200, "h": 140, "fmt": "x"}).status_code == 400

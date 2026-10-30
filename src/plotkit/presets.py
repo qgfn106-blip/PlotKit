@@ -56,6 +56,14 @@ KIND_PRESETS: dict[str, dict[str, Any]] = {
     "stackplot": {"style": {"opacity": 0.85}, "view": {}},
     "step": {"style": {"where": "pre", "width": 1.6}, "view": {}},
     "stem": {"style": {"width": 1.4}, "view": {}},
+    # P13-07：方法表漏项
+    "stairs": {"style": {"width": 1.6}, "view": {}},
+    "broken_barh": {"style": {"row": 1.0, "height": 0.8}, "view": {"grid": False}},
+    "eventplot": {"style": {"lineoffsets": 1.0, "linelengths": 0.6}, "view": {"grid": False}},
+    "bxp": {"style": {"widths": 0.6, "whis": 1.5}, "view": {}},
+    "psd": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
+    "specgram": {"style": {"nfft": 256, "fs": 1.0, "cmap": "magma", "colorbar": True},
+                 "view": {"grid": False}},
 }
 
 

@@ -189,6 +189,27 @@ def _draw_image(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> 
         ax.figure.colorbar(im, ax=ax, **COLORBAR_KW)
 
 
+def _highlight_cells(table, cells: np.ndarray, style: Mapping[str, Any]) -> None:
+    """表格高亮：`highlight="max"/"min"` 或显式 `[[row, col], …]`（行 0 起，不含表头）。"""
+    spec = style.get("highlight")
+    if not spec:
+        return
+    color = str(style.get("header_color") or "#ffd54f")
+    numeric = np.asarray(cells, dtype=float) if np.issubdtype(np.asarray(cells).dtype, np.number) else None
+    targets: list[tuple[int, int]] = []
+    if isinstance(spec, str) and numeric is not None:
+        idx = int(np.nanargmax(numeric)) if spec == "max" else int(np.nanargmin(numeric))
+        targets = [divmod(idx, numeric.shape[1])]
+    elif isinstance(spec, (list, tuple)):
+        targets = [(int(r), int(c)) for r, c in spec]
+    offset = 1 if table.get_celld() and (0, 0) in table.get_celld() else 0  # 有表头时行号偏移 1
+    for row, col in targets:
+        cell = table.get_celld().get((row + offset, col))
+        if cell is not None:
+            cell.set_facecolor(color)
+            cell.set_alpha(0.45)
+
+
 def _draw_table(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     data = layer.get("data") or {}
     style = layer.get("style") or {}
@@ -203,6 +224,7 @@ def _draw_table(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> 
     table.auto_set_font_size(False)
     table.set_fontsize(float(style.get("fontsize", 10)))
     table.scale(1.0, 1.4)
+    _highlight_cells(table, cells, style)
 
 
 
@@ -746,6 +768,82 @@ def _draw_stem(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> N
     container.stemlines.set_color(color)
     container.stemlines.set_linewidth(float(style.get("width", 1.4) or 1.4))
 
+
+
+# ---------------- P13-07：方法表漏项 ----------------
+
+def _draw_stairs(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    y = _flat(layer, store, "y")
+    if data.get("x"):
+        x = _flat(layer, store, "x")
+        edges = x if x.size == y.size + 1 else np.linspace(x.min(), x.max(), y.size + 1)
+    else:
+        edges = np.arange(y.size + 1, dtype=float)
+    ax.stairs(y, edges, color=str(style.get("color") or color_for(index)),
+              linewidth=float(style.get("width", 1.6) or 1.6),
+              label=layer.get("label") or data.get("y"))
+
+
+def _draw_broken_barh(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    seg = np.atleast_2d(_y_matrix(layer, store))
+    if seg.shape[1] != 2:
+        raise ValueError(f"broken_barh 的 y 必须是 (n, 2) 的 [起点, 宽度]，收到 {seg.shape}")
+    row = float(style.get("row", 1.0) or 1.0)
+    height = float(style.get("height", 0.8) or 0.8)
+    ax.broken_barh([tuple(map(float, s)) for s in seg], (row - height / 2.0, height),
+                   facecolors=str(style.get("color") or color_for(index)),
+                   alpha=float(style.get("opacity", 1.0)))
+
+
+def _draw_eventplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x = _y_matrix(layer, store, "x")
+    rows = [np.ravel(x)] if x.ndim == 1 else [x[i] for i in range(x.shape[0])]
+    ax.eventplot(rows, colors=str(style.get("color") or color_for(index)),
+                 lineoffsets=float(style.get("lineoffsets", 1.0) or 1.0),
+                 linelengths=float(style.get("linelengths", 0.6) or 0.6))
+
+
+def _draw_bxp(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """bxp：先用数据算五数概括，再交给 mpl 的 bxp（保留"可传预算统计量"的语义）。"""
+    style = layer.get("style") or {}
+    cols = _columns(_y_matrix(layer, store))
+    whis = float(style.get("whis", 1.5) or 1.5)
+    color = str(style.get("color") or color_for(index))
+    stats = []
+    for col in cols:
+        q1, med, q3 = (float(v) for v in np.percentile(col, [25, 50, 75]))
+        iqr = q3 - q1
+        lo = float(col[col >= q1 - whis * iqr].min()) if col.size else q1
+        hi = float(col[col <= q3 + whis * iqr].max()) if col.size else q3
+        stats.append({"med": med, "q1": q1, "q3": q3, "whislo": lo, "whishi": hi, "fliers": []})
+    ax.bxp(stats, patch_artist=True, widths=float(style.get("widths", 0.6) or 0.6),
+           boxprops={"facecolor": color, "alpha": 0.35, "edgecolor": color},
+           medianprops={"color": color, "linewidth": 1.6},
+           whiskerprops={"color": color}, capprops={"color": color})
+
+
+def _draw_psd(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x = _flat(layer, store, "x")
+    nfft = int(style.get("nfft", 256) or 256)
+    ax.psd(x, NFFT=nfft, noverlap=nfft // 2, Fs=float(style.get("fs", 1.0) or 1.0),
+           color=str(style.get("color") or color_for(index)),
+           label=layer.get("label") or layer.get("data", {}).get("x"))
+
+
+def _draw_specgram(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x = _flat(layer, store, "x")
+    nfft = int(style.get("nfft", 256) or 256)
+    _, _, _, image = ax.specgram(x, NFFT=nfft, noverlap=nfft // 2,
+                                 Fs=float(style.get("fs", 1.0) or 1.0),
+                                 cmap=str(style.get("cmap") or "magma"))
+    _maybe_colorbar(ax, image, style)
+
 DRAWERS = {
     "line": _draw_line, "marker": _draw_scatter, "bar": _draw_bar,
     "hist": _draw_hist, "pie": _draw_pie, "image": _draw_image, "table": _draw_table,
@@ -758,6 +856,8 @@ DRAWERS = {
     "boxplot": _draw_boxplot, "violinplot": _draw_violinplot, "ecdf": _draw_ecdf,
     "hexbin": _draw_hexbin, "barh": _draw_barh, "stackplot": _draw_stackplot,
     "step": _draw_step, "stem": _draw_stem,
+    "stairs": _draw_stairs, "broken_barh": _draw_broken_barh, "eventplot": _draw_eventplot,
+    "bxp": _draw_bxp, "psd": _draw_psd, "specgram": _draw_specgram,
 }
 
 
@@ -1134,3 +1234,11 @@ reg.register("barh", 2, None, defaults={"width": 0.8}, description="横向柱状
 reg.register("stackplot", 2, None, defaults={}, description="堆叠面积（多行 = 多条序列）")
 reg.register("step", 2, None, defaults={"where": "pre"}, description="阶梯线")
 reg.register("stem", 2, None, defaults={}, description="火柴杆图")
+
+# ---------------- 注册 P13-07 的漏项图层 ----------------
+reg.register("stairs", 2, None, defaults={}, description="阶梯面积/阶梯线")
+reg.register("broken_barh", 2, None, defaults={"row": 1.0, "height": 0.8}, description="分段条形（甘特式）")
+reg.register("eventplot", 2, None, defaults={}, description="事件栅格图")
+reg.register("bxp", 2, None, defaults={"widths": 0.6}, description="箱线图（由数据算统计量）")
+reg.register("psd", 2, None, defaults={"nfft": 256}, description="功率谱密度")
+reg.register("specgram", 2, None, defaults={"nfft": 256}, description="时频谱图")
