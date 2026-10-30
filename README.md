@@ -1,0 +1,181 @@
+# PlotKit
+
+一套 **spec 驱动的绘图层**：Python 侧注册数据、定义呈现，**matplotlib 负责渲染**，网页前端只做集中呈现与编辑。
+
+> **2026-10-31 架构变更（D33）**：渲染统一走 matplotlib，plotly 后端退役（新能力一律 mpl）。交互方式改为「拖动时前端变换 PNG，停手 120 ms 回后端重绘」（D34）。
+> **注意（D37）**：netlab 的原生时间序列/示波器/李萨如/相图与分析面板**保留不删**，PlotKit 与它长期并存——不存在「替换掉旧画布」这一步。
+
+- **一份 spec 一条渲染路径**：matplotlib 出 PNG/SVG，网页呈现与论文出图同一套代码
+- **数据即命名**：`add_data("v_out", arr, unit="V", role="series")`，绘图只引用名字，不搬数组
+- **两种书写习惯**：`fig.add_plot(kind, x=, y=)` / `fig.add_trace({...})` / `ax.plot(x, y)` 三条入口产出**同一份 spec**
+- **零 CDN**：渲染在后端完成，前端不引任何外部脚本，断网可用
+- **三种展示出口**：Jupyter 内联 → PySide6 原生窗口 → 系统浏览器（自动探测，可强制）
+
+> 设计口径见 [docs/DESIGN_v0.md](docs/DESIGN_v0.md)（早期 D1–D23）与 [docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md)（现行 D1–D36，含 D33 架构变更）。
+
+## 安装
+
+```bash
+cd ProjectPoint/PlotKit
+pip install -e ".[server,mpl,dev]"      # 桌面窗口再额外装 .[desktop]（PySide6）
+```
+
+## 三分钟上手
+
+```python
+import numpy as np
+import plotkit as pk
+
+t = np.linspace(0, 1, 2001)
+fig = pk.figure(title="RC 充电", theme="netlab-dark")
+
+fig.add_data("t", t, unit="s", role="coord")
+fig.add_data("v_out", 5 * (1 - np.exp(-t / 0.2)), unit="V", role="series")
+
+fig.add_plot("line", x="t", y="v_out", label="V_out")
+fig.set_view(0, xlabel="t / s", ylabel="V / V")
+fig.show()          # 自动选出口；fig.show(sink="browser") 可强制
+```
+
+同样的图，三种写法：
+
+```python
+fig.add_plot("line", x="t", y="v")          # 1) 数据名
+fig.add_plot("line", x=t, y=v)              # 2) 直接给数组（自动注册成匿名单）
+fig, (ax,) = pk.subplots(1, 1)              # 3) matplotlib 习惯
+ax.plot(t, v); ax.set_xlabel("t / s")
+```
+
+## 常用出口
+
+| 出口 | 调用 | 说明 |
+|---|---|---|
+| 浏览器 | `fig.show(sink="browser")` | 起本地服务，开默认浏览器，阻塞到 Ctrl+C |
+| 原生窗口 | `fig.show(sink="window")` | PySide6 + QtWebEngine；VS Code 里跑不会跳浏览器 |
+| Notebook | `fig.show()` | 有 IPython 时自动内联 iframe |
+| 静态图 | `fig.savefig("x.png", dpi=200)` | matplotlib 后端，论文/报告用 |
+| 单文件 HTML | `fig.html()` | 内联 plotly bundle，可直接发给别人 |
+
+> 需求 · 决策 · 进度 · 经验（单一入口）：[docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md)
+
+## 目录
+
+```
+src/plotkit/
+├─ spec/        model（spec 数据类） / validate（一次收齐全部错误） / io（原子写、逐字节稳定）
+├─ store/       registry（命名数据集、append/replace、history） / reclaim（引用计数+待回收区）
+│                downsample（min-max 包络、LTTB） / disk（分块 float32 落盘）
+├─ backends/    registry（LayerSpec + register） / plotly_backend / mpl_backend
+├─ api/         native（Figure） / mpl_proxy（ax.plot 风格代理）
+├─ server/      app（REST + 二进制序列） / live（后台线程 uvicorn） / assets（vendor bundle）
+├─ runtime/     sink（三出口探测） / window（QtWebEngine 窗口）
+└─ static/      index.html / app.css / app.js（零依赖手写）
+```
+
+## 数据层约定
+
+- `add_data(name, values, unit="", role="auto", tags=(), life="append")`
+- `role`：`coord`（x/时间）/ `series`（y）/ `field`（网格）/ `table` / `image`；绘图绑定时校验，不匹配直接报错
+- `life="append"`：`push()` 追加，历史可回看；`life="replace"`：只保最新（实时量用）
+- 超过热窗/配额走 `Reclaimer` → 待回收区（可撤销），不会静默丢数据
+- 库只管**可视化依赖**的数据；业务数据仍由你的程序自己保存
+
+## 测试
+
+```bash
+PYTHONPATH=src python -m pytest -q     # 105 passed
+```
+
+真实渲染自检（需要本机 Edge/Chrome 或 PySide6）：
+
+```bash
+PYTHONPATH=src python tools/dev_serve.py --port 8791     # 起一个带样例数据的页面
+```
+
+## 论文级出图（v0.2）
+
+同一份 spec，浏览器看结构、matplotlib 出正式图。已支持：
+
+- 双对数轴 + `view.loglabels="plain-x"`（对数轴直接标 2/4/6/8/10，而不是 2×10⁰）
+- 方向误差棒（`data.error_x/y`，对称/非对称，`style.error.width` 是端帽宽度）
+- 内侧刻度 + 四周镜像 + 次刻度（`view.ticks={inside,mirror,minor}`）
+- 逐级字号（`figure.fonts={title,axis,tick,legend,annotation}`）
+- 数学排版：`$R_G$`、`$\Delta	heta^2$` 这类写法在 mpl 走真正的 mathtext，在浏览器降级成 `<sub>/<sup>`
+- 装饰：斜率参考三角、箭头、线段、矩形、路径（`fig.add_shape(...)`，不参与 autoscale）
+- 内嵌子图：`fig.add_inset(1, parent=0, rect=(x,y,w,h))`，浏览器里**直接拖框移动、拖右下角改大小**，松手写回 spec
+- 图例按 `layer.legend` 过滤（拟合线可以不进图例）
+
+完整样例（论文 panel b）：
+
+```bash
+PYTHONPATH=src python examples/paper_panel_b.py            # 出 docs/paper_panel_b.png
+PYTHONPATH=src python examples/paper_panel_b.py --serve    # 浏览器交互版
+```
+
+![paper panel b](docs/paper_panel_b.png)
+
+## 交互与布局（v0.2）
+
+- **菜单栏**：文件（保存 spec.json / 导出 PNG / 重载）、编辑（撤销 / 重做 / 复制图层 / 删除图层）、插入（新建图层 / 新建分组 / 加内嵌图）、视图（收面板 / 切主题 / 展开全部）。
+- **快捷键**：`Ctrl+Z` 撤销、`Ctrl+Y`（或 `Ctrl+Shift+Z`）重做、`Ctrl+D` 复制图层、`Delete` 删除、`Ctrl+S` 存 spec.json、`Ctrl+E` 导 PNG、`Esc` 收菜单。
+- **图层分组**：插入 → 新建分组，把图层行拖到分组标题上即可归组；双击标题改名，`✕` 解散。
+- **布局持久化**：面板宽度、各分组折叠状态、展开的图层、图层分组存在 **`layout.json`**（`GET/PUT /api/layout`，原子写，上限 64 KB）。归属规则：spec 决定"图长什么样"，layout 决定"软件怎么摆"。
+- **撤销语义**：前端保存最近 50 次**已提交**的 spec 快照，撤销/重做都是整份 PUT 回后端，不引入新协议。
+
+## 嵌进宿主程序（netlab 已在用）
+
+PlotKit 可以当成一个**子应用**挂到任何 FastAPI 程序上，宿主只负责往里推数据：
+
+```python
+from plotkit.server.app import create_app
+app.mount("/plotkit", create_app(figure))        # 注意：要挂在 /static 之后
+```
+
+三条约定（都踩过坑，改代码前先读）：
+
+1. **前端全部用相对路径**（`<base href="./">` + `api/...`），否则挂到 `/plotkit` 后绝对路径会打到宿主的 `/api`。
+2. **静态资源的 `no-store` 中间件要按 `"/static/" in path` 判**，不要用 `startswith("/static")`——挂载后 `request.url.path` 是 `/plotkit/static/app.js`。
+3. **`?embed=1`** 是给宿主内嵌用的紧凑形态：顶栏收纳品牌与标题、菜单不换行、右侧面板默认收起、无横向滚动条。
+
+netlab 里的用法（`NetlabHome/netlab/plotkit_bridge.py`）：每 200 ms 拉一次仿真增量帧，把每个探针通道写成命名数据集（`n:<节点>:<字段>` → `signal·voltage`），新通道自动建图层，场景重置时清空历史重建；前端是「分析 → 绘图」子页签 + 可**停靠/分离**的非模态浮窗（`/plotkit/?embed=1`）。
+
+## 时间窗与回放（v0.3）
+
+对齐 netlab 老画布的那条工具栏，做成了 PlotKit 自己的能力：
+
+| 控件 | 行为 | 归属 |
+|---|---|---|
+| 时间窗（秒） | 只保留最近 N 秒的数据再构图（不是"缩放"，是真的少传/少画） | spec `figure.window` |
+| 回放滑杆 | 游标往回拖 → `GET /api/figure.json?t=<游标>`，后端截出「游标往回 N 秒」 | 前端 L3，不进 spec |
+| ▶ / 速度 / 循环 | 速度 = 每秒多少帧，一帧 = 一个采样点；按真实时间前进，重绘被降频也不会变慢 | 前端 L3 |
+| 回到实时 | 游标置空，重新跟着最新数据走 | 前端 L3 |
+| 清空 | `POST /api/clear`：图层清空、数据集归零（宿主继续推就重新长出来） | 后端 |
+
+```python
+fig.window(5.0)                 # 只显示最近 5 秒；fig.window(None) = 全部历史
+fig.plotly(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
+```
+
+`GET /api/meta` 会带 `time: {min, max, count}`（回放滑杆的范围与帧数）和 `window`。
+
+## 性能（2026-10-30 实测，28 数据集 / 11 图层 / ~1.4k 点）
+
+| 指标 | 实测 | 说明 |
+|---|---|---|
+| 冷启动首帧 | **862 ms** | 页面打开到图出现，含 plotly-basic 1.1 MB 解析 + 首次排版 |
+| 热重绘（改 spec 后） | **14–23 ms** | 第 2 次起 `Plotly.react` 的增量开销 |
+| 服务端构图 | 65 ms（未命中）→ 4.8 ms（命中） | `GET /api/figure.json` 带 `X-PlotKit-Cache: hit/miss` |
+| 首帧里的后端占比 | 65 ms / 862 ms | 瓶颈在浏览器引擎冷启动，不在 Python 侧 |
+
+> 原定「首帧 <100 ms」在 plotly 上不可达：光 `Plotly.react` 冷启动就 ~180 ms。改为 **热重绘 <50 ms + 冷启动 <1 s** 作为 D15 的实际门槛（见 docs/DESIGN_v0.md）。
+
+## 当前状态
+
+- ✅ P0 spec / P1 store / P2 双后端（plotly 已退役）/ P3 API + 服务 + 前端（124 项测试，真实浏览器渲染已核对）
+- ✅ P13-00 mpl 渲染管线：`/api/render`（像素尺寸 + xlim/ylim + 回放游标）、ETag/304 缓存、前端图像层（拖动变换 + 停手 120 ms 重绘 + hover 读数）、presets / `fig.add()` / strict（165 项测试；1200×700×6×20k 实测 ~310 ms，目标 <120 ms 待优化）
+- ✅ v0.2 论文级能力：误差棒、对数轴朴素标签、刻度样式、逐级字号、装饰、内嵌子图 + 拖拽
+- ✅ v0.2 交互：撤销/重做、图层分组、菜单栏 + 快捷键、`layout.json`、构图缓存 + GZip（**115 项测试**）
+- ✅ P5 接 netlab：分析组「绘图」子页签 + 可停靠/分离内嵌窗口（netlab 侧 **347 项测试**）
+- ⏳ P4 延迟：热重绘 14–23 ms，冷启动 862 ms（门槛已改为「热重绘 <50 ms + 冷启动 <1 s」）
+- ⏳ P6 删旧：netlab 的时间序列 canvas 仍在，等 PlotKit 补齐回放/预计算/多画布后再删
+- ⏳ 已实现 **11/18** 种 kind：`line / scatter(marker) / bar` + `hist / pie / image / table` + `heatmap / contour / contourf / correlation`（P13-01/02 完成）；剩余矢量场与 3D 七种见 **[docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md) §3**（票单 P13-00…08）

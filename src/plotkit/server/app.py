@@ -1,0 +1,304 @@
+"""HTTP 服务：把一份 Figure 暴露成浏览器可用的页面 + JSON/binary 接口。
+
+接口一览（docs/DESIGN_v0.md §6）：
+  GET  /                     页面
+  GET  /api/meta             版本 / 可用 kind / 主题
+  GET  /api/spec             当前 spec
+  PUT  /api/spec             全量替换 spec（D10：默认回写方式）
+  GET  /api/figure.json      plotly 图对象 {data, layout}
+  GET  /api/datasets         命名数据集目录（前端下拉用）
+  GET  /api/series           float32 二进制列（ArrayBuffer 通道）
+  GET  /api/png              matplotlib 渲染的静态图
+  GET  /api/layout           界面布局（面板宽/折叠/分组），属于"软件怎么摆"
+  PUT  /api/layout           全量替换布局
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import struct
+import tempfile
+from collections import OrderedDict
+from pathlib import Path
+from typing import Any, Mapping
+
+import numpy as np
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+
+from ..backends import registry as reg
+from ..spec.validate import SpecError, validate_spec
+from ..store.downsample import minmax_envelope
+from .assets import STATIC_DIR
+
+MAGIC = b"PK01"
+
+
+def _binary_series(x: np.ndarray, y: np.ndarray, meta: Mapping[str, Any]) -> bytes:
+    """帧格式：magic(4) + meta_len(4) + npoints(4) + meta json + float32 交错 (x,y)。"""
+    meta_bytes = json.dumps(dict(meta), ensure_ascii=False).encode("utf-8")
+    pairs = np.empty((x.size, 2), dtype="<f4")
+    pairs[:, 0] = x.astype(np.float32, copy=False)
+    pairs[:, 1] = y.astype(np.float32, copy=False)
+    header = MAGIC + struct.pack("<II", len(meta_bytes), int(x.size))
+    return header + meta_bytes + pairs.tobytes(order="C")
+
+
+MAX_LAYOUT_BYTES = 64 * 1024
+
+#: 渲染结果缓存（D35）：键 = spec 摘要 + 数据集版本 + 尺寸 + 视窗 + 格式
+_RENDER_CACHE: "OrderedDict[tuple, tuple[bytes, str, object]]" = OrderedDict()
+_RENDER_CACHE_MAX = 8
+
+
+def _clamp(value: int, lo: int, hi: int) -> int:
+    return max(lo, min(hi, int(value)))
+
+
+def _parse_limits(raw: str | None) -> tuple[float, float] | None:
+    if not raw:
+        return None
+    parts = [p for p in str(raw).replace(" ", "").split(",") if p]
+    if len(parts) != 2:
+        raise HTTPException(400, f"视窗参数必须是 \"lo,hi\"，收到 {raw!r}")
+    lo, hi = float(parts[0]), float(parts[1])
+    if not (lo < hi):
+        raise HTTPException(400, f"视窗下界必须小于上界，收到 {raw!r}")
+    return lo, hi
+
+
+def _etag(payload: bytes) -> str:
+    return '"' + hashlib.sha1(payload).hexdigest()[:16] + '"'
+
+
+
+def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = json.dumps(dict(payload), ensure_ascii=False, indent=2, sort_keys=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".layout-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path | None = None) -> FastAPI:
+    """`figure` 是 plotkit.api.native.Figure。"""
+    app = FastAPI(title=title or "PlotKit", docs_url=None, redoc_url=None)
+    # figure.json 动辄几十 KB，压缩后 ~1/10；本地回环也受益于解析前的字节数
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+    # 开发期绕开浏览器缓存：静态资源一律 no-store（否则改完 JS 刷新还是旧页面）
+    @app.middleware("http")
+    async def _no_store(request, call_next):
+        response = await call_next(request)
+        # 挂在子路径（如 /plotkit/）时 request.url.path 会带前缀，不能只判 startswith("/static")
+        path = request.url.path
+        if "/static/" in path or path.endswith("/static") or path.endswith("/"):
+            response.headers["Cache-Control"] = "no-store, max-age=0"
+        return response
+
+
+    @app.get("/")
+    def index() -> FileResponse:
+        page = STATIC_DIR / "index.html"
+        if not page.exists():
+            raise HTTPException(500, "缺少 static/index.html")
+        return FileResponse(page, media_type="text/html; charset=utf-8")
+
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    @app.get("/api/meta")
+    def meta() -> dict[str, Any]:
+        fig_cfg = figure.spec.get("figure", {})
+        return {
+            "app": "PlotKit",
+            "spec_version": figure.spec.get("spec_version"),
+            "title": title or fig_cfg.get("title"),
+            "kinds": reg.describe(),
+            "themes": ["default", "netlab-dark"],
+            "datasets": len(figure.store),
+            "warnings": figure.warnings,
+            "window": fig_cfg.get("window"),
+            "time": _time_info(),  # 回放滑杆要用的范围/样本数
+        }
+
+    @app.get("/api/spec")
+    def get_spec() -> JSONResponse:
+        return JSONResponse(figure.spec)
+
+    @app.put("/api/spec")
+    async def put_spec(request: Request) -> JSONResponse:
+        payload = await request.json()
+        report = validate_spec(payload, store=figure.store, known_kinds=reg.known_kind_names())
+        if not report.ok:
+            return JSONResponse({"ok": False, **report.as_dict()}, status_code=400)
+        figure.spec = payload
+        return JSONResponse({"ok": True, "warnings": [i.as_dict() for i in report.warnings]})
+
+    # 构图缓存：spec 或任何数据集版本变化才重算（revision 是由对象身份 + 版本号拼的便宜指纹）
+    cache: dict[tuple, tuple[tuple, dict[str, Any]]] = {}
+
+    @app.get("/api/figure.json")
+    def figure_json(pixels: int | None = None, per_pixel: float = 2.0, t: float | None = None) -> Any:
+        """t = 回放游标（秒）；配合 figure.window 就能截出"某时刻往回 N 秒"这一段。"""
+        key = (pixels, per_pixel, t)
+        try:
+            revision = figure.revision
+            hit = cache.get(key)
+            if hit and hit[0] == revision:
+                payload = hit[1]
+            else:
+                payload = figure.plotly(pixels=pixels, per_pixel=per_pixel, t_end=t)
+                cache[key] = (revision, payload)
+                if len(cache) > 8:  # 只留最近几种像素宽/游标的构图
+                    cache.pop(next(iter(cache)))
+        except SpecError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        body = JSONResponse(payload)
+        body.headers["X-PlotKit-Cache"] = "hit" if hit and hit[0] == revision else "miss"
+        return body
+
+    def _time_info() -> dict[str, Any]:
+        lo, hi = figure.time_bounds()
+        count = 0
+        for name in figure.store.names():
+            if figure.store.meta(name).get("role") == "coord":
+                count = max(count, int(figure.store.meta(name).get("length") or 0))
+        return {"min": lo, "max": hi, "count": count}
+
+    @app.post("/api/clear")
+    def clear_history() -> dict[str, Any]:
+        """清空轨迹：跟老画布的「清空轨迹」对齐——图层和数据都归零，宿主程序继续推就重新长出来。"""
+        import numpy as np
+
+        for name in list(figure.store.names()):
+            meta = figure.store.meta(name)
+            figure.store.add(name, np.zeros(0, dtype="float64"),
+                             unit=meta.get("unit", ""), role=meta.get("role", "series"),
+                             life=meta.get("life", "append"), overwrite=True)
+        figure.clear()
+        cache.clear()
+        return {"ok": True, "datasets": len(figure.store)}
+
+    @app.get("/api/datasets")
+    def datasets() -> dict[str, Any]:
+        return figure.store.catalog()
+
+    @app.get("/api/series")
+    def series(
+        x: str,
+        y: str,
+        i0: int = 0,
+        i1: int = -1,
+        pixels: int | None = None,
+        per_pixel: float = 2.0,
+    ) -> Response:
+        try:
+            xv = np.asarray(figure.store.values(x)).ravel().astype(float)
+            yv = np.asarray(figure.store.values(y)).ravel().astype(float)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        stop = None if i1 < 0 else min(i1, xv.size)
+        xv, yv = xv[i0:stop], yv[i0:stop]
+        if pixels:
+            xv, yv = minmax_envelope(xv, yv, pixels, per_pixel=per_pixel)
+        meta = {"x": x, "y": y, "i0": i0, "i1": (stop if stop is not None else int(xv.size))}
+        return Response(content=_binary_series(xv, yv, meta), media_type="application/octet-stream")
+
+    layout_file = Path(layout_path) if layout_path else Path.cwd() / "layout.json"
+
+    @app.get("/api/layout")
+    def get_layout() -> JSONResponse:
+        try:
+            return JSONResponse(json.loads(layout_file.read_text(encoding="utf-8")))
+        except (FileNotFoundError, json.JSONDecodeError):
+            return JSONResponse({})
+
+    @app.put("/api/layout")
+    async def put_layout(request: Request) -> JSONResponse:
+        raw = await request.body()
+        if len(raw) > MAX_LAYOUT_BYTES:
+            raise HTTPException(413, f"layout 超过 {MAX_LAYOUT_BYTES} 字节")
+        try:
+            payload = json.loads(raw.decode("utf-8") or "{}")
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(400, f"layout 不是合法 JSON: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(400, "layout 顶层必须是对象")
+        _write_json_atomic(layout_file, payload)
+        return JSONResponse({"ok": True, "path": str(layout_file)})
+
+    @app.get("/api/render")
+    def render(
+        request: Request,
+        w: int = 900,
+        h: int = 520,
+        dpi: int = 100,
+        fmt: str = "png",
+        xlim: str | None = None,
+        ylim: str | None = None,
+        t: float | None = None,
+    ) -> Response:
+        """按像素尺寸渲染（D33/D34）：网页呈现的唯一图片出口。
+
+        - 支持 `xlim/ylim` 覆盖视窗（前端缩放/平移停手后带新范围来重绘）；
+        - 同一 spec + 同一视窗走 ETag，命中返回 304；
+        - `X-PlotKit-Render: hit|miss` 便于前端/验收区分。
+        """
+        fmt = (fmt or "png").lower()
+        if fmt not in ("png", "svg"):
+            raise HTTPException(400, f"不支持的格式 {fmt!r}（png / svg）")
+        width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
+        xr, yr = _parse_limits(xlim), _parse_limits(ylim)
+        key = (figure.revision, width, height, dpi, fmt, xr, yr, t)
+
+        cached = _RENDER_CACHE.get(key)
+        hit = cached is not None
+        if cached is None:
+            try:
+                payload, limits = figure.render(width=width, height=height, dpi=dpi, fmt=fmt,
+                                                xlim=xr, ylim=yr, with_limits=True, t_end=t)
+            except SpecError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except Exception as exc:  # noqa: BLE001 - 渲染失败直接回给前端看
+                raise HTTPException(500, f"matplotlib 渲染失败: {exc}") from exc
+            tag = _etag(payload)
+            _RENDER_CACHE[key] = (payload, tag, limits)
+            while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
+                _RENDER_CACHE.popitem(last=False)
+        else:
+            payload, tag, limits = cached
+            _RENDER_CACHE.move_to_end(key)
+
+        headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
+                   "X-PlotKit-Render": "hit" if hit else "miss"}
+        if limits:
+            headers["X-PlotKit-Xlim"] = f"{limits['xlim'][0]:.6g},{limits['xlim'][1]:.6g}"
+            headers["X-PlotKit-Ylim"] = f"{limits['ylim'][0]:.6g},{limits['ylim'][1]:.6g}"
+            headers["X-PlotKit-Box"] = ",".join(f"{v:.5f}" for v in limits["box"])
+            headers["X-PlotKit-Px"] = f"{limits['px'][0]},{limits['px'][1]}"
+            if limits.get("slots"):
+                headers["X-PlotKit-Axes"] = ";".join(
+                    f"{s['slot']}," + ",".join(f"{v:.5f}" for v in s["box"]) for s in limits["slots"])
+        if request.headers.get("if-none-match") == tag:
+            return Response(status_code=304, headers=headers)
+        media = "image/png" if fmt == "png" else "image/svg+xml"
+        return Response(content=payload, media_type=media, headers=headers)
+
+    @app.get("/api/png")
+    def png(dpi: int | None = None) -> Response:
+        try:
+            payload = figure.png(dpi=dpi)
+        except Exception as exc:  # noqa: BLE001 - 直接回给前端看
+            raise HTTPException(500, f"matplotlib 渲染失败: {exc}") from exc
+        return Response(content=payload, media_type="image/png")
+
+    return app
