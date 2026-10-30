@@ -337,3 +337,4 @@
 - `docs/p13_vector.png`：P13-03 矢量场（quiver 按模长上色 + streamplot，各带 colorbar）
 - `docs/p13_3d.png`：P13-04 3D 四联（surface / line3d / scatter3d / hist3d）
 - `docs/p13_stats.png`：P13-05 统计族四联（boxplot / violinplot / hexbin+colorbar / stackplot）
+- `docs/p13_gaps.png`：P13-09 方法级补齐四联（tricontourf / voxels / magnitude_spectrum / trisurf）
