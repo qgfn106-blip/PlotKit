@@ -28,6 +28,14 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     "contour": {"z": ("field", "image", "auto")},
     "contourf": {"z": ("field", "image", "auto")},
     "correlation": {"z": ("field", "image", "auto")},
+    # P13-03：矢量场（x/y 可为 2D 网格，也可为等长 1D）
+    "quiver": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
+               "u": ("series", "field", "auto"), "v": ("series", "field", "auto")},
+    "streamplot": {"x": ("coord", "series", "field", "auto"),
+                   "y": ("coord", "series", "field", "auto"),
+                   "u": ("field", "series", "auto"), "v": ("field", "series", "auto")},
+    "barbs": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
+              "u": ("series", "field", "auto"), "v": ("series", "field", "auto")},
 }
 
 KNOWN_VIEW_KEYS = {
@@ -41,6 +49,8 @@ KNOWN_STYLE_KEYS = {
     "vmin", "vmax", "fontsize", "header_color",
     # P13-02：场类
     "levels", "labels", "shading",
+    # P13-03：矢量场
+    "scale", "density", "arrowsize", "color_by", "shaft", "key",
 }
 KNOWN_FIGURE_KEYS = {
     "window",

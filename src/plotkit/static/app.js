@@ -186,7 +186,7 @@ function makeLayerCard(layer, index) {
   head.className = "head";
   head.innerHTML = `
     <span class="dot" style="background:${layer.style.color || "var(--accent)"}"></span>
-    <span class="name">${layer.label || layer.data.z || layer.data.y || layer.data.values || layer.data.image || layer.data.cells || layer.data.x || KIND_LABEL[layer.kind] || layer.kind}</span>
+    <span class="name">${layer.label || layer.data.z || layer.data.u || layer.data.y || layer.data.values || layer.data.image || layer.data.cells || layer.data.x || KIND_LABEL[layer.kind] || layer.kind}</span>
     <span class="kindtag">${KIND_LABEL[layer.kind] || layer.kind}</span>
     <span class="sub">槽 ${layer.subplot}</span>
     <span class="caret" title="展开/收起参数">⌄</span>

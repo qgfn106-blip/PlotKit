@@ -172,10 +172,10 @@ fig.plotly(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
 ## 当前状态
 
 - ✅ P0 spec / P1 store / P2 双后端（plotly 已退役）/ P3 API + 服务 + 前端（124 项测试，真实浏览器渲染已核对）
-- ✅ P13-00 mpl 渲染管线：`/api/render`（像素尺寸 + xlim/ylim + 回放游标）、ETag/304 缓存、前端图像层（拖动变换 + 停手 120 ms 重绘 + hover 读数）、presets / `fig.add()` / strict（165 项测试；1200×700×6×20k 实测 ~310 ms，目标 <120 ms 待优化）
+- ✅ P13-00 mpl 渲染管线：`/api/render`（像素尺寸 + xlim/ylim + 回放游标）、ETag/304 缓存、前端图像层（拖动变换 + 停手 120 ms 重绘 + hover 读数）、presets / `fig.add()` / strict（180 项测试；1200×700×6×20k 实测 ~310 ms，目标 <120 ms 待优化）
 - ✅ v0.2 论文级能力：误差棒、对数轴朴素标签、刻度样式、逐级字号、装饰、内嵌子图 + 拖拽
 - ✅ v0.2 交互：撤销/重做、图层分组、菜单栏 + 快捷键、`layout.json`、构图缓存 + GZip（**115 项测试**）
 - ✅ P5 接 netlab：分析组「绘图」子页签 + 可停靠/分离内嵌窗口（netlab 侧 **347 项测试**）
 - ⏳ P4 延迟：热重绘 14–23 ms，冷启动 862 ms（门槛已改为「热重绘 <50 ms + 冷启动 <1 s」）
 - ⏳ P6 删旧：netlab 的时间序列 canvas 仍在，等 PlotKit 补齐回放/预计算/多画布后再删
-- ⏳ 已实现 **11/18** 种 kind：`line / scatter(marker) / bar` + `hist / pie / image / table` + `heatmap / contour / contourf / correlation`（P13-01/02 完成）；剩余矢量场与 3D 七种见 **[docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md) §3**（票单 P13-00…08）
+- ⏳ **18 种里已实现 11 种**（line/scatter/bar、hist/pie/image/table、heatmap/contour、quiver/streamplot），另有 3 种附加 kind（contourf/correlation/barbs）；剩余 3D 七种见 **[docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md) §3**（票单 P13-00…08）

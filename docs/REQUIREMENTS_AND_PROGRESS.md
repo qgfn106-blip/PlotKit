@@ -23,7 +23,7 @@
 | **PK-R08** | 「新功能完全实现，就要能准确将原方法删去」「UI 与软件 UI 相兼容，并且可自定义 UI」 | 完成即删旧的等价迁移；外观级 + 布局级可自定义（`theme` + `layout.json`） | 部分：能力已对齐中；**旧 canvas 与分析面板不删**（2026-10-31 用户决定，D37） |
 | **PK-R09** | 「我在 vs code 运行程序时，能弹出窗口，而不是直接跳到浏览器去」 | `show()` 三级 sink：inline → window（PySide6 + QtWebEngine）→ browser | 完成（`runtime/sink.py`、`runtime/window.py`） |
 | **PK-R10** | 「netlab 内部做可分离的内嵌窗口」「补齐老画布能力」 | 停靠 ⇄ 浮出两种形态；时间窗/回放/播放/清空/信号筛选对齐老 canvas | 完成（P12-05、P12-06） |
-| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **进行中**：`registry.kinds()` 现为 11 种（line/marker/bar + hist/pie/image/table + heatmap/contour/contourf/correlation），11/18 |
+| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **进行中**：`registry.kinds()` **18 种里完成 11 种**（line / scatter(marker) / bar / hist / pie / image / table / heatmap / contour / quiver / streamplot，见 §3.3），另有 3 种附加 kind（`contourf` / `correlation` / `barbs`），registry 共 14 种 |
 | **PK-R12** | 「以及 matplotlib API 中所有的绘图功能」 | 以 `Axes` 绘图方法为全集（约 55 个），逐个给出归属：双后端 / mpl 兜底 / 不做 | **未盘点**：归属表见 §3.4 |
 | **PK-R13** | 「按照 multiplotter 中的逻辑进行预设计与编写程序」 | 预设表、分发别名、透传白名单、严格模式、`init()` 全局样式、`style_scope`、`register_layer` 契约 | 仅 `reg.register` 有雏形（无 presets/passthrough/strict） |
 | **PK-R14** | 「并且可自己优化」 | 允许偏离原实现：服务端分箱/相关矩阵、重绘缓存与 ETag、按像素宽度抽稀、节流刷新 | 部分已有（D22 缓存、min-max 抽稀） |
@@ -111,7 +111,7 @@
 | heatmap | 2D | z,x,y | pcolormesh / imshow + colorbar | ✅ P13-02 |
 | contour / contourf | 2D | z,x,y,levels | contour / contourf + clabel | ✅ P13-02 |
 | correlation（别名 corr / correlation_matrix） | 2D | 多序列 → 矩阵 | imshow + colorbar + 列名刻度 | ✅ P13-02 |
-| quiver / streamplot | 2D | x,y,u,v | quiver / streamplot | P13-03 |
+| quiver（`key=True` 出 quiverkey）/ streamplot / barbs | 2D | x,y,u,v | quiver / streamplot / barbs | ✅ P13-03 |
 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d | 3D | x,y,z(,u,v,w) | plot_surface / plot / scatter / bar3d / hist3d / quiver | P13-04 |
 | stream3d | 3D | x,y,z,u,v,w | 沿流线积分后 plot3D（mpl 无原生 stream3d） | P13-04 |
 
@@ -183,7 +183,8 @@
 | P13-00 | 基建：mpl 渲染管线（`/api/render`）/ ETag 缓存 / 前端图像层（变换+停手重绘）/ hover 读数 / presets / `fig.add()` / passthrough+strict / `init()` | **功能完成，性能未达标**：13 项新测试（`tests/test_render.py`）；1200×700 × 6 通道 × 20k 点实测 **~310 ms**（目标 <120 ms）；**浏览器已实测**（见 §6）：滚轮缩放 → `state.view` 更新 → 120 ms 后服务端按新 xlim 重绘并换图，`transform` 复位 |
 | P13-01 | hist / pie / image / table（服务端分箱、矩阵/表格数据键） | ✅ 完成：`tests/test_kinds_basic.py` 14 项，全库 **165 passed**；四种都出非空白 PNG；hist 与 `np.histogram` 逐箱相等；浏览器截图见 §6 |
 | P13-02 | heatmap / contour / contourf / correlation | ✅ 完成：`tests/test_kinds_field.py` 14 项，全库 **165 passed**；相关矩阵与 `np.corrcoef` 差 <1e-12；浏览器截图见 §6 |
-| P13-03…04 | 矢量场 → 3D 七种 | 未开工 |
+| P13-03 | quiver（含 quiverkey）/ streamplot / barbs | ✅ 完成：`tests/test_kinds_vector.py` 15 项，全库 **180 passed**；vmin/vmax、纯色流线、color_by 白名单均已封口；浏览器截图见 §6 |
+| P13-04 | 3D 七种 | 未开工 |
 | P13-05…07 | 统计/信号族（mpl 兜底）、动画、附属能力（colorbar/表格/Science/字体） | 未开工 |
 | P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
 
@@ -216,7 +217,12 @@
 15. **`contour(levels=N)` 的 N 只是"建议值"**：mpl 用 MaxNLocator 取整，传 7 可能得到 9 条线。要精确控制就传**显式列表** `levels=[-1,-0.5,0,0.5,1]`；测试也应断言列表相等，而不是数个数。
 16. **同一个键在不同 kind 里可能既是数据又是样式**：`labels` 在 pie 里是数据集名、在 contour 里是布尔 `labels=True`。`fig.add()` 现在按 `REQUIRED_DATA` 判定：该 kind 必需的键才是数据，其余交给样式白名单，否则 `labels=True` 会被当数组注册并抛 `TypeError`。
 17. **plotly 遗留出口要能容忍新 kind**：`/api/figure.json` 遇到没有 builder 的图层原本直接 500（`kind=heatmap 没有浏览器后端`）。D33 后它只是遗留路径，改成跳过该图层、返回 200，避免旧调用方被新功能带崩。
-18. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+18. **quiver 的 `width` 不是线宽**：它是"箭杆宽度 = N 个 axes 宽度"，直接复用通用 `style["width"]`（1.6）会让每个箭头变成覆盖全图的色块——2026-10-31 实际踩到，整幅图糊成渐变。箭杆用独立键 `shaft`（默认 0.0035）。
+19. **quiver 不要依赖 mpl 的自动缩放**：`angles="xy"` 下 auto-scale 按 axes 宽度归一，网格一密箭头就长到糊住。显式给 `scale` 且 `scale_units="xy"`，用「中位箭头 ≈ 跨度 6%」反算（`quiver_scale()`），换分辨率也不变形。
+20. **quiver 没有 `arrowsize`**（那是 streamplot 的参数），要用 `headwidth/headlength/headaxislength` 换算；传错会抛 `AttributeError: Quiver.set() got an unexpected keyword argument 'arrowsize'`。
+21. **`quiver`/`barbs`/`streamplot` 都不吃 `vmin/vmax` 关键字**：要传 `norm=Normalize(vmin, vmax)`，否则报 `AttributeError: Quiver.set() got an unexpected keyword argument 'vmin'`。色条范围与箭头颜色要一起改，别只改色条。
+22. **纯色 vs 按值上色要互斥**：`color="#f00"` 时不能再传 `cmap`，也不能加 colorbar——否则箭头是单色、色条画的是模长，两者对不上，读者会被误导。
+23. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 
@@ -228,3 +234,4 @@
 - `docs/p13_render.png`：mpl 渲染管线在浏览器里的样子（双子图 + 右栏，2026-10-31）
 - `docs/p13_kinds.png`：P13-01 四种图层同页（hist / pie / image+colorbar / table）
 - `docs/p13_field.png`：P13-02 场类四联（heatmap / contour+clabel / contourf / correlation 带列名刻度）
+- `docs/p13_vector.png`：P13-03 矢量场（quiver 按模长上色 + streamplot，各带 colorbar）

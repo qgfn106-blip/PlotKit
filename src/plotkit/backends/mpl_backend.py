@@ -211,6 +211,12 @@ def _draw_table(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> 
 COLORBAR_KW = {"fraction": 0.046, "pad": 0.02}
 
 
+def _maybe_colorbar(ax, mappable, style: Mapping[str, Any], *, default: bool = True) -> None:
+    """按 `style.colorbar` 决定是否加色条（六处共用，别各写一份判断）。"""
+    if style.get("colorbar", default):
+        ax.figure.colorbar(mappable, ax=ax, **COLORBAR_KW)
+
+
 def _field_arrays(layer: Mapping[str, Any], store: DataStore):
     """取 z（必需）与可选的 x/y 坐标；z 至少二维，一维自动补成 1 行。"""
     data = layer.get("data") or {}
@@ -236,9 +242,7 @@ def _mesh(ax, layer, store, *, cmap_default: str = "viridis"):
 
 def _draw_heatmap(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     mesh = _mesh(ax, layer, store)
-    style = layer.get("style") or {}
-    if style.get("colorbar", True):
-        ax.figure.colorbar(mesh, ax=ax, **COLORBAR_KW)
+    _maybe_colorbar(ax, mesh, layer.get("style") or {})
 
 
 def _contour_args(layer, store):
@@ -286,11 +290,153 @@ def _draw_correlation(ax, layer, store, index: int, *, pixels=None, per_pixel=2.
         ax.set_xticklabels(names, rotation=45, ha="right")
         ax.set_yticklabels(names)
 
+
+
+def _vector_arrays(layer: Mapping[str, Any], store: DataStore):
+    data = layer.get("data") or {}
+    return tuple(np.asarray(store.values(data[k]), dtype=float) for k in ("x", "y", "u", "v"))
+
+
+COLOR_BY_CHOICES = ("magnitude", "x", "y", "u", "v")
+
+
+def _color_norm(style: Mapping[str, Any]):
+    """vmin/vmax → matplotlib 的 Normalize（quiver/barbs/streamplot 只认 norm，不认 vmin/vmax）。"""
+    vmin, vmax = style.get("vmin"), style.get("vmax")
+    if vmin is None and vmax is None:
+        return None
+    from matplotlib.colors import Normalize
+
+    return Normalize(vmin=None if vmin is None else float(vmin),
+                     vmax=None if vmax is None else float(vmax))
+
+
+def _color_values(style: Mapping[str, Any], x, y, u, v):
+    """按 `color_by` 取上色用的标量：magnitude（默认）/ x / y / u / v。"""
+    mode = str(style.get("color_by") or "magnitude")
+    if mode not in COLOR_BY_CHOICES:
+        raise ValueError(f"color_by={mode!r} 不支持（可用: {', '.join(COLOR_BY_CHOICES)}）")
+    if mode == "x":
+        return x
+    if mode == "y":
+        return y
+    if mode == "u":
+        return u
+    if mode == "v":
+        return v
+    return np.hypot(u, v)
+
+
+def quiver_scale(x, y, u, v, *, fraction: float = 0.06) -> float:
+    """把"中位箭头长度 ≈ 画布跨度的 6%"换算成 quiver 的 scale（数据单位）。
+
+    mpl 自带的 auto-scale 在 `angles="xy"` 下按 axes 宽度归一，网格密时箭头会长到糊满全图
+    （2026-10-31 实测：整幅图变成一片渐变）。这里显式给 scale + `scale_units="xy"`，
+    箭头长度就只由数据决定，换分辨率/换尺寸都不会变。
+    """
+    mag = np.hypot(np.asarray(u, dtype=float), np.asarray(v, dtype=float))
+    finite = mag[np.isfinite(mag)]
+    base = float(np.median(finite)) if finite.size else 1.0
+    xs = np.asarray(x, dtype=float)
+    ys = np.asarray(y, dtype=float)
+    span = max(float(np.ptp(xs[np.isfinite(xs)])), float(np.ptp(ys[np.isfinite(ys)]))) or 1.0
+    return max(base / (max(fraction, 1e-3) * span), 1e-12)
+
+
+def _draw_quiver(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, u, v = _vector_arrays(layer, store)
+    c = _color_values(style, x, y, u, v)
+    cmap = str(style.get("cmap") or "viridis")
+    kwargs = {
+        "angles": "xy",
+        # quiver 没有 arrowsize，用箭头头部尺寸换算（streamplot 才有 arrowsize）
+        "headwidth": 3.0 * float(style.get("arrowsize", 1.0) or 1.0),
+        "headlength": 5.0 * float(style.get("arrowsize", 1.0) or 1.0),
+        "headaxislength": 4.5 * float(style.get("arrowsize", 1.0) or 1.0),
+        # 注意：不能复用通用的 style["width"]（那是线宽 1.6，在 quiver 里表示
+        # "箭杆宽度 = 1.6 个 axes 宽度"，会把整幅图糊满）。箭杆用独立键 shaft。
+        "width": float(style.get("shaft", 0.0035) or 0.0035),
+    }
+    # 显式给 scale 才按数据单位缩放；否则按"中位箭头 ≈ 跨度 6%"自动算（见 quiver_scale）
+    scale = style.get("scale")
+    if scale in (None, 0, "auto"):
+        kwargs["scale"] = quiver_scale(x, y, u, v)
+    else:
+        kwargs["scale"] = float(scale)
+    kwargs["scale_units"] = "xy"
+    norm = _color_norm(style)
+    if norm is not None:
+        kwargs["norm"] = norm
+    if style.get("color"):
+        kwargs["color"] = str(style["color"])
+    else:
+        kwargs["cmap"] = cmap
+    q = ax.quiver(x, y, u, v, c, **kwargs)
+    if style.get("key"):
+        # quiverkey：给一个"这个箭头代表多少"的图例（对应 mpl 的 quiverkey）
+        mag = np.hypot(u, v)
+        ref = float(np.nanmax(mag) or 1.0)
+        ax.quiverkey(q, 0.9, 1.02, ref, f"{ref:.3g}", labelpos="E", coordinates="axes",
+                     fontproperties={"size": 8})
+    if not style.get("color"):  # 纯色箭头时色条会误导（色条画的是模长，箭头是单色）
+        _maybe_colorbar(ax, q, style, default=False)
+
+
+def _draw_barbs(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """风羽图（mpl `barbs`）：每个点一根带旗的杆，长度编码风速。"""
+    style = layer.get("style") or {}
+    x, y, u, v = _vector_arrays(layer, store)
+    c = _color_values(style, x, y, u, v)
+    kwargs = {
+        "length": float(style.get("arrowsize", 6.0) or 6.0),
+        "linewidth": float(style.get("width", 0.8) or 0.8),
+        "cmap": str(style.get("cmap") or "viridis"),
+    }
+    norm = _color_norm(style)
+    if norm is not None:
+        kwargs["norm"] = norm
+    b = ax.barbs(x, y, u, v, c, **kwargs)
+    if not style.get("color"):
+        _maybe_colorbar(ax, b, style, default=False)
+
+
+def _draw_streamplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, u, v = _vector_arrays(layer, store)
+    if x.ndim != 2 or u.ndim != 2:
+        raise ValueError("streamplot 需要二维网格：x/y 与 u/v 都要是 2D 数组（一维请改用 quiver）")
+    density = style.get("density")
+    density = 1.0 if density is None else float(density)
+    color = style.get("color")
+    if color:
+        # 纯色流线：color 直接给字符串，此时不传 cmap（两者互斥）
+        color_arg = str(color)
+        cmap_arg = None
+    else:
+        color_arg = _color_values(style, x, y, u, v)
+        cmap_arg = str(style.get("cmap") or "viridis")
+    kwargs = {
+        "density": density,
+        "color": color_arg,
+        "arrowsize": float(style.get("arrowsize", 1.0) or 1.0),
+        "linewidth": float(style.get("width", 1.0) or 1.0),
+    }
+    if cmap_arg:
+        kwargs["cmap"] = cmap_arg
+        norm = _color_norm(style)
+        if norm is not None:
+            kwargs["norm"] = norm
+    strm = ax.streamplot(x, y, u, v, **kwargs)
+    if not style.get("color"):
+        _maybe_colorbar(ax, strm.lines, style, default=False)
+
 DRAWERS = {
     "line": _draw_line, "marker": _draw_scatter, "bar": _draw_bar,
     "hist": _draw_hist, "pie": _draw_pie, "image": _draw_image, "table": _draw_table,
     "heatmap": _draw_heatmap, "contour": _draw_contour, "contourf": _draw_contourf,
     "correlation": _draw_correlation,
+    "quiver": _draw_quiver, "streamplot": _draw_streamplot, "barbs": _draw_barbs,
 }
 
 
@@ -609,3 +755,8 @@ reg.register("contour", 2, None, defaults={"levels": 8}, description="等值线�
 reg.register("contourf", 2, None, defaults={"levels": 8}, description="填充等值线")
 reg.register("correlation", 2, None, defaults={"cmap": "RdBu_r", "vmin": -1.0, "vmax": 1.0},
              aliases=("corr", "correlation_matrix"), description="相关系数矩阵（init-only 聚合）")
+
+# ---------------- 注册 P13-03 的矢量场图层 ----------------
+reg.register("quiver", 2, None, defaults={"color_by": "magnitude"}, description="矢量箭头图")
+reg.register("streamplot", 2, None, defaults={"density": 1.0}, description="流线图（需二维网格）")
+reg.register("barbs", 2, None, defaults={"color_by": "magnitude"}, description="风羽图（barbs）")

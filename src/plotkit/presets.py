@@ -26,6 +26,12 @@ KIND_PRESETS: dict[str, dict[str, Any]] = {
     "contourf": {"style": {"mode": "bars", "levels": 8, "colorbar": True}, "view": {"grid": False}},
     "correlation": {"style": {"mode": "bars", "cmap": "RdBu_r", "vmin": -1.0, "vmax": 1.0,
                               "colorbar": True}, "view": {"grid": False}},
+    "quiver": {"style": {"cmap": "viridis", "color_by": "magnitude", "arrowsize": 1.0,
+                         "shaft": 0.0035, "colorbar": False}, "view": {"grid": False}},
+    "barbs": {"style": {"cmap": "viridis", "color_by": "magnitude", "arrowsize": 6.0,
+                        "colorbar": False}, "view": {"grid": False}},
+    "streamplot": {"style": {"cmap": "viridis", "density": 1.0, "arrowsize": 1.0,
+                             "colorbar": False}, "view": {"grid": False}},
 }
 
 
