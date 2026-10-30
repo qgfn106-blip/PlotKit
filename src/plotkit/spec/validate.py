@@ -85,7 +85,7 @@ KNOWN_STYLE_KEYS = {
 KNOWN_FIGURE_KEYS = {
     "window",
     "size", "dpi", "ncols", "subplots", "theme", "title", "link_x",
-    "fonts", "shapes", "insets",
+    "fonts", "shapes", "insets", "anim",
 }
 KNOWN_TOP_KEYS = {"spec_version", "figure", "layers"}
 ANNOTATION_TYPES = {"text", "hline", "vline", "band"}

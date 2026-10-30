@@ -433,6 +433,8 @@ async function commit(reason, { record = true } = {}) {
 
 async function redraw(reason) {
   const t0 = performance.now();
+  animPlaying = false;
+  $("btn-anim").classList.remove("on");
   renderLayoutControls();
   renderLayers();
   renderInsets();
@@ -525,6 +527,33 @@ $("btn-add").onclick = () => {
   }
   state.spec.layers.push(newLayerFor(x, y, Math.min(state.spec.layers.length, subplots - 1)));
   commit("新增图层");
+};
+
+/* ---------------- 动画（P13-06） ---------------- */
+
+let animPlaying = false;
+
+$("btn-anim").onclick = async () => {
+  if (animPlaying) {
+    animPlaying = false;
+    $("btn-anim").classList.remove("on");
+    redraw("停止动画");
+    return;
+  }
+  if (!state.spec.layers.length) { setStatus("还没有图层", "bad"); return; }
+  const { w, h } = plotSize();
+  const res = await fetch(`api/anim?w=${w}&h=${h}`);
+  if (!res.ok) { setStatus(`动画失败 HTTP ${res.status}`, "bad"); return; }
+  const url = URL.createObjectURL(await res.blob());
+  const img = $("plotImg");
+  const prev = img.dataset.url;
+  img.onload = () => { if (prev) URL.revokeObjectURL(prev); };
+  img.dataset.url = url;
+  img.src = url;
+  img.style.transform = "none";
+  animPlaying = true;
+  $("btn-anim").classList.add("on");
+  setStatus("播放动画（再点一次停止）", "ok");
 };
 
 $("btn-png").onclick = () => {

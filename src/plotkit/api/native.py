@@ -334,6 +334,74 @@ class Figure:
         self.spec["figure"].setdefault("shapes", []).append(shape)
         return shape
 
+    # ---------------- 动画 ----------------
+    def set_anim(self, *, frames: int = 30, fps: float = 12.0,
+                 t_start: float | None = None, t_end: float | None = None) -> "Figure":
+        """配置动画：把时间轴切成 `frames` 帧，按 `fps` 播放（P13-06）。
+
+        帧不存数据快照，只存「时间切片」——每帧用 `render(t_end=…)` 现算，
+        与交互渲染同一条路径，不会出现"动画和静态图不一致"。
+        """
+        frames = int(frames)
+        if frames < 1:
+            raise ValueError(f"frames 必须 ≥ 1，收到 {frames}")
+        fps = float(fps)
+        if fps <= 0:
+            raise ValueError(f"fps 必须 > 0，收到 {fps}")
+        anim = {"frames": frames, "fps": fps}
+        if t_start is not None:
+            anim["t_start"] = float(t_start)
+        if t_end is not None:
+            anim["t_end"] = float(t_end)
+        self.spec.setdefault("figure", {})["anim"] = anim
+        return self
+
+    def anim_settings(self) -> dict[str, Any]:
+        """返回补齐默认值后的动画参数（时间范围缺省取 `t` 数据集的区间）。"""
+        raw = dict((self.spec.get("figure") or {}).get("anim") or {})
+        frames = int(raw.get("frames", 30))
+        fps = float(raw.get("fps", 12.0))
+        t_start, t_end = raw.get("t_start"), raw.get("t_end")
+        if t_start is None or t_end is None:
+            lo, hi = 0.0, 1.0
+            if "t" in self.store.names():
+                t = np.asarray(self.store.values("t")).ravel().astype(float)
+                if t.size:
+                    lo, hi = float(np.nanmin(t)), float(np.nanmax(t))
+            t_start = lo if t_start is None else float(t_start)
+            t_end = hi if t_end is None else float(t_end)
+        return {"frames": frames, "fps": fps, "t_start": float(t_start), "t_end": float(t_end)}
+
+    def frame_times(self) -> list[float]:
+        """每帧的时间游标（含首尾）。"""
+        cfg = self.anim_settings()
+        if cfg["frames"] == 1:
+            return [cfg["t_end"]]
+        return [float(v) for v in np.linspace(cfg["t_start"], cfg["t_end"], cfg["frames"])]
+
+    def render_frames(self, *, width: int = 640, height: int = 400, dpi: int = 100) -> list[bytes]:
+        """逐帧渲染成 PNG 列表（前端按帧播放用）。"""
+        return [self.render(width=width, height=height, dpi=dpi, t_end=t)
+                for t in self.frame_times()]
+
+    def animate_gif(self, *, width: int = 640, height: int = 400, dpi: int = 100,
+                    fps: float | None = None) -> bytes:
+        """把各帧合成 GIF（浏览器直接按帧播放，≥24 fps 由 fps 控制）。"""
+        import io as _io
+
+        from PIL import Image
+
+        cfg = self.anim_settings()
+        rate = float(fps or cfg["fps"])
+        frames = [Image.open(_io.BytesIO(png)).convert("RGB")
+                  for png in self.render_frames(width=width, height=height, dpi=dpi)]
+        if not frames:
+            raise ValueError("没有可渲染的帧")
+        buffer = _io.BytesIO()
+        frames[0].save(buffer, format="GIF", save_all=True, append_images=frames[1:],
+                       duration=max(1, int(round(1000.0 / rate))), loop=0, disposal=2)
+        return buffer.getvalue()
+
     def set_view(self, subplot: int, **kwargs: Any) -> "Figure":
         for layer in self.spec["layers"]:
             if int(layer.get("subplot", 0)) == int(subplot):

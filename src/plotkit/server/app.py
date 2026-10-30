@@ -293,6 +293,40 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         media = "image/png" if fmt == "png" else "image/svg+xml"
         return Response(content=payload, media_type=media, headers=headers)
 
+    @app.get("/api/anim")
+    def anim(
+        request: Request,
+        w: int = 640,
+        h: int = 400,
+        dpi: int = 100,
+        fps: float | None = None,
+    ) -> Response:
+        """动画 GIF（P13-06）：按 `figure.anim` 逐帧渲染再合成，浏览器直接播放。"""
+        width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
+        key = (figure.revision, "anim", width, height, dpi, fps)
+        cached = _RENDER_CACHE.get(key)
+        hit = cached is not None
+        if cached is None:
+            try:
+                payload = figure.animate_gif(width=width, height=height, dpi=dpi, fps=fps)
+            except SpecError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(500, f"动画渲染失败: {exc}") from exc
+            tag = _etag(payload)
+            _RENDER_CACHE[key] = (payload, tag, None)
+            while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
+                _RENDER_CACHE.popitem(last=False)
+        else:
+            payload, tag, _ = cached
+            _RENDER_CACHE.move_to_end(key)
+
+        headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
+                   "X-PlotKit-Render": "hit" if hit else "miss"}
+        if request.headers.get("if-none-match") == tag:
+            return Response(status_code=304, headers=headers)
+        return Response(content=payload, media_type="image/gif", headers=headers)
+
     @app.get("/api/png")
     def png(dpi: int | None = None) -> Response:
         try:

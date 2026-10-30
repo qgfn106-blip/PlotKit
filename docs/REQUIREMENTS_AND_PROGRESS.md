@@ -186,7 +186,8 @@
 | P13-03 | quiver（含 quiverkey）/ streamplot / barbs | ✅ 完成：`tests/test_kinds_vector.py` 15 项，全库 **180 passed**；vmin/vmax、纯色流线、color_by 白名单均已封口；浏览器截图见 §6 |
 | P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
 | P13-05 | boxplot / violinplot / ecdf / hexbin / barh / stackplot / step / stem | ✅ 首批 8 种完成：`tests/test_kinds_stats.py` 14 项，全库 **208 passed**；浏览器四联截图见 §6。**未做**：stairs / broken_barh / eventplot / bxp / psd / specgram / csd / cohere / acorr / xcorr / 频谱族（转 P13-07） |
-| P13-06…07 | 动画、附属能力（colorbar 细化/表格高亮/Science/字体链） | 未开工 |
+| P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 8 项，全库 **216 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
+| P13-07 | 附属能力（colorbar 细化/表格高亮/Science/字体链）+ 本票漏项 | 未开工 |
 | P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
@@ -233,7 +234,10 @@
 30. **`boxplot(patch_artist=True)` 的箱体在 `ax.patches`，不在 `ax.artists`**：写断言时别数错集合。
 31. **`ax.stem()` 不要用 `for line in ax.lines` 染色**：那会把同一子图里**其他图层**已经画好的 Line2D 一起改掉（评审发现）。要改就改 `StemContainer` 的 `markerline` / `stemlines`（茎线是 LineCollection，不在 `ax.lines` 里）。
 32. **单序列 kind 收到二维数据要直接报错**：`step`/`stem`/`barh`/`ecdf`/`hexbin` 用 `_flat()` 取值，二维会抛「需要一维数据」并提示改用多图层——否则会把 (2,120) 拉成一条横跨两条序列的锯齿线。
-33. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+33. **动画不要存"每帧数据快照"**：只存时间切片（`figure.anim`），每帧用 `render(t_end=…)` 现算——与交互渲染同一条路径，不会出现"动画和静态图不一致"，spec 也不会膨胀。
+34. **GIF 合成用 PIL 就够**：`frames[0].save(..., save_all=True, append_images=frames[1:], duration=1000/fps, loop=0, disposal=2)`；MP4 要 ffmpeg，暂不做。
+35. **动画接口是秒级的**：40 帧 / 700×440 首次 6.3 s（每帧 ~150 ms 的 mpl 渲染），必须走 ETag 缓存；前端点按钮后要等首帧，CDP 测试等待时间别设太短（我第一次等 6 s 只看到"没反应"）。
+36. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 
