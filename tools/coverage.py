@@ -16,9 +16,13 @@ from plotkit.spec.validate import REQUIRED_DATA
 
 #: §3.4 方法表里点名要覆盖的 18 种（MultiPlotter 口径）
 MATRIX_18 = [
+    # 11 个 2D：line / scatter(marker) / bar / hist / pie / image / table
+    #           + heatmap / contour / quiver / streamplot
+    #（correlation 是 MultiPlotter 之外的聚合 kind，不计入 18）
     "line", "marker", "bar", "hist", "pie", "image", "table",
-    "heatmap", "contour", "quiver", "streamplot", "correlation",
-    "surface", "line3d", "scatter3d", "bar3d", "hist3d", "quiver3d",
+    "heatmap", "contour", "quiver", "streamplot",
+    # 7 个 3D
+    "surface", "line3d", "scatter3d", "bar3d", "hist3d", "quiver3d", "stream3d",
 ]
 
 

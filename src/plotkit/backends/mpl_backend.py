@@ -189,20 +189,32 @@ def _draw_image(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> 
         ax.figure.colorbar(im, ax=ax, **COLORBAR_KW)
 
 
-def _highlight_cells(table, cells: np.ndarray, style: Mapping[str, Any]) -> None:
-    """表格高亮：`highlight="max"/"min"` 或显式 `[[row, col], …]`（行 0 起，不含表头）。"""
+HIGHLIGHT_COLOR = "#ffd54f"
+
+
+def _highlight_cells(table, cells, style: Mapping[str, Any], *, has_header: bool) -> None:
+    """表格高亮：`highlight="max"/"min"` 或显式 `[[row, col], …]`（行 0 起，不含表头）。
+
+    行号偏移由调用方传入 `has_header` 决定——以前靠 `(0, 0) in celld` 猜，
+    无表头的表格会整体错一行（2026-10-31 评审发现）。
+    """
     spec = style.get("highlight")
     if not spec:
         return
-    color = str(style.get("header_color") or "#ffd54f")
-    numeric = np.asarray(cells, dtype=float) if np.issubdtype(np.asarray(cells).dtype, np.number) else None
+    color = str(style.get("highlight_color") or HIGHLIGHT_COLOR)
+    arr = np.asarray(cells)
+    numeric = arr.astype(float) if np.issubdtype(arr.dtype, np.number) else None
     targets: list[tuple[int, int]] = []
-    if isinstance(spec, str) and numeric is not None:
+    if isinstance(spec, str):
+        if spec not in ("max", "min"):
+            raise ValueError(f"highlight 只支持 max / min 或 [[row, col], …]，收到 {spec!r}")
+        if numeric is None:
+            raise ValueError("highlight=max/min 需要数值单元格")
         idx = int(np.nanargmax(numeric)) if spec == "max" else int(np.nanargmin(numeric))
         targets = [divmod(idx, numeric.shape[1])]
-    elif isinstance(spec, (list, tuple)):
+    else:
         targets = [(int(r), int(c)) for r, c in spec]
-    offset = 1 if table.get_celld() and (0, 0) in table.get_celld() else 0  # 有表头时行号偏移 1
+    offset = 1 if has_header else 0
     for row, col in targets:
         cell = table.get_celld().get((row + offset, col))
         if cell is not None:
@@ -224,7 +236,7 @@ def _draw_table(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> 
     table.auto_set_font_size(False)
     table.set_fontsize(float(style.get("fontsize", 10)))
     table.scale(1.0, 1.4)
-    _highlight_cells(table, cells, style)
+    _highlight_cells(table, cells, style, has_header=header is not None)
 
 
 
@@ -778,7 +790,15 @@ def _draw_stairs(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) ->
     y = _flat(layer, store, "y")
     if data.get("x"):
         x = _flat(layer, store, "x")
-        edges = x if x.size == y.size + 1 else np.linspace(x.min(), x.max(), y.size + 1)
+        if x.size == y.size + 1:
+            edges = x          # 直接给边界
+        elif x.size == y.size:
+            # 给的是阶梯中心：用中点推边界，别静默换成等距（对数/非均匀会全错）
+            edges = np.concatenate(([x[0] - (x[1] - x[0]) / 2],
+                                    (x[:-1] + x[1:]) / 2,
+                                    [x[-1] + (x[-1] - x[-2]) / 2]))
+        else:
+            raise ValueError(f"stairs 的 x 必须是 n 个中心或 n+1 个边界：y={y.size}，x={x.size}")
     else:
         edges = np.arange(y.size + 1, dtype=float)
     ax.stairs(y, edges, color=str(style.get("color") or color_for(index)),
@@ -802,8 +822,10 @@ def _draw_eventplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0)
     style = layer.get("style") or {}
     x = _y_matrix(layer, store, "x")
     rows = [np.ravel(x)] if x.ndim == 1 else [x[i] for i in range(x.shape[0])]
+    base = float(style.get("lineoffsets", 1.0) or 1.0)
+    offsets = base + np.arange(len(rows)) if len(rows) > 1 else base
     ax.eventplot(rows, colors=str(style.get("color") or color_for(index)),
-                 lineoffsets=float(style.get("lineoffsets", 1.0) or 1.0),
+                 lineoffsets=offsets,
                  linelengths=float(style.get("linelengths", 0.6) or 0.6))
 
 
@@ -817,9 +839,13 @@ def _draw_bxp(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> No
     for col in cols:
         q1, med, q3 = (float(v) for v in np.percentile(col, [25, 50, 75]))
         iqr = q3 - q1
-        lo = float(col[col >= q1 - whis * iqr].min()) if col.size else q1
-        hi = float(col[col <= q3 + whis * iqr].max()) if col.size else q3
-        stats.append({"med": med, "q1": q1, "q3": q3, "whislo": lo, "whishi": hi, "fliers": []})
+        low_fence, high_fence = q1 - whis * iqr, q3 + whis * iqr
+        inside = col[(col >= low_fence) & (col <= high_fence)]
+        lo = float(inside.min()) if inside.size else q1
+        hi = float(inside.max()) if inside.size else q3
+        fliers = col[(col < low_fence) | (col > high_fence)] if col.size else []
+        stats.append({"med": med, "q1": q1, "q3": q3, "whislo": lo, "whishi": hi,
+                      "fliers": [float(v) for v in fliers]})
     ax.bxp(stats, patch_artist=True, widths=float(style.get("widths", 0.6) or 0.6),
            boxprops={"facecolor": color, "alpha": 0.35, "edgecolor": color},
            medianprops={"color": color, "linewidth": 1.6},

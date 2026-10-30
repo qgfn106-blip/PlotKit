@@ -90,6 +90,7 @@ KNOWN_STYLE_KEYS = {
     "where", "gridsize", "widths", "showfliers", "showmeans", "mincnt",
     # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram
     "nfft", "fs", "orientation", "lineoffsets", "linelengths", "row", "height", "whis",
+    "highlight",
 }
 KNOWN_FIGURE_KEYS = {
     "window",

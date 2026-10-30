@@ -121,12 +121,12 @@
 
 | 组 | 方法 | 形态 |
 | --- | --- | --- |
-| 线/点/柱/面积 | plot, scatter, bar, barh, errorbar, fill_between, stackplot, stem, step, stairs, broken_barh, eventplot, vlines, hlines, axline | 独立 kind 或 `figure.shapes`（P13-05 完成 barh/stackplot/step/stem；errorbar 走 line 的 error_x/y；vlines/hlines/axline 走 shapes；stairs/broken_barh/eventplot 暂缺） |
-| 统计 | hist, hist2d, boxplot, violinplot, bxp, pie, ecdf, hexbin | 独立 kind（P13-05 完成 boxplot/violinplot/ecdf/hexbin；hist2d 用 heatmap 表达，bxp 暂缺） |
+| 线/点/柱/面积 | plot, scatter, bar, barh, errorbar, fill_between, stackplot, stem, step, stairs, broken_barh, eventplot, vlines, hlines, axline | 独立 kind 或 `figure.shapes`（P13-05/07 完成 barh/stackplot/step/stem/stairs/broken_barh/eventplot；errorbar 走 line 的 error_x/y；vlines/hlines/axline 走 shapes） |
+| 统计 | hist, hist2d, boxplot, violinplot, bxp, pie, ecdf, hexbin | 独立 kind（P13-05/07 完成 boxplot/violinplot/ecdf/hexbin/bxp；hist2d 用 heatmap 表达） |
 | 图像/场 | imshow, matshow, pcolor, pcolormesh, contour, contourf, clabel, spy, figimage | 独立 kind（clabel 作为 contour 的 `labels=True`） |
 | 矢量 | quiver, quiverkey, streamplot, barbs | 独立 kind（quiverkey 作为 quiver 的 `key=True`） |
-| 三角/非结构 | triplot, tricontour, tricontourf, tripcolor | 独立 kind |
-| 信号 | psd, csd, specgram, cohere, acorr, xcorr, angle/magnitude/phase_spectrum | P13-05 评估：直接用 mpl 或改走 `line` |
+| 三角/非结构 | triplot, tricontour, tricontourf, tripcolor | **未做**（转 P13-09） |
+| 信号 | psd, csd, specgram, cohere, acorr, xcorr, angle/magnitude/phase_spectrum | P13-07 完成 psd/specgram；**csd/cohere/acorr/xcorr/相位族未做**（转 P13-09） |
 | 3D | plot, scatter, bar3d, hist3d, plot_surface, plot_wireframe, contour3D, contourf3D, quiver3D, voxels, trisurf, stem3D, text3D | 独立 kind 或 kind 参数 |
 | 轴级 | twinx/twiny, secondary axis, broken axes, colorbar, legend, grid, spines | `figure.axes[]` 字段，不建 kind |
 
@@ -214,6 +214,8 @@
 - 18 种矩阵缺口：无
 
 > 重跑：`PYTHONPATH=src python tools/coverage.py`；CI 用 `--check`（有缺项返回非零）。
+>
+> **口径说明**：18/18 指 §3.3 的 kind 覆盖，不等于 §3.4 的 55 个 mpl 方法全覆盖。方法级缺口（未实现，转 P13-09）：`triplot` / `tricontour(f)` / `tripcolor` / `voxels` / `trisurf` / `stem3D` / `text3D` / `csd` / `cohere` / `acorr` / `xcorr` / `angle_spectrum` 等；`vlines` / `hlines` / `axline` 走 `figure.shapes`，`errorbar` 走 `line` 的 `error_x/y`，`fill_between` / `figimage` / `spy` 未单独建 kind。
 
 ### 3.10 plotly 退役清单（D33）
 
@@ -246,8 +248,8 @@
 | P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
 | P13-05 | boxplot / violinplot / ecdf / hexbin / barh / stackplot / step / stem | ✅ 首批 8 种完成：`tests/test_kinds_stats.py` 14 项，全库 **208 passed**；浏览器四联截图见 §6。**未做**：stairs / broken_barh / eventplot / bxp / psd / specgram / csd / cohere / acorr / xcorr / 频谱族（转 P13-07） |
 | P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 10 项，全库 **218 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
-| P13-07 | 漏项 6 种（stairs/broken_barh/eventplot/bxp/psd/specgram）+ 表格高亮 + MP4 + 自包含导出改内联 SVG | ✅ 完成：`tests/test_kinds_extra.py` 8 项；MP4 走 ffmpeg（无 ffmpeg 时跳过用例）；`fig.html()` 不再内联 plotly |
-| P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **部分完成**：覆盖率 **18/18 + 35 种全部有绘制器**（`tools/coverage.py --check` 退出 0，表见 §3.9）；**性能未达**：1200×700 × 6×20k 实测 **214 ms**（目标 120 ms）；plotly 退役清单见 §3.10 |
+| P13-07 | 漏项 6 种 + 表格高亮 + MP4 + 自包含导出改内联 SVG | ✅ 已做：stairs/broken_barh/eventplot/bxp/psd/specgram、`highlight=max/min/[[r,c]]`、MP4（ffmpeg）、`fig.html()` 内联 SVG。**未做**：`ScienceResult`/`SciencePlotter`、`shrink_field`、colorbar 细化（转 P13-09） |
+| P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **部分完成**：覆盖率 **18/18 + 35 种全部有绘制器**（`tools/coverage.py --check` 退出 0，表见 §3.9，234 passed）；**性能未达**：1200×700 × 6×20k 实测 **214 ms**（目标 120 ms）；plotly 退役清单见 §3.10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 

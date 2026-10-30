@@ -82,3 +82,35 @@ def test_spec_roundtrip():
     fig = _fig("stairs", {"y": np.arange(4.0)})
     first = fig.to_json()
     assert pk.Figure(spec=json.loads(first)).to_json() == first
+
+
+def test_table_highlight_via_public_api():
+    """highlight 必须能通过 fig.add(..., highlight=...) 传进来（白名单里要有）。"""
+    fig = pk.figure(size=(4.0, 2.6))
+    fig.add("table", {"cells": np.array([[1.0, 9.0], [3.0, 4.0]]), "highlight": "max"})
+    assert fig.layers()[0]["style"]["highlight"] == "max"
+    assert not fig.warnings
+
+
+def test_stairs_rejects_mismatched_x():
+    fig = _fig("stairs", {"y": np.arange(4.0), "x": np.arange(2.0)})
+    with pytest.raises(ValueError, match="stairs"):
+        fig.render(width=320, height=220)
+
+
+def test_eventplot_rows_do_not_overlap():
+    rng = np.random.default_rng(5)
+    fig = _fig("eventplot", {"x": np.vstack([rng.random(10), rng.random(10)])})
+    mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
+    colls = mpl_fig.axes[0].collections
+    assert len(colls) == 2, "每行一个 EventCollection"
+    ys = {c.get_segments()[0][0][1] for c in colls}
+    assert len(ys) == 2, "两行事件应画在不同 y 上"
+
+
+def test_bxp_reports_outliers():
+    data = np.concatenate([np.zeros(40), [50.0]])  # 一个明显离群点
+    fig = _fig("bxp", {"y": data})
+    mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
+    fliers = [a for a in mpl_fig.axes[0].lines if a.get_marker() == "o"]
+    assert fliers, "离群点应被画出来"

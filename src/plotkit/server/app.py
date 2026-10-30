@@ -318,13 +318,14 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         """动画（P13-06/07）：按 `figure.anim` 逐帧渲染，合成 GIF 或 MP4。"""
         width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
         fmt = (fmt or "gif").lower()
-        if fmt not in ("gif", "mp4"):
+        builders = {
+            "gif": ("image/gif", lambda: (figure.animate_gif(width=width, height=height, dpi=dpi, fps=fps), {})),
+            "mp4": ("video/mp4", lambda: (figure.animate_mp4(width=width, height=height, dpi=dpi, fps=fps), {})),
+        }
+        if fmt not in builders:
             raise HTTPException(400, f"不支持的动画格式 {fmt!r}（gif / mp4）")
-        key = (figure.revision, "anim", width, height, dpi, fps, fmt)
-        build = (lambda: (figure.animate_mp4(width=width, height=height, dpi=dpi, fps=fps), {})) \
-            if fmt == "mp4" else \
-            (lambda: (figure.animate_gif(width=width, height=height, dpi=dpi, fps=fps), {}))
-        return _cached(request, key, build, "video/mp4" if fmt == "mp4" else "image/gif")
+        media_type, build = builders[fmt]
+        return _cached(request, (figure.revision, "anim", width, height, dpi, fps, fmt), build, media_type)
 
     @app.get("/api/png")
     def png(dpi: int | None = None) -> Response:

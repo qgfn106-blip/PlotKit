@@ -426,7 +426,6 @@ class Figure:
         import shutil
         import subprocess
         import tempfile
-        from pathlib import Path
 
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
@@ -435,13 +434,18 @@ class Figure:
         rate = float(fps or cfg["fps"])
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
-            for i, png in enumerate(self.render_frames(width=width, height=height, dpi=dpi)):
+            frames = self.render_frames(width=width, height=height, dpi=dpi)
+            if not frames:
+                raise ValueError("没有可渲染的帧")
+            for i, png in enumerate(frames):
                 (folder / f"f{i:04d}.png").write_bytes(png)
             target = folder / "out.mp4"
             cmd = [ffmpeg, "-y", "-loglevel", "error", "-framerate", f"{rate:g}",
                    "-i", str(folder / "f%04d.png"), "-pix_fmt", "yuv420p",
                    "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", str(target)]
-            subprocess.run(cmd, check=True, capture_output=True)
+            done = subprocess.run(cmd, capture_output=True, text=True)
+            if done.returncode != 0:
+                raise RuntimeError(f"ffmpeg 失败（{done.returncode}）：{done.stderr.strip()[:300]}")
             return target.read_bytes()
 
     def set_view(self, subplot: int, **kwargs: Any) -> "Figure":
@@ -575,8 +579,14 @@ class Figure:
         以前内联的是 vendored plotly bundle（1.1 MB）；渲染统一走 mpl 之后
         直接嵌 SVG 即可，导出文件更小、也不需要任何脚本。
         """
+        import html as _html
+
         svg = self.render(width=width, height=height, fmt="svg").decode("utf-8")
-        head = title or str(self.spec["figure"].get("title") or "PlotKit")
+        # SVG 自带的 xml 声明/DOCTYPE 放进 <body> 是非法的，切掉
+        start = svg.find("<svg")
+        if start > 0:
+            svg = svg[start:]
+        head = _html.escape(title or str(self.spec["figure"].get("title") or "PlotKit"))
         return (
             "<!DOCTYPE html>\n<html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
             f"<title>{head}</title><style>"
