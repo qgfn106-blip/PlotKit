@@ -25,7 +25,7 @@ def test_v0_kinds_registered():
 
 def test_unknown_kind_raises():
     with pytest.raises(KeyError):
-        reg.resolve("surface")
+        reg.resolve("sankey")  # 未实现的 kind 作为反例
 
 
 def test_duplicate_register_needs_overwrite():

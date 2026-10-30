@@ -431,16 +431,227 @@ def _draw_streamplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0
     if not style.get("color"):
         _maybe_colorbar(ax, strm.lines, style, default=False)
 
+
+
+# ---------------- P13-04：3D 七种 ----------------
+
+def _surface_grid(layer, store):
+    data = layer.get("data") or {}
+    z = np.asarray(store.values(data["z"]), dtype=float)
+    if z.ndim != 2:
+        raise ValueError("surface 需要二维 z（行 = y，列 = x）")
+    x = np.asarray(store.values(data["x"]), dtype=float) if data.get("x") else None
+    y = np.asarray(store.values(data["y"]), dtype=float) if data.get("y") else None
+    if x is None or y is None:
+        return np.meshgrid(np.arange(z.shape[1]), np.arange(z.shape[0])) + (z,)
+    if x.ndim == 2 and y.ndim == 2:
+        if x.shape != z.shape or y.shape != z.shape:
+            raise ValueError(f"surface 的 x/y 形状必须与 z 一致：z{z.shape}，x{x.shape}，y{y.shape}")
+        return x, y, z
+    X, Y = np.meshgrid(np.ravel(x), np.ravel(y))
+    if X.shape != z.shape:
+        raise ValueError(f"surface 的 x/y 长度必须匹配 z：z{z.shape}，得到 {X.shape}")
+    return X, Y, z
+
+
+def _draw_surface(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    X, Y, Z = _surface_grid(layer, store)
+    stride = max(1, int(style.get("stride") or 1))
+    surf = ax.plot_surface(
+        X, Y, Z, cmap=str(style.get("cmap") or "viridis"), norm=_color_norm(style),
+        rstride=stride, cstride=stride, linewidth=0, antialiased=True,
+        shade=bool(style.get("shade", True)), alpha=float(style.get("opacity", 1.0)),
+    )
+    _maybe_colorbar(ax, surf, style)
+
+
+def _color_kwargs(style: Mapping[str, Any], values) -> dict[str, Any]:
+    """返回上色参数：有 color 就纯色，否则按 values 走 cmap + norm。"""
+    if style.get("color"):
+        return {"color": str(style["color"])}
+    kwargs: dict[str, Any] = {"cmap": str(style.get("cmap") or "viridis")}
+    norm = _color_norm(style)
+    if norm is not None:
+        kwargs["norm"] = norm
+    return kwargs
+
+
+def _xyz_arrays(layer, store, keys=("x", "y", "z")):
+    data = layer.get("data") or {}
+    return tuple(np.asarray(store.values(data[k]), dtype=float) for k in keys)
+
+
+def _draw_line3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, z = _xyz_arrays(layer, store)
+    ax.plot(np.ravel(x), np.ravel(y), np.ravel(z),
+            color=str(style.get("color") or color_for(index)),
+            linewidth=float(style.get("width", 1.8) or 1.8),
+            label=layer.get("label") or layer.get("data", {}).get("z"))
+
+
+def _draw_scatter3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, z = _xyz_arrays(layer, store)
+    marker = style.get("marker") or {}
+    kwargs = {
+        "s": float(marker.get("size", 6) or 6) ** 2,
+        "alpha": float(style.get("opacity", 1.0)),
+        "depthshade": False,
+    }
+    colored = not style.get("color")
+    if colored:
+        kwargs["c"] = np.ravel(z)
+    kwargs.update(_color_kwargs(style, z))
+    sc = ax.scatter(np.ravel(x), np.ravel(y), np.ravel(z), **kwargs)
+    if not style.get("color"):
+        _maybe_colorbar(ax, sc, style, default=False)
+
+
+def _draw_bar3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, z = (np.ravel(v) for v in _xyz_arrays(layer, store))
+    def _bar_width(values):
+        uniq = np.unique(values)
+        return float(np.median(np.diff(uniq))) * 0.8 if uniq.size > 1 else 0.8
+    dx, dy = _bar_width(x), _bar_width(y)
+    if style.get("color"):
+        colors = str(style["color"])
+        mappable = None
+    else:
+        # bar3d 不吃 cmap：按高度把值映射成颜色，色条才有意义（同 hist3d）
+        from matplotlib.cm import ScalarMappable
+        from matplotlib.colors import Normalize
+        import matplotlib
+
+        cmap = matplotlib.colormaps[str(style.get("cmap") or "viridis")]
+        norm = _color_norm(style) or Normalize(vmin=float(np.nanmin(z)), vmax=float(np.nanmax(z)) or 1.0)
+        colors = cmap(norm(z))
+        mappable = ScalarMappable(norm=norm, cmap=cmap)
+    ax.bar3d(x, y, np.zeros_like(z), dx, dy, z, color=colors,
+             alpha=float(style.get("opacity", 1.0)), shade=bool(style.get("shade", True)))
+    if mappable is not None:
+        _maybe_colorbar(ax, mappable, style, default=False)
+
+
+def _draw_hist3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x = np.ravel(np.asarray(store.values(data["x"]), dtype=float))
+    y = np.ravel(np.asarray(store.values(data["y"]), dtype=float))
+    bins = int(style.get("bins") or 8)
+    counts, xe, ye = np.histogram2d(x, y, bins=bins)
+    X, Y = np.meshgrid(xe[:-1], ye[:-1])
+    # 柱子按计数上色：bar3d 不接受 cmap，必须自己把计数映射成颜色，
+    # 否则柱子是单色、色条却是 0–1 的归一化刻度，两者对不上（2026-10-31 截图发现）。
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import Normalize
+    import matplotlib
+
+    cmap = matplotlib.colormaps[str(style.get("cmap") or "viridis")]
+    norm = Normalize(vmin=0.0, vmax=float(counts.max()) or 1.0)
+    ax.bar3d(X.ravel(), Y.ravel(), np.zeros(counts.size),
+             np.diff(xe).mean() * 0.9, np.diff(ye).mean() * 0.9, counts.ravel(),
+             color=cmap(norm(counts.ravel())), shade=bool(style.get("shade", True)))
+    _maybe_colorbar(ax, ScalarMappable(norm=norm, cmap=cmap), style)
+
+
+def _draw_quiver3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x, y, z, u, v, w = _xyz_arrays(layer, store, ("x", "y", "z", "u", "v", "w"))
+    kwargs = {
+        "length": float(style.get("length", 0.6) or 0.6),
+        "normalize": bool(style.get("normalize", False)),
+        "linewidth": float(style.get("width", 1.0) or 1.0),
+    }
+    kwargs.update(_color_kwargs(style, np.hypot(u, v)))
+    q = ax.quiver(np.ravel(x), np.ravel(y), np.ravel(z),
+                  np.ravel(u), np.ravel(v), np.ravel(w), **kwargs)
+    if not style.get("color"):
+        _maybe_colorbar(ax, q, style, default=False)
+
+
+def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """matplotlib 没有 stream3d：在网格上做 RK2 积分，再把轨迹画成 3D 折线。"""
+    style = layer.get("style") or {}
+    X, Y, Z, U, V, W = _xyz_arrays(layer, store, ("x", "y", "z", "u", "v", "w"))
+    if X.ndim != 3:
+        raise ValueError("stream3d 需要三维网格：x/y/z 与 u/v/w 都要是 3D 数组")
+    xs, ys, zs = X[:, 0, 0], Y[0, :, 0], Z[0, 0, :]
+    span = max(float(np.ptp(xs)), float(np.ptp(ys)), float(np.ptp(zs))) or 1.0
+    step = span / 30.0
+    density = float(style.get("density", 0.6) or 0.6)
+    every = max(1, int(round(4 * (1.0 - min(max(density, 0.0), 1.0)))))
+
+    def direction(point):
+        ix = int(np.abs(xs - point[0]).argmin())
+        iy = int(np.abs(ys - point[1]).argmin())
+        iz = int(np.abs(zs - point[2]).argmin())
+        vec = np.array([U[iz, iy, ix], V[iz, iy, ix], W[iz, iy, ix]], dtype=float)
+        norm = float(np.linalg.norm(vec))
+        return vec / norm if norm > 1e-12 else np.zeros(3)
+
+    color = str(style.get("color") or color_for(index))
+    lo = np.array([xs.min(), ys.min(), zs.min()])
+    hi = np.array([xs.max(), ys.max(), zs.max()])
+    for iz in range(0, Z.shape[0], every):
+        for iy in range(0, Y.shape[1], every):
+            for ix in range(0, X.shape[2], every):
+                p = np.array([X[iz, iy, ix], Y[iz, iy, ix], Z[iz, iy, ix]], dtype=float)
+                path = [p.copy()]
+                for _ in range(40):
+                    d1 = direction(p)
+                    if not d1.any():
+                        break
+                    mid = p + d1 * step * 0.5
+                    d2 = direction(mid)
+                    p = p + (d2 if d2.any() else d1) * step
+                    if np.any(p < lo) or np.any(p > hi):
+                        break
+                    path.append(p.copy())
+                if len(path) > 3:
+                    pts = np.array(path)
+                    ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], color=color,
+                            linewidth=float(style.get("width", 1.0) or 1.0), alpha=0.9)
+
 DRAWERS = {
     "line": _draw_line, "marker": _draw_scatter, "bar": _draw_bar,
     "hist": _draw_hist, "pie": _draw_pie, "image": _draw_image, "table": _draw_table,
     "heatmap": _draw_heatmap, "contour": _draw_contour, "contourf": _draw_contourf,
     "correlation": _draw_correlation,
     "quiver": _draw_quiver, "streamplot": _draw_streamplot, "barbs": _draw_barbs,
+    "surface": _draw_surface, "line3d": _draw_line3d, "scatter3d": _draw_scatter3d,
+    "bar3d": _draw_bar3d, "hist3d": _draw_hist3d, "quiver3d": _draw_quiver3d,
+    "stream3d": _draw_stream3d,
 }
 
 
 def _apply_view(ax, view: Mapping[str, Any], *, theme, fonts) -> None:
+    if hasattr(ax, "get_zlim"):  # 3D 轴：没有 spines，改视角与 pane 颜色
+        if view.get("xlim"):
+            ax.set_xlim(*[float(v) for v in view["xlim"]])
+        if view.get("ylim"):
+            ax.set_ylim(*[float(v) for v in view["ylim"]])
+        if view.get("zlim"):
+            ax.set_zlim(*[float(v) for v in view["zlim"]])
+        ax.view_init(elev=float(view.get("elev", 30.0)), azim=float(view.get("azim", -60.0)))
+        ax.tick_params(colors=theme["text"], labelsize=float(fonts.get("tick", 11)))
+        ax.grid(bool(view.get("grid", True)))
+        for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+            axis.pane.set_facecolor(theme["plot"])
+            axis.pane.set_edgecolor(theme["grid"])
+            axis.label.set_color(theme["text"])
+        axis_size = float(fonts.get("axis", 12))
+        if view.get("xlabel"):
+            ax.set_xlabel(str(view["xlabel"]), color=theme["text"], fontsize=axis_size)
+        if view.get("ylabel"):
+            ax.set_ylabel(str(view["ylabel"]), color=theme["text"], fontsize=axis_size)
+        if view.get("zlabel"):
+            ax.set_zlabel(str(view["zlabel"]), color=theme["text"], fontsize=axis_size)
+        if view.get("title"):
+            ax.set_title(str(view["title"]), color=theme["text"], fontsize=axis_size)
+        return
     if view.get("xlim"):
         ax.set_xlim(*[float(v) for v in view["xlim"]])
     if view.get("ylim"):
@@ -577,29 +788,39 @@ def to_figure(
     if fig_cfg.get("title"):
         fig.suptitle(str(fig_cfg["title"]), color=theme["text"], fontsize=float(fonts.get("title", 14)))
 
+    # 先分组：同一子图里 2D 与 3D 不能混排（与 MultiPlotter 同规则），
+    # 且 3D 槽位要用 projection="3d" 建轴。
+    by_subplot: dict[int, list[Mapping[str, Any]]] = {}
+    for layer in spec_layers(spec):
+        by_subplot.setdefault(int(layer.get("subplot", 0)), []).append(layer)
+
+    slot_is_3d: dict[int, bool] = {}
+    for slot, group in by_subplot.items():
+        known = reg.known_kind_names()
+        dims = {reg.resolve(l["kind"]).dimension for l in group if l.get("kind") in known}
+        if 3 in dims and 2 in dims:
+            raise ValueError(f"子图 {slot} 里 2D 与 3D 图层不能混排（请拆到不同子图）")
+        slot_is_3d[slot] = 3 in dims
+
     insets = {int(ins.get("subplot", -1)): ins for ins in (fig_cfg.get("insets") or [])}
     grid_slots = [i for i in range(subplots) if i not in insets]
     gcols = max(1, min(ncols, len(grid_slots)))
     grows = max(1, -(-len(grid_slots) // gcols))
 
     axes: dict[int, Any] = {}
-    grid = fig.subplots(grows, gcols, squeeze=False).ravel()
     for index, slot in enumerate(grid_slots):
-        axes[slot] = grid[index]
-    for ax in grid[len(grid_slots):]:
-        ax.set_visible(False)
+        kwargs = {"projection": "3d"} if slot_is_3d.get(slot) else {}
+        axes[slot] = fig.add_subplot(grows, gcols, index + 1, **kwargs)
 
     # inset 轴：位置按父轴绘图区的比例给（与 plotly 后端同一套 rect 语义）
     for slot, ins in insets.items():
+        if slot_is_3d.get(slot):
+            raise ValueError(f"子图 {slot} 是 3D，不能作为内嵌图（inset 只支持 2D）")
         parent = axes.get(int(ins.get("parent", 0)))
         if parent is None:
             continue
         rx, ry, rw, rh = [float(v) for v in ins.get("rect", (0.62, 0.62, 0.35, 0.34))]
         axes[slot] = parent.inset_axes([rx, ry, rw, rh])
-
-    by_subplot: dict[int, list[Mapping[str, Any]]] = {}
-    for layer in spec_layers(spec):
-        by_subplot.setdefault(int(layer.get("subplot", 0)), []).append(layer)
 
     views: dict[int, dict[str, Any]] = {}
     for subplot, group in by_subplot.items():
@@ -760,3 +981,12 @@ reg.register("correlation", 2, None, defaults={"cmap": "RdBu_r", "vmin": -1.0, "
 reg.register("quiver", 2, None, defaults={"color_by": "magnitude"}, description="矢量箭头图")
 reg.register("streamplot", 2, None, defaults={"density": 1.0}, description="流线图（需二维网格）")
 reg.register("barbs", 2, None, defaults={"color_by": "magnitude"}, description="风羽图（barbs）")
+
+# ---------------- 注册 P13-04 的 3D 图层 ----------------
+reg.register("surface", 3, None, defaults={"cmap": "viridis"}, description="三维曲面")
+reg.register("line3d", 3, None, defaults={"width": 1.8}, description="三维折线")
+reg.register("scatter3d", 3, None, defaults={"cmap": "viridis"}, description="三维散点")
+reg.register("bar3d", 3, None, defaults={"shade": True}, description="三维柱状")
+reg.register("hist3d", 3, None, defaults={"bins": 8}, description="三维直方（二维分箱 + 柱）")
+reg.register("quiver3d", 3, None, defaults={"length": 0.6}, description="三维矢量箭头")
+reg.register("stream3d", 3, None, defaults={"density": 0.6}, description="三维流线（RK2 积分）")

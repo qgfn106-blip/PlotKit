@@ -32,6 +32,20 @@ KIND_PRESETS: dict[str, dict[str, Any]] = {
                         "colorbar": False}, "view": {"grid": False}},
     "streamplot": {"style": {"cmap": "viridis", "density": 1.0, "arrowsize": 1.0,
                              "colorbar": False}, "view": {"grid": False}},
+    # P13-04：3D（默认给一个能看清立体感的视角）
+    "surface": {"style": {"cmap": "viridis", "colorbar": True, "stride": 1, "shade": True},
+                "view": {"elev": 30, "azim": -60, "grid": True}},
+    "line3d": {"style": {"width": 1.8}, "view": {"elev": 30, "azim": -60, "grid": True}},
+    "scatter3d": {"style": {"cmap": "viridis", "marker": {"size": 6}, "colorbar": False},
+                  "view": {"elev": 30, "azim": -60, "grid": True}},
+    "bar3d": {"style": {"cmap": "viridis", "colorbar": False, "shade": True},
+              "view": {"elev": 30, "azim": -60, "grid": True}},
+    "hist3d": {"style": {"cmap": "viridis", "colorbar": True, "bins": 8, "shade": True},
+               "view": {"elev": 30, "azim": -60, "grid": True}},
+    "quiver3d": {"style": {"cmap": "viridis", "length": 0.6, "colorbar": False},
+                 "view": {"elev": 30, "azim": -60, "grid": True}},
+    "stream3d": {"style": {"cmap": "viridis", "density": 0.6, "colorbar": False},
+                 "view": {"elev": 30, "azim": -60, "grid": True}},
 }
 
 

@@ -23,7 +23,7 @@
 | **PK-R08** | 「新功能完全实现，就要能准确将原方法删去」「UI 与软件 UI 相兼容，并且可自定义 UI」 | 完成即删旧的等价迁移；外观级 + 布局级可自定义（`theme` + `layout.json`） | 部分：能力已对齐中；**旧 canvas 与分析面板不删**（2026-10-31 用户决定，D37） |
 | **PK-R09** | 「我在 vs code 运行程序时，能弹出窗口，而不是直接跳到浏览器去」 | `show()` 三级 sink：inline → window（PySide6 + QtWebEngine）→ browser | 完成（`runtime/sink.py`、`runtime/window.py`） |
 | **PK-R10** | 「netlab 内部做可分离的内嵌窗口」「补齐老画布能力」 | 停靠 ⇄ 浮出两种形态；时间窗/回放/播放/清空/信号筛选对齐老 canvas | 完成（P12-05、P12-06） |
-| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **进行中**：`registry.kinds()` **18 种里完成 11 种**（line / scatter(marker) / bar / hist / pie / image / table / heatmap / contour / quiver / streamplot，见 §3.3），另有 3 种附加 kind（`contourf` / `correlation` / `barbs`），registry 共 14 种 |
+| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **进行中**：`registry.kinds()` **18 种全部完成**（11×2D + 7×3D，见 §3.3），另有 3 种附加 kind（`contourf` / `correlation` / `barbs`），registry 共 21 种 |
 | **PK-R12** | 「以及 matplotlib API 中所有的绘图功能」 | 以 `Axes` 绘图方法为全集（约 55 个），逐个给出归属：双后端 / mpl 兜底 / 不做 | **未盘点**：归属表见 §3.4 |
 | **PK-R13** | 「按照 multiplotter 中的逻辑进行预设计与编写程序」 | 预设表、分发别名、透传白名单、严格模式、`init()` 全局样式、`style_scope`、`register_layer` 契约 | 仅 `reg.register` 有雏形（无 presets/passthrough/strict） |
 | **PK-R14** | 「并且可自己优化」 | 允许偏离原实现：服务端分箱/相关矩阵、重绘缓存与 ETag、按像素宽度抽稀、节流刷新 | 部分已有（D22 缓存、min-max 抽稀） |
@@ -112,8 +112,8 @@
 | contour / contourf | 2D | z,x,y,levels | contour / contourf + clabel | ✅ P13-02 |
 | correlation（别名 corr / correlation_matrix） | 2D | 多序列 → 矩阵 | imshow + colorbar + 列名刻度 | ✅ P13-02 |
 | quiver（`key=True` 出 quiverkey）/ streamplot / barbs | 2D | x,y,u,v | quiver / streamplot / barbs | ✅ P13-03 |
-| surface / line3d / scatter3d / bar3d / hist3d / quiver3d | 3D | x,y,z(,u,v,w) | plot_surface / plot / scatter / bar3d / hist3d / quiver | P13-04 |
-| stream3d | 3D | x,y,z,u,v,w | 沿流线积分后 plot3D（mpl 无原生 stream3d） | P13-04 |
+| surface / line3d / scatter3d / bar3d / hist3d / quiver3d | 3D | x,y,z(,u,v,w) | plot_surface / plot / scatter / bar3d / hist3d / quiver | ✅ P13-04 |
+| stream3d | 3D | x,y,z,u,v,w | RK2 积分后 plot3D（mpl 无原生 stream3d） | ✅ P13-04 |
 
 ### 3.4 matplotlib 方法归属（约 55 个）
 
@@ -184,7 +184,7 @@
 | P13-01 | hist / pie / image / table（服务端分箱、矩阵/表格数据键） | ✅ 完成：`tests/test_kinds_basic.py` 14 项，全库 **165 passed**；四种都出非空白 PNG；hist 与 `np.histogram` 逐箱相等；浏览器截图见 §6 |
 | P13-02 | heatmap / contour / contourf / correlation | ✅ 完成：`tests/test_kinds_field.py` 14 项，全库 **165 passed**；相关矩阵与 `np.corrcoef` 差 <1e-12；浏览器截图见 §6 |
 | P13-03 | quiver（含 quiverkey）/ streamplot / barbs | ✅ 完成：`tests/test_kinds_vector.py` 15 项，全库 **180 passed**；vmin/vmax、纯色流线、color_by 白名单均已封口；浏览器截图见 §6 |
-| P13-04 | 3D 七种 | 未开工 |
+| P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
 | P13-05…07 | 统计/信号族（mpl 兜底）、动画、附属能力（colorbar/表格/Science/字体） | 未开工 |
 | P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
 
@@ -222,7 +222,13 @@
 20. **quiver 没有 `arrowsize`**（那是 streamplot 的参数），要用 `headwidth/headlength/headaxislength` 换算；传错会抛 `AttributeError: Quiver.set() got an unexpected keyword argument 'arrowsize'`。
 21. **`quiver`/`barbs`/`streamplot` 都不吃 `vmin/vmax` 关键字**：要传 `norm=Normalize(vmin, vmax)`，否则报 `AttributeError: Quiver.set() got an unexpected keyword argument 'vmin'`。色条范围与箭头颜色要一起改，别只改色条。
 22. **纯色 vs 按值上色要互斥**：`color="#f00"` 时不能再传 `cmap`，也不能加 colorbar——否则箭头是单色、色条画的是模长，两者对不上，读者会被误导。
-23. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+23. **3D 轴要按槽位建**：`fig.subplots()` 一律给 2D 轴，3D 必须逐格 `add_subplot(..., projection="3d")`；同一子图混排 2D/3D 要在建轴前就拦住（mpl 会在 draw 时才炸，报错位置很难读）。
+24. **`DataStore` 原来只收 ≤2D**：3D 网格（x/y/z/u/v/w）是 (nz,ny,nx)，必须放宽到三维，否则 `add_data` 直接抛「最多二维」。
+25. **`bar3d` 不吃 `cmap`**：想按高度上色得自己 `cmap(norm(values))` 生成颜色数组，否则柱子单色、色条却是 0–1 归一化刻度，两者对不上（截图时发现）。bar3d 与 hist3d 已统一按值上色，显式 `color` 才是单色。
+26. **3D 分支提前 `return` 会丢标题与轴标签**：`_apply_view` 里 3D 分支原本直接返回，而 `set_xlabel/set_ylabel/set_title` 写在 2D 分支之后——评审发现 3D 子图的标题与轴标签全部静默丢失。3D 分支必须自己补 `xlabel/ylabel/zlabel/title`。
+27. **`surface` 的 x/y 必须与 z 同形**：给了 x/y 却不校验形状，会静默画错位；现在形状不符直接报错。
+28. **3D + colorbar 在小图里会触发 `constrained_layout not applied ... collapsed to zero`**：只是告警，mpl 会退回默认布局，出图正常；图再小就要手动调 `fraction/pad`。
+29. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 
@@ -235,3 +241,4 @@
 - `docs/p13_kinds.png`：P13-01 四种图层同页（hist / pie / image+colorbar / table）
 - `docs/p13_field.png`：P13-02 场类四联（heatmap / contour+clabel / contourf / correlation 带列名刻度）
 - `docs/p13_vector.png`：P13-03 矢量场（quiver 按模长上色 + streamplot，各带 colorbar）
+- `docs/p13_3d.png`：P13-04 3D 四联（surface / line3d / scatter3d / hist3d）

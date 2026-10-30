@@ -36,11 +36,28 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
                    "u": ("field", "series", "auto"), "v": ("field", "series", "auto")},
     "barbs": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
               "u": ("series", "field", "auto"), "v": ("series", "field", "auto")},
+    # P13-04：3D 七种
+    "surface": {"z": ("field", "image", "auto")},
+    "line3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
+               "z": ("series", "field", "auto")},
+    "scatter3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
+                  "z": ("series", "field", "auto")},
+    "bar3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
+              "z": ("series", "field", "auto")},
+    "hist3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto")},
+    "quiver3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
+                 "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
+                 "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
+    "stream3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
+                 "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
+                 "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
 }
 
 KNOWN_VIEW_KEYS = {
     "title", "xlabel", "ylabel", "xlim", "ylim",
     "xscale", "yscale", "grid", "invert_y", "zero_line", "ticks", "loglabels",
+    # P13-04：3D 视图
+    "zlim", "zlabel", "elev", "azim", "projection",
 }
 KNOWN_STYLE_KEYS = {
     "mode", "color", "width", "dash", "marker", "fill", "opacity", "error",
@@ -51,6 +68,8 @@ KNOWN_STYLE_KEYS = {
     "levels", "labels", "shading",
     # P13-03：矢量场
     "scale", "density", "arrowsize", "color_by", "shaft", "key",
+    # P13-04：3D
+    "stride", "shade", "length", "normalize",
 }
 KNOWN_FIGURE_KEYS = {
     "window",

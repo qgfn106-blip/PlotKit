@@ -75,8 +75,9 @@ def _as_array(values: Any, *, name: str) -> np.ndarray:
             raise TypeError(f"数据集 {name} 的值无法转成数组: {exc}") from exc
     if array.ndim == 0:
         array = array.reshape(1)
-    if array.ndim > 2:
-        raise ValueError(f"数据集 {name} 最多二维，收到 {array.ndim} 维")
+    # 允许到三维：3D 图层的网格（x/y/z/u/v/w）就是 (nz, ny, nx)
+    if array.ndim > 3:
+        raise ValueError(f"数据集 {name} 最多三维，收到 {array.ndim} 维")
     if array.dtype == object:
         raise TypeError(f"数据集 {name} 是 object 数组（不可序列化），请先转成数值或字符串列表")
     return np.array(array, copy=True)

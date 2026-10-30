@@ -38,7 +38,7 @@ def test_add_plot_requires_xy():
 def test_add_plot_unknown_kind_fails_fast():
     fig = pk.figure()
     with pytest.raises(KeyError):
-        fig.add_plot("surface", x=[0], y=[1])
+        fig.add_plot("sankey", x=[0], y=[1])  # 未实现的 kind 作为反例
 
 
 def test_style_aliases_map_to_spec():
