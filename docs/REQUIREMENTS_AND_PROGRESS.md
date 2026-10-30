@@ -62,7 +62,7 @@
 | D26 | ~~前端按 `figure.caps` 懒加载 plotly 分部包~~ **作废（2026-10-31，D33 后不再有 plotly bundle）** | 历史记录：basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B |
 | D27 | 每 kind 一份 presets（默认 + 命名预设）；合并优先级 `KIND_DEFAULTS < init 全局 < add 参数 < **kwargs` | 对齐 MultiPlotter 的 KIND_DEFAULTS |
 | D28 | 浏览器专属键走 passthrough 白名单，未列出记 warning；`strict=True` 抛错 | 防假兼容与静默丢参 |
-| D29 | 动画 = spec 的 `figure.frames`（每帧只存 patch）；plotly 用 `Plotly.animate`，mpl 用 `FuncAnimation` 导 GIF/MP4 | 一套 spec 两种出口 |
+| D29 | 动画 = spec 的 `figure.anim`（**只存时间切片，不存帧数据**）；每帧用 `render(t_end=…)` 现算，视窗锁在完整数据的范围上，PIL 合成 GIF（**2026-10-31 修订**：原写 `figure.frames` + `FuncAnimation` + MP4；实际用 `anim` 字段与逐帧渲染，MP4 需 ffmpeg 转 P13-07） | 动画与静态图同一条渲染路径，不会"两张图不一致"；spec 也不随帧数膨胀 |
 | D30 | ~~统计/信号类先只做 mpl 兜底~~ **作废（2026-10-31，D33 后全部走 mpl）** | 历史记录 |
 | D31 | 一切"要算的"在服务端（hist 分箱、correlation 矩阵、hexbin 计数、抽稀），前端只画 | 沿用 D10，避免两套数值 |
 | D32 | 新增 kind 封口固定四件套（spec 往返 / plotly 快照 / mpl PNG / CDP 截图），并加"两后端都能出图"参数化用例 | 88 项全绿但渲染炸过 4 次 |
@@ -186,7 +186,7 @@
 | P13-03 | quiver（含 quiverkey）/ streamplot / barbs | ✅ 完成：`tests/test_kinds_vector.py` 15 项，全库 **180 passed**；vmin/vmax、纯色流线、color_by 白名单均已封口；浏览器截图见 §6 |
 | P13-04 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d / stream3d | ✅ 完成：`tests/test_kinds_3d.py` 14 项，全库 **194 passed**；**18/18 覆盖**；浏览器四联截图见 §6 |
 | P13-05 | boxplot / violinplot / ecdf / hexbin / barh / stackplot / step / stem | ✅ 首批 8 种完成：`tests/test_kinds_stats.py` 14 项，全库 **208 passed**；浏览器四联截图见 §6。**未做**：stairs / broken_barh / eventplot / bxp / psd / specgram / csd / cohere / acorr / xcorr / 频谱族（转 P13-07） |
-| P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 8 项，全库 **216 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
+| P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 10 项，全库 **218 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
 | P13-07 | 附属能力（colorbar 细化/表格高亮/Science/字体链）+ 本票漏项 | 未开工 |
 | P13-08 | 收尾：覆盖率表 100% 有归属、性能回归、删旧评估 | 未开工 |
 
@@ -237,7 +237,9 @@
 33. **动画不要存"每帧数据快照"**：只存时间切片（`figure.anim`），每帧用 `render(t_end=…)` 现算——与交互渲染同一条路径，不会出现"动画和静态图不一致"，spec 也不会膨胀。
 34. **GIF 合成用 PIL 就够**：`frames[0].save(..., save_all=True, append_images=frames[1:], duration=1000/fps, loop=0, disposal=2)`；MP4 要 ffmpeg，暂不做。
 35. **动画接口是秒级的**：40 帧 / 700×440 首次 6.3 s（每帧 ~150 ms 的 mpl 渲染），必须走 ETag 缓存；前端点按钮后要等首帧，CDP 测试等待时间别设太短（我第一次等 6 s 只看到"没反应"）。
-36. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
+36. **动画必须锁视窗**：每帧都用 `t_end` 重新渲染时，mpl 会按"当前帧的数据"自动缩放，看起来是整幅图在放大而不是波形生长（评审发现）。`anim_limits()` 先用完整数据取一次范围，所有帧共用。
+37. **`img.onload` 里 revoke 会漏**：并发/连点会覆盖回调，旧 blob URL 永不释放。改成设置新 src 后**立即** revoke 旧的；动画请求加 `state.animBusy` 守卫。
+38. **换 bundle 前先量两件事**：体积（实测 basic 1,102,006 B / cartesian 1,405,670 B / gl3d 1,678,645 B）与冷启动首帧（当前 862 ms，D21 门槛 1 s），再决定是否懒加载；不要先改代码再测。
 
 ## 6. 证据
 

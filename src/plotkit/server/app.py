@@ -71,6 +71,36 @@ def _parse_limits(raw: str | None) -> tuple[float, float] | None:
     return lo, hi
 
 
+def _cached(request: Request, key: tuple, build, media_type: str) -> Response:
+    """统一的"渲染 → 缓存 → ETag/304 → 响应"流程。
+
+    `build()` 返回 `(payload, extra_headers)`；缓存键由调用方给出（含 spec 摘要与参数）。
+    """
+    cached = _RENDER_CACHE.get(key)
+    hit = cached is not None
+    if cached is None:
+        try:
+            payload, extra = build()
+        except (SpecError, ValueError) as exc:
+            raise HTTPException(400, str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - 渲染失败直接回给前端看
+            raise HTTPException(500, f"渲染失败: {exc}") from exc
+        tag = _etag(payload)
+        _RENDER_CACHE[key] = (payload, tag, extra)
+        while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
+            _RENDER_CACHE.popitem(last=False)
+    else:
+        payload, tag, extra = cached
+        _RENDER_CACHE.move_to_end(key)
+
+    headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
+               "X-PlotKit-Render": "hit" if hit else "miss"}
+    headers.update(extra or {})
+    if request.headers.get("if-none-match") == tag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=payload, media_type=media_type, headers=headers)
+
+
 def _etag(payload: bytes) -> str:
     return '"' + hashlib.sha1(payload).hexdigest()[:16] + '"'
 
@@ -258,40 +288,23 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
             raise HTTPException(400, f"不支持的格式 {fmt!r}（png / svg）")
         width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
         xr, yr = _parse_limits(xlim), _parse_limits(ylim)
-        key = (figure.revision, width, height, dpi, fmt, xr, yr, t)
+        key = (figure.revision, "render", width, height, dpi, fmt, xr, yr, t)
 
-        cached = _RENDER_CACHE.get(key)
-        hit = cached is not None
-        if cached is None:
-            try:
-                payload, limits = figure.render(width=width, height=height, dpi=dpi, fmt=fmt,
-                                                xlim=xr, ylim=yr, with_limits=True, t_end=t)
-            except SpecError as exc:
-                raise HTTPException(400, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001 - 渲染失败直接回给前端看
-                raise HTTPException(500, f"matplotlib 渲染失败: {exc}") from exc
-            tag = _etag(payload)
-            _RENDER_CACHE[key] = (payload, tag, limits)
-            while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
-                _RENDER_CACHE.popitem(last=False)
-        else:
-            payload, tag, limits = cached
-            _RENDER_CACHE.move_to_end(key)
+        def build():
+            payload, limits = figure.render(width=width, height=height, dpi=dpi, fmt=fmt,
+                                            xlim=xr, ylim=yr, with_limits=True, t_end=t)
+            extra = {}
+            if limits:
+                extra["X-PlotKit-Xlim"] = f"{limits['xlim'][0]:.6g},{limits['xlim'][1]:.6g}"
+                extra["X-PlotKit-Ylim"] = f"{limits['ylim'][0]:.6g},{limits['ylim'][1]:.6g}"
+                extra["X-PlotKit-Box"] = ",".join(f"{v:.5f}" for v in limits["box"])
+                extra["X-PlotKit-Px"] = f"{limits['px'][0]},{limits['px'][1]}"
+                if limits.get("slots"):
+                    extra["X-PlotKit-Axes"] = ";".join(
+                        f"{s['slot']}," + ",".join(f"{v:.5f}" for v in s["box"]) for s in limits["slots"])
+            return payload, extra
 
-        headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
-                   "X-PlotKit-Render": "hit" if hit else "miss"}
-        if limits:
-            headers["X-PlotKit-Xlim"] = f"{limits['xlim'][0]:.6g},{limits['xlim'][1]:.6g}"
-            headers["X-PlotKit-Ylim"] = f"{limits['ylim'][0]:.6g},{limits['ylim'][1]:.6g}"
-            headers["X-PlotKit-Box"] = ",".join(f"{v:.5f}" for v in limits["box"])
-            headers["X-PlotKit-Px"] = f"{limits['px'][0]},{limits['px'][1]}"
-            if limits.get("slots"):
-                headers["X-PlotKit-Axes"] = ";".join(
-                    f"{s['slot']}," + ",".join(f"{v:.5f}" for v in s["box"]) for s in limits["slots"])
-        if request.headers.get("if-none-match") == tag:
-            return Response(status_code=304, headers=headers)
-        media = "image/png" if fmt == "png" else "image/svg+xml"
-        return Response(content=payload, media_type=media, headers=headers)
+        return _cached(request, key, build, "image/png" if fmt == "png" else "image/svg+xml")
 
     @app.get("/api/anim")
     def anim(
@@ -304,28 +317,9 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         """动画 GIF（P13-06）：按 `figure.anim` 逐帧渲染再合成，浏览器直接播放。"""
         width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
         key = (figure.revision, "anim", width, height, dpi, fps)
-        cached = _RENDER_CACHE.get(key)
-        hit = cached is not None
-        if cached is None:
-            try:
-                payload = figure.animate_gif(width=width, height=height, dpi=dpi, fps=fps)
-            except SpecError as exc:
-                raise HTTPException(400, str(exc)) from exc
-            except Exception as exc:  # noqa: BLE001
-                raise HTTPException(500, f"动画渲染失败: {exc}") from exc
-            tag = _etag(payload)
-            _RENDER_CACHE[key] = (payload, tag, None)
-            while len(_RENDER_CACHE) > _RENDER_CACHE_MAX:
-                _RENDER_CACHE.popitem(last=False)
-        else:
-            payload, tag, _ = cached
-            _RENDER_CACHE.move_to_end(key)
-
-        headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
-                   "X-PlotKit-Render": "hit" if hit else "miss"}
-        if request.headers.get("if-none-match") == tag:
-            return Response(status_code=304, headers=headers)
-        return Response(content=payload, media_type="image/gif", headers=headers)
+        return _cached(request, key,
+                       lambda: (figure.animate_gif(width=width, height=height, dpi=dpi, fps=fps), {}),
+                       "image/gif")
 
     @app.get("/api/png")
     def png(dpi: int | None = None) -> Response:

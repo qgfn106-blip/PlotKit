@@ -361,6 +361,10 @@ class Figure:
         raw = dict((self.spec.get("figure") or {}).get("anim") or {})
         frames = int(raw.get("frames", 30))
         fps = float(raw.get("fps", 12.0))
+        if not 1 <= frames <= 600:
+            raise ValueError(f"anim.frames 必须在 1…600 之间，收到 {frames}")
+        if not 1.0 <= fps <= 120.0:
+            raise ValueError(f"anim.fps 必须在 1…120 之间，收到 {fps}")
         t_start, t_end = raw.get("t_start"), raw.get("t_end")
         if t_start is None or t_end is None:
             lo, hi = 0.0, 1.0
@@ -379,9 +383,23 @@ class Figure:
             return [cfg["t_end"]]
         return [float(v) for v in np.linspace(cfg["t_start"], cfg["t_end"], cfg["frames"])]
 
+    def anim_limits(self, *, width: int = 640, height: int = 400,
+                    dpi: int = 100) -> tuple[tuple[float, float] | None, tuple[float, float] | None]:
+        """动画锁定的视窗：用**完整数据**渲染一次取范围，所有帧都复用它。"""
+        _, limits = self.render(width=width, height=height, dpi=dpi, with_limits=True)
+        if not limits:
+            return None, None
+        return tuple(limits["xlim"]), tuple(limits["ylim"])
+
     def render_frames(self, *, width: int = 640, height: int = 400, dpi: int = 100) -> list[bytes]:
-        """逐帧渲染成 PNG 列表（前端按帧播放用）。"""
-        return [self.render(width=width, height=height, dpi=dpi, t_end=t)
+        """逐帧渲染成 PNG 列表（前端按帧播放用）。
+
+        先用**完整数据**渲染一次拿到视窗，之后每帧都锁在这个视窗里——
+        否则 matplotlib 会按当前帧的数据自动缩放，看起来是"整幅图在放大"，
+        而不是"波形在生长"（2026-10-31 评审发现）。
+        """
+        xlim, ylim = self.anim_limits(width=width, height=height, dpi=dpi)
+        return [self.render(width=width, height=height, dpi=dpi, t_end=t, xlim=xlim, ylim=ylim)
                 for t in self.frame_times()]
 
     def animate_gif(self, *, width: int = 640, height: int = 400, dpi: int = 100,

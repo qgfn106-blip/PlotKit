@@ -449,13 +449,7 @@ async function redraw(reason) {
   const { w, h } = plotSize();
   const res = await fetch(renderUrl(w, h));
   if (!res.ok) { setStatus(`渲染失败 HTTP ${res.status}`, "bad"); return; }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const prev = img.dataset.url;
-  img.onload = () => { if (prev) URL.revokeObjectURL(prev); };
-  img.dataset.url = url;
-  img.src = url;
-  img.style.transform = "none";
+  showBlob(await res.blob());
   const xl = res.headers.get("X-PlotKit-Xlim");
   const yl = res.headers.get("X-PlotKit-Ylim");
   const box = res.headers.get("X-PlotKit-Box");
@@ -491,6 +485,17 @@ function renderUrl(w, h) {
   if (state.view.ylim) url += `&ylim=${state.view.ylim[0]},${state.view.ylim[1]}`;
   if (state.playhead != null) url += `&t=${state.playhead.toFixed(4)}`;
   return url;
+}
+
+function showBlob(blob, { animated = false } = {}) {
+  const img = $("plotImg");
+  const url = URL.createObjectURL(blob);
+  const prev = img.dataset.url;
+  img.dataset.url = url;
+  img.src = url;
+  img.style.transform = "none";
+  if (prev) URL.revokeObjectURL(prev);  // 立刻释放，别依赖 onload（并发时会丢回调）
+  if (animated) state.img = null;       // 动画帧没有静态几何，避免 hover/缩放读旧值
 }
 
 function scheduleRender(reason) {
@@ -541,19 +546,22 @@ $("btn-anim").onclick = async () => {
     return;
   }
   if (!state.spec.layers.length) { setStatus("还没有图层", "bad"); return; }
-  const { w, h } = plotSize();
-  const res = await fetch(`api/anim?w=${w}&h=${h}`);
-  if (!res.ok) { setStatus(`动画失败 HTTP ${res.status}`, "bad"); return; }
-  const url = URL.createObjectURL(await res.blob());
-  const img = $("plotImg");
-  const prev = img.dataset.url;
-  img.onload = () => { if (prev) URL.revokeObjectURL(prev); };
-  img.dataset.url = url;
-  img.src = url;
-  img.style.transform = "none";
-  animPlaying = true;
-  $("btn-anim").classList.add("on");
-  setStatus("播放动画（再点一次停止）", "ok");
+  if (state.animBusy) return;   // 生成要好几秒，连点会起两个请求并漏掉一个 blob
+  state.animBusy = true;
+  $("btn-anim").disabled = true;
+  setStatus("正在生成动画…", "ok");
+  try {
+    const { w, h } = plotSize();
+    const res = await fetch(`api/anim?w=${w}&h=${h}`);
+    if (!res.ok) { setStatus(`动画失败 HTTP ${res.status}`, "bad"); return; }
+    showBlob(await res.blob(), { animated: true });
+    animPlaying = true;
+    $("btn-anim").classList.add("on");
+    setStatus("播放动画（再点一次停止）", "ok");
+  } finally {
+    state.animBusy = false;
+    $("btn-anim").disabled = false;
+  }
 };
 
 $("btn-png").onclick = () => {

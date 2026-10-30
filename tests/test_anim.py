@@ -89,3 +89,24 @@ def test_anim_rejects_bad_frames():
     fig = _fig(4)
     with pytest.raises(ValueError):
         fig.set_anim(frames=0)
+
+
+def test_frames_share_one_viewport():
+    """动画必须锁定视窗：否则每帧自动缩放，看起来像整幅图在放大而不是波形生长。"""
+    fig = _fig(4)
+    frames = fig.render_frames(width=280, height=180)
+    xlim, ylim = fig.anim_limits(width=280, height=180)
+    assert xlim and ylim
+    last = fig.frame_times()[-1]
+    assert fig.render(width=280, height=180, t_end=last, xlim=xlim, ylim=ylim) == frames[-1]
+
+
+def test_spec_rejects_bad_anim():
+    from plotkit.spec.validate import validate_spec
+
+    fig = _fig(3)
+    assert validate_spec(fig.spec, store=fig.store).ok
+    fig.spec["figure"]["anim"]["frames"] = 0
+    assert not validate_spec(fig.spec, store=fig.store).ok
+    fig.spec["figure"]["anim"] = {"frames": 3, "fps": 0}
+    assert not validate_spec(fig.spec, store=fig.store).ok

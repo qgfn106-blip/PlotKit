@@ -198,6 +198,18 @@ def validate_spec(
     if not isinstance(dpi, int) or isinstance(dpi, bool) or dpi <= 0:
         report.add("figure.dpi", "$.figure.dpi", "dpi 必须是正整数")
 
+    anim = fig.get("anim")
+    if anim is not None:
+        if not isinstance(anim, Mapping):
+            report.add("figure.anim", "$.figure.anim", "anim 必须是对象")
+        else:
+            frames = anim.get("frames", 30)
+            if not isinstance(frames, int) or isinstance(frames, bool) or not 1 <= frames <= 600:
+                report.add("figure.anim.frames", "$.figure.anim.frames", "frames 必须是 1…600 的整数")
+            fps = anim.get("fps", 12.0)
+            if not _is_number(fps) or not 1.0 <= float(fps) <= 120.0:
+                report.add("figure.anim.fps", "$.figure.anim.fps", "fps 必须在 1…120 之间")
+
     ncols = fig.get("ncols", 1)
     if not isinstance(ncols, int) or isinstance(ncols, bool) or ncols < 1:
         report.add("figure.ncols", "$.figure.ncols", "ncols 必须是 >=1 的整数")
