@@ -64,6 +64,24 @@ KIND_PRESETS: dict[str, dict[str, Any]] = {
     "psd": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
     "specgram": {"style": {"nfft": 256, "fs": 1.0, "cmap": "magma", "colorbar": True},
                  "view": {"grid": False}},
+    # P13-09：方法级缺口
+    "triplot": {"style": {}, "view": {"grid": False}},
+    "tricontour": {"style": {"levels": 8, "cmap": "viridis"}, "view": {"grid": False}},
+    "tricontourf": {"style": {"levels": 8, "cmap": "viridis", "colorbar": True},
+                    "view": {"grid": False}},
+    "tripcolor": {"style": {"cmap": "viridis", "colorbar": True}, "view": {"grid": False}},
+    "voxels": {"style": {"cmap": "viridis"}, "view": {"elev": 30, "azim": -60, "grid": True}},
+    "trisurf": {"style": {"cmap": "viridis", "colorbar": True},
+                "view": {"elev": 30, "azim": -60, "grid": True}},
+    "stem3d": {"style": {"width": 1.2}, "view": {"elev": 30, "azim": -60, "grid": True}},
+    "text3d": {"style": {"fontsize": 10}, "view": {"elev": 30, "azim": -60, "grid": True}},
+    "csd": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
+    "cohere": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
+    "acorr": {"style": {}, "view": {"grid": False}},
+    "xcorr": {"style": {}, "view": {"grid": False}},
+    "angle_spectrum": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
+    "magnitude_spectrum": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
+    "phase_spectrum": {"style": {"nfft": 256, "fs": 1.0}, "view": {}},
 }
 
 

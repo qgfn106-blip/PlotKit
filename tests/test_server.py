@@ -40,10 +40,10 @@ def test_index_page(client):
     assert 'id="plotImg"' in res.text
 
 
-def test_static_bundle_served(client):
-    res = client.get("/static/vendor/plotly-basic.min.js")
-    assert res.status_code == 200
-    assert len(res.content) > 500_000
+def test_static_assets_served_without_plotly(client):
+    """plotly bundle 已在 P13-09 删除（D33）；前端资源只剩 app.js/css。"""
+    assert client.get("/static/app.js").status_code == 200
+    assert client.get("/static/vendor/plotly-basic.min.js").status_code == 404
 
 
 def test_get_spec(client, fig):

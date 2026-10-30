@@ -870,6 +870,166 @@ def _draw_specgram(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) 
                                  cmap=str(style.get("cmap") or "magma"))
     _maybe_colorbar(ax, image, style)
 
+
+
+# ---------------- P13-09：方法级缺口 ----------------
+
+def _triangulation(layer, store):
+    import matplotlib.tri as mtri
+
+    return mtri.Triangulation(_flat(layer, store, "x"), _flat(layer, store, "y"))
+
+
+def _draw_triplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    ax.triplot(_triangulation(layer, store),
+               color=str(style.get("color") or color_for(index)),
+               linewidth=float(style.get("width", 1.0) or 1.0))
+
+
+def _draw_tricontour(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    cs = ax.tricontour(_triangulation(layer, store), _flat(layer, store, "z"),
+                       levels=style.get("levels") or 8,
+                       cmap=str(style.get("cmap") or "viridis"), norm=_color_norm(style))
+    if style.get("labels"):
+        ax.clabel(cs, inline=True, fontsize=8)
+
+
+def _draw_tricontourf(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    cs = ax.tricontourf(_triangulation(layer, store), _flat(layer, store, "z"),
+                        levels=style.get("levels") or 8,
+                        cmap=str(style.get("cmap") or "viridis"), norm=_color_norm(style))
+    _maybe_colorbar(ax, cs, style)
+
+
+def _draw_tripcolor(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    mesh = ax.tripcolor(_triangulation(layer, store), _flat(layer, store, "z"),
+                        cmap=str(style.get("cmap") or "viridis"), norm=_color_norm(style))
+    _maybe_colorbar(ax, mesh, style)
+
+
+def _draw_voxels(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    grid = np.asarray(store.values(data["z"]), dtype=float)
+    if grid.ndim != 3:
+        raise ValueError(f"voxels 需要三维数组，收到 {grid.shape}")
+    filled = grid != 0
+    import matplotlib
+
+    cmap = matplotlib.colormaps[str(style.get("cmap") or "viridis")]
+    if grid.max() > grid.min():
+        from matplotlib.colors import Normalize
+
+        norm = _color_norm(style) or Normalize(vmin=float(grid.min()), vmax=float(grid.max()))
+        colors = cmap(norm(grid))
+    else:
+        colors = np.array([cmap(0.6)] * grid.size).reshape(grid.shape + (4,))
+    ax.voxels(filled, facecolors=colors, edgecolor=None, alpha=float(style.get("opacity", 0.9)))
+
+
+def _draw_trisurf(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    surf = ax.plot_trisurf(_flat(layer, store, "x"), _flat(layer, store, "y"),
+                           _flat(layer, store, "z"),
+                           cmap=str(style.get("cmap") or "viridis"), norm=_color_norm(style),
+                           linewidth=0.2, antialiased=True)
+    _maybe_colorbar(ax, surf, style)
+
+
+def _draw_stem3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """mpl 没有 stem3d：竖线 + 顶点散点自己画。"""
+    style = layer.get("style") or {}
+    x, y, z = (np.ravel(v) for v in _xyz_arrays(layer, store))
+    color = str(style.get("color") or color_for(index))
+    for xi, yi, zi in zip(x, y, z):
+        ax.plot([xi, xi], [yi, yi], [0.0, zi], color=color,
+                linewidth=float(style.get("width", 1.2) or 1.2))
+    ax.scatter(x, y, z, color=color, s=18, depthshade=False)
+
+
+def _draw_text3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x, y, z = (np.ravel(v) for v in _xyz_arrays(layer, store))
+    labels = [str(v) for v in np.ravel(np.asarray(store.values(data["labels"])))]
+    if len(labels) != x.size:
+        raise ValueError(f"text3d 的 labels 数量要与点一致：{len(labels)} vs {x.size}")
+    color = str(style.get("color") or color_for(index))
+    for xi, yi, zi, text in zip(x, y, z, labels):
+        ax.text(xi, yi, zi, text, color=color,
+                fontsize=float(style.get("fontsize", 10) or 10))
+
+
+def _spectral(layer, store, index: int, method: str, *, needs_pair: bool = False):
+    """信号族的公共前置：NFFT/Fs 归一化，并按需取第二个信号。"""
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    x = _flat(layer, store, "x")
+    nfft = min(int(style.get("nfft", 256) or 256), max(8, x.size))
+    kwargs = {"NFFT": nfft, "Fs": float(style.get("fs", 1.0) or 1.0),
+              "color": str(style.get("color") or color_for(index))}
+    if needs_pair:
+        if not data.get("y"):
+            raise ValueError(f"{layer.get('kind')} 需要第二个信号 y（数据集名字或数组）")
+        return getattr(ax_method_holder, "unused", None), (x, _flat(layer, store, "y")), kwargs
+    return None, (x,), kwargs
+
+
+def _draw_csd(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    if not data.get("y"):
+        raise ValueError("csd 需要第二个信号 y（数据集名字或数组）")
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    # 分段平均要求至少两段：nfft 不能超过长度的一半
+    nfft = min(int(style.get("nfft", 256) or 256), max(8, x.size // 2))
+    ax.csd(x, y, NFFT=nfft, noverlap=nfft // 2, Fs=float(style.get("fs", 1.0) or 1.0),
+           color=str(style.get("color") or color_for(index)))
+
+
+def _draw_cohere(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    if not data.get("y"):
+        raise ValueError("cohere 需要第二个信号 y（数据集名字或数组）")
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    # 分段平均要求至少两段：nfft 不能超过长度的一半
+    nfft = min(int(style.get("nfft", 256) or 256), max(8, x.size // 2))
+    ax.cohere(x, y, NFFT=nfft, noverlap=nfft // 2, Fs=float(style.get("fs", 1.0) or 1.0),
+              color=str(style.get("color") or color_for(index)))
+
+
+def _draw_acorr(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    x = _flat(layer, store, "x")
+    ax.acorr(x, maxlags=int(style.get("maxlags", 0) or min(50, x.size - 1)),
+             color=str(style.get("color") or color_for(index)))
+
+
+def _draw_xcorr(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    if not data.get("y"):
+        raise ValueError("xcorr 需要第二个信号 y（数据集名字或数组）")
+    x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
+    ax.xcorr(x, y, maxlags=int(style.get("maxlags", 0) or min(50, x.size - 1)),
+             color=str(style.get("color") or color_for(index)))
+
+
+def _spectrum(method: str):
+    def _draw(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+        style = layer.get("style") or {}
+        x = _flat(layer, store, "x")
+        # 注意：angle/magnitude/phase_spectrum 只认 pad_to，没有 NFFT（psd/csd/cohere 才有）
+        pad = min(int(style.get("nfft", 256) or 256), max(8, x.size))
+        getattr(ax, method)(x, pad_to=pad, Fs=float(style.get("fs", 1.0) or 1.0),
+                            color=str(style.get("color") or color_for(index)))
+    return _draw
+
 DRAWERS = {
     "line": _draw_line, "marker": _draw_scatter, "bar": _draw_bar,
     "hist": _draw_hist, "pie": _draw_pie, "image": _draw_image, "table": _draw_table,
@@ -884,6 +1044,14 @@ DRAWERS = {
     "step": _draw_step, "stem": _draw_stem,
     "stairs": _draw_stairs, "broken_barh": _draw_broken_barh, "eventplot": _draw_eventplot,
     "bxp": _draw_bxp, "psd": _draw_psd, "specgram": _draw_specgram,
+    "triplot": _draw_triplot, "tricontour": _draw_tricontour,
+    "tricontourf": _draw_tricontourf, "tripcolor": _draw_tripcolor,
+    "voxels": _draw_voxels, "trisurf": _draw_trisurf, "stem3d": _draw_stem3d,
+    "text3d": _draw_text3d, "csd": _draw_csd, "cohere": _draw_cohere,
+    "acorr": _draw_acorr, "xcorr": _draw_xcorr,
+    "angle_spectrum": _spectrum("angle_spectrum"),
+    "magnitude_spectrum": _spectrum("magnitude_spectrum"),
+    "phase_spectrum": _spectrum("phase_spectrum"),
 }
 
 
@@ -1268,3 +1436,20 @@ reg.register("eventplot", 2, None, defaults={}, description="事件栅格图")
 reg.register("bxp", 2, None, defaults={"widths": 0.6}, description="箱线图（由数据算统计量）")
 reg.register("psd", 2, None, defaults={"nfft": 256}, description="功率谱密度")
 reg.register("specgram", 2, None, defaults={"nfft": 256}, description="时频谱图")
+
+# ---------------- 注册 P13-09 的方法级缺口 ----------------
+reg.register("triplot", 2, None, defaults={}, description="三角剖分线")
+reg.register("tricontour", 2, None, defaults={"levels": 8}, description="非结构等值线")
+reg.register("tricontourf", 2, None, defaults={"levels": 8}, description="非结构填充等值线")
+reg.register("tripcolor", 2, None, defaults={}, description="非结构伪彩")
+reg.register("voxels", 3, None, defaults={}, description="体素图")
+reg.register("trisurf", 3, None, defaults={}, description="三角曲面")
+reg.register("stem3d", 3, None, defaults={}, description="三维火柴杆")
+reg.register("text3d", 3, None, defaults={}, description="三维文字标注")
+reg.register("csd", 2, None, defaults={"nfft": 256}, description="互功率谱密度")
+reg.register("cohere", 2, None, defaults={"nfft": 256}, description="相干函数")
+reg.register("acorr", 2, None, defaults={}, description="自相关")
+reg.register("xcorr", 2, None, defaults={}, description="互相关")
+reg.register("angle_spectrum", 2, None, defaults={"nfft": 256}, description="相位谱")
+reg.register("magnitude_spectrum", 2, None, defaults={"nfft": 256}, description="幅度谱")
+reg.register("phase_spectrum", 2, None, defaults={"nfft": 256}, description="相位谱（unwrap）")

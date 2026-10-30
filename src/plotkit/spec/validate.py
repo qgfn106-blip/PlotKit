@@ -48,6 +48,28 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     "quiver3d": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
                  "z": ("series", "field", "auto"), "u": ("series", "field", "auto"),
                  "v": ("series", "field", "auto"), "w": ("series", "field", "auto")},
+    # P13-09：方法级缺口（三角/非结构、3D 补全、信号族）
+    "triplot": {"x": ("coord", "series", "auto"), "y": ("series", "auto")},
+    "tricontour": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+                   "z": ("series", "field", "auto")},
+    "tricontourf": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+                    "z": ("series", "field", "auto")},
+    "tripcolor": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+                  "z": ("series", "field", "auto")},
+    "voxels": {"z": ("field", "image", "auto")},
+    "trisurf": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+                "z": ("series", "field", "auto")},
+    "stem3d": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+               "z": ("series", "field", "auto")},
+    "text3d": {"x": ("coord", "series", "auto"), "y": ("series", "auto"),
+               "z": ("series", "field", "auto"), "labels": ("table", "auto")},
+    "csd": {"x": ("series", "coord", "auto"), "y": ("series", "auto")},
+    "cohere": {"x": ("series", "coord", "auto"), "y": ("series", "auto")},
+    "acorr": {"x": ("series", "coord", "auto")},
+    "xcorr": {"x": ("series", "coord", "auto"), "y": ("series", "auto")},
+    "angle_spectrum": {"x": ("series", "coord", "auto")},
+    "magnitude_spectrum": {"x": ("series", "coord", "auto")},
+    "phase_spectrum": {"x": ("series", "coord", "auto")},
     # P13-07：方法表漏项
     "stairs": {"y": ("series", "field", "auto")},
     "broken_barh": {"y": ("field", "series", "auto")},
@@ -90,7 +112,7 @@ KNOWN_STYLE_KEYS = {
     "where", "gridsize", "widths", "showfliers", "showmeans", "mincnt",
     # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram
     "nfft", "fs", "orientation", "lineoffsets", "linelengths", "row", "height", "whis",
-    "highlight",
+    "highlight", "fontsize3d",
 }
 KNOWN_FIGURE_KEYS = {
     "window",
