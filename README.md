@@ -177,6 +177,8 @@ PYTHONPATH=src python examples/teg_car_sim.py     # 约 20 s
 拖动只改 MVP 矩阵、不请求服务端（实测 25k 点 120 fps）。数据走 `GET /api/xyz` 的二进制帧
 （`magic + meta_len + n + json + float32(x,y,z)`），前端把 buffer 原样上传成顶点缓冲。
 
+![三维视图](docs/webgl_3d_demo.png)
+
 二维那边同时补了「拖动中低清预览」（每 70 ms 一次半分辨率请求）与「服务端 hover 拾取」
 （`GET /api/pick` 返回最近的真实数据点，而不是从像素反推）。
 
