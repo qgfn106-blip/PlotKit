@@ -243,7 +243,7 @@ fig.add_data("t", tt); fig.add_data("x", px); fig.add_data("y", py); fig.add_dat
 fig.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})   # 带 t 才有时间轴
 ```
 
-![三维视图：装饰层 + 轨迹 + 时间轴](../docs/webgl_3d_deco.png)
+![三维视图：装饰层 + 轨迹 + 时间轴](docs/webgl_3d_deco.png)
 
 **要真矢量就别用 PyVista**：VTK 的 GL2PS 导出在本机（9.7.1 + OpenGL2）只剩位图，所以
 `fmt="svg"` 时调度层一律回退 matplotlib（surface 600×420 → 161 KB、890 个 `<path>`）。
