@@ -179,6 +179,7 @@ def _acquire_plotter(pv, width: int, height: int, scene_key: str = ""):
         return plotter, False
 
 SUPPORTED_KINDS = (
+    "volume",
     "surface",
     "trisurf",
     "scatter3d",
@@ -306,6 +307,40 @@ def build_line3d(layer, store) -> list[_Item]:
     style = _style(layer)
     return [_Item(mesh=poly, color=str(style.get("color") or "#2f6fd0"),
                   mode="lines", line_width=float(style.get("width", 1.8) or 1.8))]
+
+
+def build_volume(layer, store) -> list[_Item]:
+    """三维标量场体渲染：x/y/z 一维坐标 + values 形状 (nz, ny, nx)（x 变化最快）。"""
+    pv = _pv()
+    data = _data(layer)
+    style = _style(layer)
+    xs = np.ravel(_values(layer, store, "x"))
+    ys = np.ravel(_values(layer, store, "y"))
+    zs = np.ravel(_values(layer, store, "z"))
+    values = np.asarray(_values(layer, store, "values"), dtype=np.float64)
+    if values.shape != (zs.size, ys.size, xs.size):
+        raise BackendUnsupported(
+            f"volume: values 形状应为 (nz, ny, nx) = {(zs.size, ys.size, xs.size)}，"
+            f"收到 {values.shape}")
+    grid = pv.ImageData(dimensions=(xs.size, ys.size, zs.size))
+    grid.origin = (float(xs[0]), float(ys[0]), float(zs[0]))
+    grid.spacing = (
+        float((xs[-1] - xs[0]) / max(xs.size - 1, 1)),
+        float((ys[-1] - ys[0]) / max(ys.size - 1, 1)),
+        float((zs[-1] - zs[0]) / max(zs.size - 1, 1)),
+    )
+    grid.point_data["values"] = values.ravel(order="C")
+    opacity = style.get("opacity_ramp") or style.get("opacity")
+    if isinstance(opacity, (list, tuple)):
+        opacity = [float(v) for v in opacity]
+    elif opacity is None:
+        opacity = [0.0, 0.05, 0.18, 0.45, 0.85]
+    else:
+        opacity = float(opacity)
+    return [_Item(mesh=grid, scalars="values", cmap=str(style.get("cmap") or "magma"),
+                  opacity=1.0, mode="volume",
+                  kwargs={"opacity": opacity, "shade": bool(style.get("shade", True)),
+                          "blending": "composite"})]
 
 
 def build_quiver3d(layer, store) -> list[_Item]:
@@ -442,6 +477,7 @@ _BUILDERS = {
     "bar3d": build_bar3d,
     "hist3d": build_hist3d,
     "voxels": build_voxels,
+    "volume": build_volume,
     "stream3d": build_stream3d,
     "stem3d": build_stem3d,
     "text3d": build_text3d,
@@ -782,4 +818,9 @@ def _add_item(plotter, item: _Item) -> None:
         if "clim" in extra:
             extra["clim"] = tuple(float(v) for v in extra["clim"])
         kwargs.update(extra)
+    if item.mode == "volume":
+        # 体渲染：半透明"烟"而不是表面，配合 RGB 传递函数才像参考图那种发光涡管
+        kwargs.pop("style", None)
+        plotter.add_volume(item.mesh, **kwargs)
+        return
     plotter.add_mesh(item.mesh, **kwargs)

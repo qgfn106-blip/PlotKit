@@ -261,6 +261,22 @@ fig.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})   # 带 t 才有时�
 
 ![NS 爆破动画](docs/ns_blowup/02_ns_blowup_3d.gif)
 
+## 矢量场：LIC 纹理与体渲染
+
+`quiver` 只能抽几十根箭头，稠密的涡与剪切层会被抽没。两个新图层解决这件事：
+
+```python
+fig.add("lic", {"x": "x", "y": "y", "u": "u", "v": "v"},
+        style={"cmap": "ocean", "steps": 24, "contrast": 1.9})     # 二维切片，纹理沿流线拉丝
+fig.add("volume", {"x": "x", "y": "y", "z": "z", "values": "w"},
+        style={"cmap": "inferno", "opacity_ramp": [0, 0, 0.02, 0.1, 0.4, 0.8]})  # 三维，仅 pyvista
+```
+
+![LIC 切片](docs/vector_field/01_lic_slice.png)
+
+`lic` 用"沿流向反复模糊"近似线积分卷积：460×460、`steps=22` 约 1.2 s，纹理走向就是流线，
+颜色仍由速度大小决定。`volume` 走 VTK 的体渲染（半透明发光体），比等值面更能看清涡管内部。
+
 ## 性能（2026-10-31 实测，1200×700 / 6 通道 × 2 万点）
 
 | 指标 | 实测 | 说明 |

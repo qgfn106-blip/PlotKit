@@ -36,6 +36,11 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
                    "u": ("field", "series", "auto"), "v": ("field", "series", "auto")},
     "barbs": {"x": ("coord", "series", "field", "auto"), "y": ("coord", "series", "field", "auto"),
               "u": ("series", "field", "auto"), "v": ("series", "field", "auto")},
+    # 体渲染（仅 pyvista）：x/y/z 一维坐标 + values 形状 (nz, ny, nx)
+    "volume": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
+               "z": ("coord", "series", "auto"), "values": ("field", "image", "auto")},
+    # 线积分卷积：稠密矢量场纹理（u/v 必须是二维场）
+    "lic": {"u": ("field", "auto"), "v": ("field", "auto")},
     # P13-04：3D 七种
     "surface": {"z": ("field", "image", "auto")},
     "line3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
@@ -106,6 +111,8 @@ KNOWN_STYLE_KEYS = {
     "levels", "labels", "shading",
     # P13-03：矢量场
     "scale", "density", "arrowsize", "color_by", "shaft", "key",
+    # 线积分卷积
+    "steps", "contrast", "step_px", "seed", "opacity_ramp", "shade",
     # P13-04：3D
     "stride", "shade", "length", "normalize", "clim",
     # P13-05：统计/信号族

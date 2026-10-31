@@ -418,6 +418,42 @@ def _draw_quiver(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) ->
         _maybe_colorbar(ax, q, style, default=False)
 
 
+def _draw_volume(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """体渲染只有 pyvista 后端支持；mpl 里明确报错，而不是画个莫名其妙的东西。"""
+    raise ValueError("volume 需要 pyvista 后端：fig.render(..., backend=\"pyvista\")")
+
+
+def _draw_lic(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """线积分卷积：把二维矢量场画成沿流向拉丝的纹理（ParaView 那种"丝状场"）。"""
+    from .lic import lic_rgb
+
+    style = layer.get("style") or {}
+    data = layer.get("data") or {}
+    u = np.asarray(store.values(data["u"]), dtype=float)
+    v = np.asarray(store.values(data["v"]), dtype=float)
+    if u.ndim != 2 or v.ndim != 2:
+        raise ValueError(f"lic 的 u/v 需要二维场，收到 {u.shape} 与 {v.shape}")
+    scalar = None
+    if data.get("scalar"):
+        scalar = np.asarray(store.values(data["scalar"]), dtype=float)
+    rgb = lic_rgb(
+        u, v,
+        cmap=str(style.get("cmap") or "ocean"),
+        steps=int(style.get("steps", 24) or 24),
+        contrast=float(style.get("contrast", 1.0) or 1.0),
+        step_px=float(style.get("step_px", 1.4) or 1.4),
+        seed=int(style.get("seed", 0) or 0),
+        scalar=scalar,
+    )
+    extent = None
+    if data.get("x") and data.get("y"):
+        xs = np.ravel(np.asarray(store.values(data["x"]), dtype=float))
+        ys = np.ravel(np.asarray(store.values(data["y"]), dtype=float))
+        extent = [float(xs[0]), float(xs[-1]), float(ys[0]), float(ys[-1])]
+    ax.imshow(rgb, origin="lower", extent=extent, interpolation="bilinear",
+              aspect="auto" if extent is None else "equal")
+
+
 def _draw_barbs(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     """风羽图（mpl `barbs`）：每个点一根带旗的杆，长度编码风速。"""
     style = layer.get("style") or {}
@@ -1052,6 +1088,8 @@ DRAWERS = {
     "heatmap": _draw_heatmap, "contour": _draw_contour, "contourf": _draw_contourf,
     "correlation": _draw_correlation,
     "quiver": _draw_quiver, "streamplot": _draw_streamplot, "barbs": _draw_barbs,
+    "lic": _draw_lic,
+    "volume": _draw_volume,
     "surface": _draw_surface, "line3d": _draw_line3d, "scatter3d": _draw_scatter3d,
     "bar3d": _draw_bar3d, "hist3d": _draw_hist3d, "quiver3d": _draw_quiver3d,
     "stream3d": _draw_stream3d,
@@ -1218,7 +1256,12 @@ def to_figure(
     from matplotlib.backends.backend_agg import FigureCanvasAgg
 
     fig_cfg = spec.get("figure", {})
-    theme = THEMES.get(str(fig_cfg.get("theme", "default")), THEMES["default"])
+    theme = dict(THEMES.get(str(fig_cfg.get("theme", "default")), THEMES["default"]))
+    # 允许逐图覆盖底色/文字色：深色版式常常需要比主题更黑一点的画布
+    for key, slot in (("facecolor", "paper"), ("axes_facecolor", "plot"),
+                      ("textcolor", "text"), ("gridcolor", "grid")):
+        if fig_cfg.get(key):
+            theme[slot] = str(fig_cfg[key])
     fonts = {**DEFAULT_FONTS, **dict(fig_cfg.get("fonts") or {})}
     size = fig_cfg.get("size", [12.8, 8.4])
     ncols = int(fig_cfg.get("ncols", 1))
@@ -1453,6 +1496,10 @@ reg.register("line", 2, None, defaults={"mode": "lines", "width": 1.6},
 reg.register("marker", 2, None, defaults={"mode": "markers"},
              aliases=("scatter", "points"), description="散点")
 reg.register("bar", 2, None, defaults={"mode": "bars"}, description="柱状图")
+reg.register("lic", 2, None, defaults={"steps": 24, "contrast": 1.0},
+             description="线积分卷积（稠密矢量场纹理）")
+reg.register("volume", 3, None, defaults={"cmap": "magma"},
+             description="三维标量场体渲染（仅 pyvista）")
 
 # ---------------- 注册 P13-01 的四种图层（渲染统一走 mpl，builder 留空） ----------------
 reg.register("hist", 2, None, defaults={"bins": 30}, description="直方图（服务端分箱）")

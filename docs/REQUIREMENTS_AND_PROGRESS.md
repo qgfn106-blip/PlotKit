@@ -284,6 +284,8 @@
 | P15-09 | 三维视图自绘装饰：包围盒棱、三轴、刻度、轴名、标题、图例（2D canvas 叠在 WebGL 上） | ✅ 完成：`view3d.js` 的 `attachOverlay`/`_drawDecor`；相机默认距离 3.2r→4.4r（包围盒对角半径 √3·r 才装得下）；顺带修 `/api/mesh` 不接受 meshgrid 二维坐标的 bug（三维曲面之前静默退回点云） |
 | P15-10 | 三维框选区域分析：Alt+拖 出框 → 服务端投影筛选 → 统计 min/max/mean/p05/p95 | ✅ 完成：`POST /api/region`（点乘 MVP 投到 NDC 再按矩形掩码，100 万点 5–10 ms）；面板 `#plot3d-region`；实测 3600 点选 2681 点（74.5%） |
 | P15-11 | 三维时间轴：`(x,y,z,t)` 重采样成固定帧数，前端拖动/播放驱动 marker 与生长轨迹 | ✅ 完成：`GET /api/timeline?frames=240`；`setMarker`/`setTrail`（DYNAMIC_DRAW）；播放 50 ms/帧≈20fps；顺带修 `native.add()` 丢掉数据键 `t` 的 bug |
+| P15-12 | 线积分卷积图层 `lic`：`lic_texture`/`lic_rgb`（blur 法，460² 约 1.2 s）、`step_px`/`contrast`/`seed` 可调 | ✅ 完成：`tests/test_lic_volume.py` 5 条；示例 `examples/vector_field_lic.py` 出 `docs/vector_field/01_lic_slice.png` |
+| P15-13 | 体渲染图层 `volume`（仅 pyvista）：`add_volume` + 不透明度传递函数 + 逐图配色覆盖 | ✅ 完成：4 条测试；`02_volume_3d.png`（发光涡管 + 粒子环） |
 | P14-00 | 多后端框架（D38）：`builders` 表 + `dispatch` + PyVista 三维后端 + `/api/render?backend=` | ✅ 完成：`tests/test_multibackend.py` 20 项，全库 **314 passed**；11 种三维 kind 全部可出图；`tools/bench_3d.py`（mpl vs pyvista）：surface 100² **714→173ms**、scatter3d 10 万 **1375→218ms**、voxels 25³ **5966→164ms**；详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
