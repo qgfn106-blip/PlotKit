@@ -163,10 +163,12 @@ fig.render(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
 ## 示例：生物质能小车多物理场仿真
 
 `examples/teg_car_sim.py` 是单文件、可独立运行的综合示例：热—电—机械—转向四域耦合的
-小车仿真，一次跑出 29 张图（含 4 张真算的三维场）和 `docs/teg_car/REPORT.md`。
+小车仿真，一次跑出 29 张图（含 4 张真算的三维场、整车装配图）+ 200 帧三维动画
+`29_animation_3d.gif`，外加 `docs/teg_car/REPORT.md`。
 
 ```bash
-PYTHONPATH=src python examples/teg_car_sim.py     # 约 20 s
+PYTHONPATH=src python examples/teg_car_sim.py     # 约 60 s（含 12×12=144 组参数扫描）
+PYTHONPATH=src python examples/teg_car_sim.py --quick   # 约 20 s，6×6 扫描
 ```
 
 它同时是规模压测：100 万点 × 3 通道入库 9 ms、M4 抽稀 24 ms、冷渲染 273 ms、峰值 42 MB。

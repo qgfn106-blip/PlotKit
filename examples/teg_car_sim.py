@@ -19,7 +19,7 @@
 
 用法
 ----
-    python examples/teg_car_sim.py                 # 全量：仿真 + 27 张图 + 报告
+    python examples/teg_car_sim.py                 # 全量：仿真 + 29 张图 + 3D 动画 + 报告
     python examples/teg_car_sim.py --quick         # 参数扫描降档（更快）
     python examples/teg_car_sim.py --points 200000 # 规模测试点数
 
@@ -653,14 +653,19 @@ def charts_steering(res, track, p=P):
 
 
 def sensitivity(p=P, *, quick: bool = False):
-    igs = np.array([12.0, 15.0, 18.0, 21.0, 24.0]) if not quick else np.array([14.0, 18.0, 22.0])
-    hAs = np.array([0.35, 0.55, 0.90, 1.30, 1.80]) if not quick else np.array([0.5, 0.9, 1.4])
+    # 任务书要求 100–500 组扫描：全量 12×12 = 144 组，--quick 降到 6×6
+    if quick:
+        igs = np.linspace(13.0, 23.0, 6)
+        hAs = np.linspace(0.40, 1.70, 6)
+    else:
+        igs = np.linspace(12.0, 24.0, 12)
+        hAs = np.linspace(0.35, 1.80, 12)
     dist = np.zeros((len(igs), len(hAs)))
     eff = np.zeros_like(dist)
     for i, ig in enumerate(igs):
         for j, ha in enumerate(hAs):
             pp = replace(p, i_g=float(ig), hA_c=float(ha))
-            r = simulate(pp, t_end=180.0, dt=0.02)
+            r = simulate(pp, t_end=150.0 if not quick else 100.0, dt=0.03)
             dist[i, j] = float(r["s"][-1])
             e_in = float(_trapz(r["P_teg"], r["t"]))
             e_out = float(_trapz(r["P_motor"], r["t"]))
@@ -796,6 +801,101 @@ def charts_3d(p=P, track=None, res=None):
 # --------------------------------------------------------------------------- #
 # 7. PlotKit 规模压力测试
 # --------------------------------------------------------------------------- #
+def assembly_3d(p=P) -> dict:
+    """整车三维装配图（单位 mm）：底盘 / 四轮 / TEG 模块 / 散热片 / 超级电容 / 电机 / 转向连杆。
+
+    多实体装配用 PyVista 直接建模（它不是"数据图层"，硬塞进 spec 反而失真）。
+    按 200 mm × 250 mm 的车体包络摆放：轮子 r=20 mm 落在地面，底盘压在轮心之上。
+    """
+    import pyvista as pv
+    from PIL import Image
+
+    pv.OFF_SCREEN = True
+    pl = pv.Plotter(off_screen=True, window_size=(1000, 700))
+    pl.set_background("white")
+
+    pl.add_mesh(pv.Cube(center=(0, 0, 30), x_length=200, y_length=250, z_length=4),
+                color="#8d99ae", opacity=0.95)
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            pl.add_mesh(pv.Cylinder(center=(sx * 88, sy * 100, 20), direction=(0, 1, 0),
+                                    radius=20, height=12), color="#2b2d42")
+    pl.add_mesh(pv.Cube(center=(-55, 0, 36), x_length=40, y_length=40, z_length=6),
+                color="#e63946")
+    pl.add_mesh(pv.Cube(center=(-55, 0, 40), x_length=40, y_length=40, z_length=2),
+                color="#457b9d")
+    for k in range(7):
+        pl.add_mesh(pv.Cube(center=(10 + k * 6, 0, 48), x_length=2.5, y_length=70, z_length=30),
+                    color="#adb5bd")
+    pl.add_mesh(pv.Cylinder(center=(70, -70, 55), direction=(0, 0, 1),
+                            radius=18, height=50), color="#1d3557")
+    pl.add_mesh(pv.Cylinder(center=(70, 60, 36), direction=(0, 1, 0),
+                            radius=16, height=32), color="#f4a261")
+    pl.add_mesh(pv.Cube(center=(-90, 0, 28), x_length=4, y_length=150, z_length=3),
+                color="#6d6875")
+    pl.add_mesh(pv.Cylinder(center=(-90, 0, 26), direction=(0, 0, 1),
+                            radius=14, height=4), color="#b5838d")
+
+    pl.view_vector((0.95, -1.35, 0.85), viewup=(0, 0, 1))
+    pl.reset_camera()
+    pl.camera.zoom(1.02)
+    pl.show_bounds(grid=False, location="outer", font_size=9)
+    pl.add_text("Biomass TEG car assembly  (mm, envelope 200 x 250)",
+                position=(12, 12), font_size=9)
+    img = pl.screenshot(return_img=True)
+    pl.close()
+
+    out = OUT_DIR / "28_assembly_3d.png"
+    Image.fromarray(img).save(out)
+    return {"png": out.name, "bytes": out.stat().st_size}
+
+
+def animate_3d(res, track, *, frames: int = 200, size: tuple[int, int] = (640, 400)) -> dict:
+    """三维动画：小车沿真实轨迹跑一圈，出 GIF（单位 mm）。
+
+    两个坑：①复用同一个 Plotter，每帧只改 actor 的位置/朝向（重建场景要 450–600 ms/帧）；
+    ②离屏渲染必须显式 `pl.render()` 再 `screenshot()`，否则拿到的是上一帧的缓冲。
+    """
+    import pyvista as pv
+    from PIL import Image
+
+    traj = track["traj"]
+    ideal = track["ideal"]
+    n = traj["x"].size
+    picks = np.linspace(0, n - 1, frames).astype(int)
+
+    pv.OFF_SCREEN = True
+    pl = pv.Plotter(off_screen=True, window_size=size)
+    pl.set_background("white")
+
+    line = np.c_[ideal["x"] * 1000.0, ideal["y"] * 1000.0, np.zeros(ideal["x"].size)]
+    pl.add_lines(line, color="#adb5bd", width=3)
+    car = pv.Cube(center=(0, 0, 0), x_length=250, y_length=200, z_length=30)
+    actor = pl.add_mesh(car, color="#e63946")
+    cabin = pv.Cube(center=(10, 0, 30), x_length=110, y_length=120, z_length=26)
+    cabin_actor = pl.add_mesh(cabin, color="#457b9d")
+
+    center = line.mean(axis=0)
+    span = float(np.max(line.max(axis=0) - line.min(axis=0)))
+    eye = center + np.array([0.85, -1.25, 1.05]) * span
+    pl.camera_position = [tuple(eye), tuple(center), (0.0, 0.0, 1.0)]
+    pl.camera.zoom(1.30)
+
+    images = []
+    for k in picks:
+        actor.position = (float(traj["x"][k]) * 1000.0, float(traj["y"][k]) * 1000.0, 15.0)
+        actor.orientation = (0.0, 0.0, float(np.degrees(traj["psi"][k])))
+        cabin_actor.position = (float(traj["x"][k]) * 1000.0, float(traj["y"][k]) * 1000.0, 15.0)
+        cabin_actor.orientation = (0.0, 0.0, float(np.degrees(traj["psi"][k])))
+        pl.render()
+        images.append(Image.fromarray(pl.screenshot(return_img=True)))
+    pl.close()
+
+    out = OUT_DIR / "29_animation_3d.gif"
+    images[0].save(out, save_all=True, append_images=images[1:], duration=40, loop=0, optimize=True)
+    return {"gif": out.name, "frames": frames, "bytes": out.stat().st_size}
+
+
 def perf_test(n_points: int = 1_000_000) -> dict:
     """把上百万点的时序数据灌进 PlotKit，量入库 / 抽稀 / 渲染 / 内存。"""
     import tracemalloc
@@ -905,8 +1005,13 @@ def write_report(res, track, sens, conv, designs, fields, perf, elapsed):
         f"| 热重绘 | {perf['render_hot_ms']:.1f} ms |",
         f"| 峰值内存 | {perf['peak_mb']:.1f} MB |",
         f"| PNG 体积 | {perf['payload_kb']:.0f} KB |",
-        "", "## 7. 图表清单", "",
+        "", "## 7. 三维装配与动画", "",
+        "| 产物 | 内容 | 说明 |", "| --- | --- | --- |",
+        "| `28_assembly_3d.png` | 整车装配（底盘/四轮/TEG/散热片/电容/电机/转向） | PyVista 多实体建模，单位 mm，包络 200×250 |",
+        "| `29_animation_3d.gif` | 小车沿真实轨迹跑一圈（200 帧） | 复用同一 Plotter，每帧只改 actor 位姿 |",
+        "", "## 8. 图表清单", "",
         *[f"- `{p.name}`" for p in sorted(OUT_DIR.glob("*.png"))],
+        *([f"- `29_animation_3d.gif`（{fields.get('anim', {}).get('frames', 0)} 帧）"] if (OUT_DIR / "29_animation_3d.gif").exists() else []),
         "",
     ]
     (OUT_DIR / "REPORT.md").write_text("\n".join(lines), encoding="utf-8")
@@ -934,12 +1039,16 @@ def build_all(*, quick: bool = False, t_end: float = 240.0, dt: float = 0.005,
     designs = charts_design_compare()
     conv = charts_convergence()
     fields = charts_3d(track=track, res=res)
+    fields["assembly"] = assembly_3d()
+    fields["anim"] = animate_3d(res, track)
     perf = perf_test(n_points)
     chart_perf(perf)
 
     elapsed = time.perf_counter() - t_start
     write_report(res, track, sens, conv, designs, fields, perf, elapsed)
-    print(f"[done] {len(list(OUT_DIR.glob('*.png')))} charts, {elapsed:.1f}s", flush=True)
+    n_png = len(list(OUT_DIR.glob("*.png")))
+    n_gif = int((OUT_DIR / "29_animation_3d.gif").exists())
+    print(f"[done] {n_png} charts + {n_gif} animation, {elapsed:.1f}s", flush=True)
     return {"res": res, "track": track, "sens": sens, "conv": conv,
             "designs": designs, "fields": fields, "perf": perf, "elapsed": elapsed}
 
@@ -961,7 +1070,7 @@ def main(argv: list[str] | None = None) -> int:
         "distance_m": round(float(r["s"][-1]), 1),
         "laps": round(float(r["s"][-1]) / L_LAP, 2),
         "min_clearance_m": round(float(out["track"]["clearance"].min()), 3),
-        "charts": len(list(OUT_DIR.glob("*.png"))),
+        "charts": len(list(OUT_DIR.glob("*.png"))) + int((OUT_DIR / "29_animation_3d.gif").exists()),
         "elapsed_s": round(out["elapsed"], 1),
     }
     print(json.dumps(summary, ensure_ascii=False))
