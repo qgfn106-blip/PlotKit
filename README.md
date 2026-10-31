@@ -162,14 +162,14 @@ fig.render(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
 
 ## 示例：生物质能小车多物理场仿真
 
-`examples/teg_car_sim.py` 是单文件、可独立运行的综合示例：热—电—机械—转向四域耦合的
+`projects/teg_car/teg_car_sim.py` 是一个自包含的工程示例（独立文件夹，不参与库代码）：热—电—机械—转向四域耦合的
 小车仿真，一次跑出 37 张图（含 6 张真算的三维场、整车装配图）+ 600 帧三维动画
-`29_animation_3d.gif`，外加 `docs/teg_car/REPORT.md`。
+`29_animation_3d.gif`，外加 `projects/teg_car/figures/REPORT.md`。
 
 ```bash
-PYTHONPATH=src python examples/teg_car_sim.py            # 约 75 s（含 12×12=144 组扫描）
-PYTHONPATH=src python examples/teg_car_sim.py --quick    # 约 33 s，6×6 扫描
-PYTHONPATH=src python examples/teg_car_sim.py --stress   # 瞬态跑满 100 万步
+PYTHONPATH=src python projects/teg_car/teg_car_sim.py            # 约 75 s（含 12×12=144 组扫描）
+PYTHONPATH=src python projects/teg_car/teg_car_sim.py --quick    # 约 33 s，6×6 扫描
+PYTHONPATH=src python projects/teg_car/teg_car_sim.py --stress   # 瞬态跑满 100 万步
 ```
 
 除了四域耦合，它还覆盖了工程上真正吃算力的几块，并且都是**真算**（不是贴图）：

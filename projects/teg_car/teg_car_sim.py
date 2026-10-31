@@ -33,10 +33,10 @@
 
 用法
 ----
-    python examples/teg_car_sim.py                 # 全量：仿真 + 34 张图 + 3D 动画 + 报告
-    python examples/teg_car_sim.py --quick         # 参数扫描降档（更快）
-    python examples/teg_car_sim.py --stress        # 瞬态跑满 100 万步
-    python examples/teg_car_sim.py --points 200000 # 规模测试点数
+    python projects/teg_car/teg_car_sim.py                 # 全量：仿真 + 37 张图 + 3D 动画 + 报告
+    python projects/teg_car/teg_car_sim.py --quick         # 参数扫描降档（更快）
+    python projects/teg_car/teg_car_sim.py --stress        # 瞬态跑满 100 万步
+    python projects/teg_car/teg_car_sim.py --points 200000 # 规模测试点数
 
 产物：`docs/teg_car/` 下的 PNG 与 REPORT.md。
 """
@@ -56,7 +56,7 @@ import plotkit as pk
 # 本项目全是上万点的时序曲线，默认带点标记会糊成一片（PlotKit 默认 style 含 marker.symbol）
 pk.init(marker={"symbol": None})
 
-OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "teg_car"
+OUT_DIR = Path(__file__).resolve().parent / "figures"
 
 # 与赛事规则相关的硬约束（2027 第十届 · 生物质能电动车）
 CAR_MAX_LEN = 0.250    # m，车辆最大外形 200 mm × 250 mm
