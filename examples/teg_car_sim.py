@@ -17,10 +17,25 @@
 6) 耦合：T_h/T_c → ΔT → 电压/功率 → 电容电压 → 电机电流/转矩 → 车速 → 散热器换热
    → 回到 T_c。这是**有环**网络，必须时间步进，不能当无环拓扑做一次排序。
 
+两种赛制（任务书要求分别建模，不能混用）
+----------------------------------------
+- `mode="cap"`（决赛）：TEG → DC-DC → 超级电容 → 电机，电容做缓冲，赛前可预充；
+- `mode="direct"`（初赛）：TEG 直接驱动电机，没有缓冲，电流由「开路电压 − 反电势」
+  除以总内阻决定，低温差/高转速时几乎发不出车（实测 240 s 只跑 107.3 m vs 电容 121.8 m）。
+
+规模（全部真算，非贴图）
+------------------------
+- 均温板稳态导热：5.1 万节点稀疏有限差分；
+- 散热片通道对流-扩散：10 万单元上风差分 + 稀疏求解（抛物型层流速度剖面）；
+- 底盘梁有限元：2 万单元 / 4 万自由度（稀疏装配 + spsolve）；
+- 瞬态耦合：默认 20 万步，`--stress` 跑满 100 万步（约 2.7 万步/秒）；
+- TEG 分段模型：沿流向 8 段，状态数 18（迎火面 98 °C / 背火面 74 °C）。
+
 用法
 ----
-    python examples/teg_car_sim.py                 # 全量：仿真 + 29 张图 + 3D 动画 + 报告
+    python examples/teg_car_sim.py                 # 全量：仿真 + 34 张图 + 3D 动画 + 报告
     python examples/teg_car_sim.py --quick         # 参数扫描降档（更快）
+    python examples/teg_car_sim.py --stress        # 瞬态跑满 100 万步
     python examples/teg_car_sim.py --points 200000 # 规模测试点数
 
 产物：`docs/teg_car/` 下的 PNG 与 REPORT.md。
@@ -93,6 +108,12 @@ class Params:
     eta_g: float = 0.86            # 齿轮效率
     r_w: float = 0.022             # m，车轮半径
 
+    # ---- 赛制：cap = 决赛（规定超级电容缓冲）/ direct = 初赛（温差发电直接驱动）----
+    mode: str = "cap"
+    seg: int = 1                   # TEG 沿流向分段数（>1 时热-电分布参数，状态数 2N+2）
+    mdot_cp: float = 0.25          # W/K，烟气沿流向的热容流率（分段模型用）
+    k_ax: float = 0.05             # W/K，相邻段之间的轴向等效导热
+
     # ---- 整车 ----
     m: float = 0.55                # kg
     Crr: float = 0.012             # 滚动阻力系数
@@ -133,33 +154,107 @@ def teg_matched(dT: float, p: Params = P) -> tuple[float, float, float]:
     return voc, cur, cur * cur * p.R_int
 
 
-def rhs(t: float, y: np.ndarray, p: Params = P, duty: float = 1.0) -> np.ndarray:
-    """耦合系统右端项。y = [T_h, T_c, V_cap, v]。"""
-    th, tc, vc, vv = y
-
-    # --- 热端输入：火焰对流（自限温，不会像"恒定功率"那样无限升温）---
+def _rhs_lumped(t: float, y: np.ndarray, p: Params = P, duty: float = 1.0) -> np.ndarray:
+    """集总模型（n=1）的标量快路径：不建数组，单步 ~40 us。"""
+    th, tc, vc, vv = float(y[0]), float(y[1]), float(y[2]), float(y[3])
     q_in = max(p.h_flame * (p.T_flame - th), 0.0)
-
     dT = max(th - tc, 0.0)
-    voc, cur, p_elec = teg_matched(dT, p)
-    th_k, tc_k = th + 273.15, tc + 273.15
+    voc = p.N * p.alpha * dT
+    w_m = vv * p.i_g / p.r_w
+
+    if p.mode == "direct":
+        i_m = min(max((p.eta_dcdc * voc - p.Ke * w_m) / (p.R_int + p.Rm), 0.0), p.i_limit)
+        cur = i_m
+        d_vc = 0.0
+    else:
+        cur = voc / (2.0 * p.R_int)
+        v_app = duty * vc if vc >= p.v_cutoff else 0.0
+        i_m = min(max((v_app - p.Ke * w_m) / p.Rm, 0.0), p.i_limit)
+        d_vc = (p.eta_dcdc * cur * cur * p.R_int - v_app * i_m) / (p.C_cap * max(vc, 0.05))
+        if vc >= p.V_max and d_vc > 0.0:
+            d_vc = 0.0
+
     a_tot = p.N * p.alpha
+    th_k, tc_k = th + 273.15, tc + 273.15
     q_cond = p.K_teg * dT
     q_h = q_cond + a_tot * th_k * cur - 0.5 * cur * cur * p.R_int
     q_c = q_cond + a_tot * tc_k * cur + 0.5 * cur * cur * p.R_int
-
     d_th = (q_in - q_h - p.hA_h * (th - p.Tamb)) / p.C_h
     d_tc = (q_c - p.hA_c * (tc - p.Tamb)) / p.C_c
 
-    # --- 电气：电容 + 准静态电机（车轮刚性啮合）---
+    f_drive = p.eta_g * p.i_g * p.Kt * i_m / p.r_w
+    f_roll = p.Crr * p.m * p.g
+    f_air = 0.5 * p.rho_air * p.CdA * vv * vv
+    d_v = (f_drive - f_roll - f_air) / p.m
+    if vv <= 0.0 and d_v < 0.0:
+        d_v = 0.0
+    return np.array([d_th, d_tc, d_vc, d_v], dtype=float)
+
+
+def rhs(t: float, y: np.ndarray, p: Params = P, duty: float = 1.0) -> np.ndarray:
+    """耦合系统右端项。
+
+    状态向量：`[T_h(0..n-1), T_c(0..n-1), V_cap, v]`，n = `p.seg`。
+    n=1 时退化成集总模型（与单段版逐位一致）；n>1 时 TEG 沿流向分成 n 段，
+    烟气逐段降温、段间轴向导热、电学上 n 段串联。
+    """
+    n = max(int(p.seg), 1)
+    if n == 1:
+        return _rhs_lumped(t, y, p, duty)
+    th = y[:n]
+    tc = y[n:2 * n]
+    vc = y[-2]
+    vv = y[-1]
+
+    # --- 热端输入：火焰沿流向逐段放热（自限温）---
+    h_seg = p.h_flame / n
+    q_in = np.empty(n)
+    t_gas = p.T_flame
+    for i in range(n):
+        q = max(h_seg * (t_gas - th[i]), 0.0)
+        q_in[i] = q
+        t_gas -= q / max(p.mdot_cp, 1e-9)
+
+    dT = np.maximum(th - tc, 0.0)
+    voc = p.N * p.alpha * float(dT.mean())
+    a_tot = p.N * p.alpha
+
+    # --- 电气：先定电流，再回算热端/冷端热流（保证 Q_h - Q_c = P_电）---
     w_m = vv * p.i_g / p.r_w
-    v_app = duty * max(vc, 0.0) if vc >= p.v_cutoff else 0.0
-    i_m = (v_app - p.Ke * w_m) / p.Rm
-    i_m = min(max(i_m, 0.0), p.i_limit)
-    p_motor = v_app * i_m
-    d_vc = (p.eta_dcdc * p_elec - p_motor) / (p.C_cap * max(vc, 0.05))
-    if vc >= p.V_max and d_vc > 0.0:
-        d_vc = 0.0                        # 稳压：到上限不再充
+    if p.mode == "direct":
+        # 初赛：温差发电经 DC-DC 直接驱动电机，没有电容缓冲
+        i_m = float(np.clip((p.eta_dcdc * voc - p.Ke * w_m) / (p.R_int + p.Rm),
+                            0.0, p.i_limit))
+        cur = i_m
+        p_motor = i_m * (p.Ke * w_m + i_m * p.Rm)
+        d_vc = 0.0
+    else:
+        cur = voc / (2.0 * p.R_int)
+        v_app = duty * max(vc, 0.0) if vc >= p.v_cutoff else 0.0
+        i_m = float(np.clip((v_app - p.Ke * w_m) / p.Rm, 0.0, p.i_limit))
+        p_motor = v_app * i_m
+        d_vc = (p.eta_dcdc * cur * cur * p.R_int - p_motor) / (p.C_cap * max(vc, 0.05))
+        if vc >= p.V_max and d_vc > 0.0:
+            d_vc = 0.0                    # 稳压：到上限不再充
+
+    th_k, tc_k = th + 273.15, tc + 273.15
+    q_cond = p.K_teg / n * dT
+    q_h = q_cond + a_tot / n * th_k * cur - 0.5 * cur * cur * p.R_int / n
+    q_c = q_cond + a_tot / n * tc_k * cur + 0.5 * cur * cur * p.R_int / n
+
+    # 段间轴向导热（n=1 时为 0）
+    ax_h = np.zeros(n)
+    ax_c = np.zeros(n)
+    if n > 1:
+        diff_h = np.diff(th)
+        diff_c = np.diff(tc)
+        ax_h[:-1] -= p.k_ax * diff_h
+        ax_h[1:] += p.k_ax * diff_h
+        ax_c[:-1] -= p.k_ax * diff_c
+        ax_c[1:] += p.k_ax * diff_c
+
+    d_th = (q_in - q_h - p.hA_h / n * (th - p.Tamb) + ax_h) / (p.C_h / n)
+    d_tc = (q_c - p.hA_c / n * (tc - p.Tamb) + ax_c) / (p.C_c / n)
 
     # --- 整车纵向动力学 ---
     f_drive = p.eta_g * p.i_g * p.Kt * i_m / p.r_w
@@ -169,7 +264,7 @@ def rhs(t: float, y: np.ndarray, p: Params = P, duty: float = 1.0) -> np.ndarray
     if vv <= 0.0 and d_v < 0.0:
         d_v = 0.0
 
-    return np.array([d_th, d_tc, d_vc, d_v], dtype=float)
+    return np.concatenate([d_th, d_tc, [d_vc, d_v]]).astype(float)
 
 
 def rk4(t: float, y: np.ndarray, dt: float, p: Params, duty: float = 1.0) -> np.ndarray:
@@ -182,29 +277,45 @@ def rk4(t: float, y: np.ndarray, dt: float, p: Params, duty: float = 1.0) -> np.
 
 def simulate(p: Params = P, *, t_end: float = 240.0, dt: float = 0.005,
              v0: float = 0.0) -> dict:
-    """RK4 时间推进，返回各物理量时间序列。"""
+    """RK4 时间推进，返回各物理量时间序列（支持分段 TEG 与两种赛制）。"""
+    n_seg = max(int(p.seg), 1)
     n = int(round(t_end / dt)) + 1
     t = np.empty(n)
-    Y = np.empty((n, 4))
-    y = np.array([p.Tamb, p.Tamb, 1.20, v0], dtype=float)   # 电容赛前预充 1.2 V
+    Y = np.empty((n, 2 * n_seg + 2))
+    v_cap0 = 1.20 if p.mode == "cap" else 0.0          # 电容赛前预充 1.2 V
+    y = np.concatenate([np.full(n_seg, p.Tamb), np.full(n_seg, p.Tamb),
+                        [v_cap0, v0]]).astype(float)
+    i_vc = 2 * n_seg
+    i_vv = 2 * n_seg + 1
     t0 = time.perf_counter()
     for k in range(n):
         t[k] = k * dt
         Y[k] = y
         if k + 1 < n:
             y = rk4(t[k], y, dt, p)
-            y[VC] = max(y[VC], 0.0)
-            y[VV] = max(y[VV], 0.0)
+            y[i_vc] = max(y[i_vc], 0.0)
+            y[i_vv] = max(y[i_vv], 0.0)
     wall = time.perf_counter() - t0
 
-    th, tc, vc, vv = Y.T
+    th_seg = Y[:, :n_seg]
+    tc_seg = Y[:, n_seg:2 * n_seg]
+    vc = Y[:, i_vc]
+    vv = Y[:, i_vv]
+    th = th_seg.mean(axis=1) if n_seg > 1 else th_seg[:, 0]
+    tc = tc_seg.mean(axis=1) if n_seg > 1 else tc_seg[:, 0]
     dT = np.maximum(th - tc, 0.0)
     voc = p.N * p.alpha * dT
-    i_teg = voc / (2 * p.R_int)
-    p_teg = i_teg * i_teg * p.R_int
     w_m = vv * p.i_g / p.r_w
-    v_app = np.where(vc >= p.v_cutoff, vc, 0.0)
-    i_m = np.clip((v_app - p.Ke * w_m) / p.Rm, 0.0, p.i_limit)
+    if p.mode == "direct":
+        i_m = np.clip((p.eta_dcdc * voc - p.Ke * w_m) / (p.R_int + p.Rm), 0.0, p.i_limit)
+        i_teg = i_m
+        v_app = i_m * p.Rm + p.Ke * w_m
+    else:
+        i_teg = voc / (2 * p.R_int)
+        v_app = np.where(vc >= p.v_cutoff, vc, 0.0)
+        i_m = np.clip((v_app - p.Ke * w_m) / p.Rm, 0.0, p.i_limit)
+    # 电功率口径：电容模式是"匹配负载可取功率"（I²R_int），直驱模式是对外输出（Voc·I − I²R）
+    p_teg = (i_teg * voc - i_teg * i_teg * p.R_int) if p.mode == "direct" else i_teg * i_teg * p.R_int
     s = np.concatenate([[0.0], np.cumsum(0.5 * (vv[1:] + vv[:-1]) * dt)])
     return {
         "t": t, "Th": th, "Tc": tc, "dT": dT, "Voc": voc, "I_teg": i_teg,
@@ -213,6 +324,7 @@ def simulate(p: Params = P, *, t_end: float = 240.0, dt: float = 0.005,
         "omega": w_m, "rpm": w_m * 60.0 / (2 * math.pi),
         "v": vv, "s": s, "acc": np.gradient(vv, dt),
         "P_fuel": np.array([fuel_power(x, p) for x in t]),
+        "Th_seg": th_seg, "Tc_seg": tc_seg, "n_seg": n_seg,
         "wall_s": wall, "dt": dt, "p": p,
     }
 
@@ -425,6 +537,159 @@ def chassis_beam_fe(p: Params = P, n_el: int = 60, L: float = 0.25,
         sigma[e] = abs(M) * (thick / 2) / (thick ** 3 / 12.0) / width
     sigma[-1] = sigma[-2]
     return {"x": x, "w": w * 1000.0, "sigma": sigma / 1e3}
+
+
+# --------------------------------------------------------------------------- #
+# 3.5 规模升级：五万节点导热 / 十万单元 CFD / 两万单元梁 / 双赛制
+# --------------------------------------------------------------------------- #
+def teg_plate_fe(n: int = 225, p: Params = P, t_hot: float | None = None,
+                 t_cold: float | None = None) -> dict:
+    """均温板稳态导热（稀疏有限差分）：n×n 节点，中心热区 Dirichlet = T_h，外缘 = T_c。"""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.linalg import spsolve
+
+    t0 = time.perf_counter()
+    L = 0.04
+    dx = L / (n - 1)
+    N = n * n
+    idx = np.arange(N).reshape(n, n)
+    rows, cols, vals = [], [], []
+    for i in range(n):
+        for j in range(n):
+            pij = idx[i, j]
+            nb = 0
+            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                ii, jj = i + di, j + dj
+                if 0 <= ii < n and 0 <= jj < n:
+                    rows.append(pij); cols.append(idx[ii, jj]); vals.append(-1.0 / dx ** 2)
+                    nb += 1
+            rows.append(pij); cols.append(pij); vals.append(nb / dx ** 2)
+
+    A = coo_matrix((vals, (rows, cols)), shape=(N, N)).tolil()
+    b = np.zeros(N)
+    th = float(t_hot if t_hot is not None else 103.0)
+    tc = float(t_cold if t_cold is not None else 52.0)
+    hot = (np.abs(np.arange(n)[:, None] - n // 2) < max(n // 12, 3)) &           (np.abs(np.arange(n)[None, :] - n // 2) < max(n // 12, 3))
+    rim = np.zeros((n, n), dtype=bool)
+    rim[[0, -1], :] = True
+    rim[:, [0, -1]] = True
+    for q in idx[hot]:
+        A.rows[q] = [q]; A.data[q] = [1.0]; b[q] = th
+    for q in idx[rim]:
+        A.rows[q] = [q]; A.data[q] = [1.0]; b[q] = tc
+    T = spsolve(A.tocsr(), b).reshape(n, n)
+    return {"T": T, "nodes": N, "ms": (time.perf_counter() - t0) * 1e3,
+            "span": (float(T.min()), float(T.max()))}
+
+
+def heatsink_cfd(nx: int = 400, ny: int = 250, p: Params = P,
+                 t_wall: float | None = None) -> dict:
+    """散热片间通道的对流-扩散（上风差分 + 稀疏求解）：u 取抛物型层流。
+
+    方程 u∂T/∂x = α(∂²T/∂x² + ∂²T/∂y²)，入口 T_amb、两侧翅片壁 T_cold。
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.linalg import spsolve
+
+    t0 = time.perf_counter()
+    L, H, alpha, u_max = 0.07, 0.006, 2.2e-5, 0.8
+    N = nx * ny
+    dx, dy = L / (nx - 1), H / (ny - 1)
+    y = np.linspace(0.0, H, ny)
+    u = u_max * (1.0 - ((2.0 * y / H) - 1.0) ** 2)
+    wall = float(t_wall if t_wall is not None else 52.0)
+
+    rows, cols, vals = [], [], []
+    b = np.zeros(N)
+
+    def at(i: int, j: int) -> int:
+        return i * ny + j
+
+    for i in range(nx):
+        for j in range(ny):
+            q = at(i, j)
+            if j == 0 or j == ny - 1:
+                rows.append(q); cols.append(q); vals.append(1.0); b[q] = wall
+                continue
+            if i == 0:
+                rows.append(q); cols.append(q); vals.append(1.0); b[q] = p.Tamb
+                continue
+            rows.append(q); cols.append(q)
+            vals.append(u[j] / dx + 2.0 * alpha / dx ** 2 + 2.0 * alpha / dy ** 2)
+            rows.append(q); cols.append(at(i - 1, j)); vals.append(-u[j] / dx - alpha / dx ** 2)
+            rows.append(q); cols.append(at(i, j - 1)); vals.append(-alpha / dy ** 2)
+            rows.append(q); cols.append(at(i, j + 1)); vals.append(-alpha / dy ** 2)
+            if i < nx - 1:
+                rows.append(q); cols.append(at(i + 1, j)); vals.append(-alpha / dx ** 2)
+
+    A = coo_matrix((vals, (rows, cols)), shape=(N, N)).tocsr()
+    T = spsolve(A, b).reshape(nx, ny)
+    return {"T": T, "u": u, "cells": N, "ms": (time.perf_counter() - t0) * 1e3,
+            "outlet": float(T[-1].mean()), "inlet": float(p.Tamb),
+            "x": np.linspace(0.0, L, nx), "y": y}
+
+
+def chassis_beam_fe_sparse(n_el: int = 20000, L: float = 0.25, load_n: float = 6.0,
+                           width: float = 0.20, thick: float = 0.003,
+                           E: float = 2.4e9) -> dict:
+    """底盘梁有限元（稀疏版）：两万单元、四万自由度，报告挠度与最大弯曲应力。"""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.linalg import spsolve
+
+    t0 = time.perf_counter()
+    EIz = E * (width * thick ** 3 / 12.0)
+    ndof = 2 * (n_el + 1)
+    le = L / n_el
+    ke = EIz / le ** 3 * np.array([
+        [12, 6 * le, -12, 6 * le],
+        [6 * le, 4 * le ** 2, -6 * le, 2 * le ** 2],
+        [-12, -6 * le, 12, -6 * le],
+        [6 * le, 2 * le ** 2, -6 * le, 4 * le ** 2]])
+    rows, cols, vals = [], [], []
+    for e in range(n_el):
+        idx = [2 * e, 2 * e + 1, 2 * e + 2, 2 * e + 3]
+        for a in range(4):
+            for c in range(4):
+                rows.append(idx[a]); cols.append(idx[c]); vals.append(ke[a, c])
+    K = coo_matrix((vals, (rows, cols)), shape=(ndof, ndof)).tocsr()
+    F = np.zeros(ndof)
+    F[2 * (n_el // 2)] = -load_n
+    keep = np.setdiff1d(np.arange(ndof), [0, 2 * n_el])
+    U = np.zeros(ndof)
+    U[keep] = spsolve(K[keep][:, keep].tocsc(), F[keep])
+    w = U[0::2]
+    M = np.abs(EIz * np.diff(w, 2) / le ** 2)
+    sigma = M.max() * (thick / 2) / (thick ** 3 / 12.0) / width
+    return {"x": np.linspace(0.0, L, n_el + 1), "w": w * 1000.0,
+            "dof": int(ndof), "ms": (time.perf_counter() - t0) * 1e3,
+            "w_max_mm": float(np.abs(w).max() * 1000.0), "sigma_mpa": float(sigma / 1e6)}
+
+
+def compare_modes(p: Params = P, *, t_end: float = 240.0, dt: float = 0.005) -> dict:
+    """初赛（温差发电直接驱动）与决赛（规定超级电容）两种赛制分别建模。"""
+    import dataclasses
+
+    cap = simulate(dataclasses.replace(p, mode="cap"), t_end=t_end, dt=dt)
+    direct = simulate(dataclasses.replace(p, mode="direct"), t_end=t_end, dt=dt)
+    return {"cap": cap, "direct": direct}
+
+
+def segmented_run(p: Params = P, *, n_seg: int = 8, t_end: float = 120.0,
+                  dt: float = 0.01) -> dict:
+    """TEG 沿流向分 n 段（状态数 2n+2），看热-电分布参数效应。"""
+    import dataclasses
+
+    return simulate(dataclasses.replace(p, seg=n_seg), t_end=t_end, dt=dt)
+
+
+def stress_scale(p: Params = P, *, t_end: float = 40.0, dt: float = 2e-4) -> dict:
+    """规模验证：五万节点导热、十万单元 CFD、两万单元梁、一百万步瞬态。"""
+    plate = teg_plate_fe(225, p)
+    cfd = heatsink_cfd(400, 250, p)
+    beam = chassis_beam_fe_sparse(20000)
+    long_run = simulate(p, t_end=t_end, dt=dt)
+    return {"plate": plate, "cfd": cfd, "beam": beam, "long": long_run,
+            "steps": int(long_run["t"].size)}
 
 
 # --------------------------------------------------------------------------- #
@@ -948,7 +1213,8 @@ def chart_perf(perf: dict):
 # --------------------------------------------------------------------------- #
 # 8. 报告 + 主流程
 # --------------------------------------------------------------------------- #
-def write_report(res, track, sens, conv, designs, fields, perf, elapsed):
+def write_report(res, track, sens, conv, designs, fields, perf, elapsed,
+                 cmp=None, seg=None, scale=None):
     lap = float(res["s"][-1]) / L_LAP
     lines = [
         "# 生物质能温差发电小车 · 多物理场仿真报告",
@@ -979,6 +1245,29 @@ def write_report(res, track, sens, conv, designs, fields, perf, elapsed):
         f"- 底盘最大弯曲应力 {fields['sigma_max']:.1f} kPa，最大挠度 {fields['deflection_mm']:.3f} mm"
         "（Euler-Bernoulli 梁有限元，60 单元）",
         "",
+        "", "## 2.5 两种赛制（初赛直驱 / 决赛电容）", "",
+        "| 指标 | 决赛 · 超级电容 | 初赛 · 直接驱动 |", "| --- | --- | --- |",
+        f"| 240 s 里程 | {cmp['cap']['s'][-1]:.1f} m | {cmp['direct']['s'][-1]:.1f} m |",
+        f"| 最高车速 | {cmp['cap']['v'].max():.3f} m/s | {cmp['direct']['v'].max():.3f} m/s |",
+        f"| 峰值电功率 | {cmp['cap']['P_teg'].max():.2f} W | {cmp['direct']['P_teg'].max():.2f} W |",
+        "", "> 两种赛制分别建模：直驱没有电容缓冲，电流由「开路电压 − 反电势」除以总内阻决定，"
+        "低温差时几乎发不出车。",
+        "", "## 2.6 分段 TEG（分布参数）", "",
+        f"沿流向分 {seg['n_seg']} 段，状态数 {2 * seg['n_seg'] + 2}（热端/冷端各 {seg['n_seg']} + 电容 + 车速）。",
+        f"同样 120 s：分段模型平均热端 {seg['Th'][-1]:.1f} °C、里程 {seg['s'][-1]:.1f} m；"
+        f"集总模型（n=1）热端 {seg['lumped']['Th'][-1]:.1f} °C、里程 {seg['lumped']['s'][-1]:.1f} m。"
+        "差异来自烟气沿流向降温——集总会高估热端温度（迎火面 98 °C vs 背火面 74 °C，见 31 图）。",
+        "", "## 2.7 规模验证", "",
+        "| 项目 | 规模 | 耗时 | 结果 |", "| --- | --- | --- | --- |",
+        f"| 均温板稳态导热 | {scale['plate']['nodes'] / 1e4:.1f} 万节点 | {scale['plate']['ms']:.0f} ms | "
+        f"{scale['plate']['span'][0]:.1f}–{scale['plate']['span'][1]:.1f} °C |",
+        f"| 散热片通道 CFD | {scale['cfd']['cells'] / 1e4:.0f} 万单元 | {scale['cfd']['ms']:.0f} ms | "
+        f"出口均温 {scale['cfd']['outlet']:.1f} °C（入口 {scale['cfd']['inlet']:.0f}） |",
+        f"| 底盘梁有限元 | {scale['beam']['dof'] / 1e4:.1f} 万自由度 | {scale['beam']['ms']:.0f} ms | "
+        f"挠度 {scale['beam']['w_max_mm']:.2f} mm / {scale['beam']['sigma_mpa']:.2f} MPa |",
+        f"| 瞬态耦合 | {scale['steps'] / 1e4:.0f} 万步 | {scale['long']['wall_s']:.1f} s | "
+        f"{scale['steps'] / scale['long']['wall_s']:.0f} 步/秒 |",
+
         "## 3. 参数敏感性（减速比 × 散热能力）",
         "",
         f"- 最优里程 {sens['dist'].max():.1f} m，最差 {sens['dist'].min():.1f} m"
@@ -1017,8 +1306,80 @@ def write_report(res, track, sens, conv, designs, fields, perf, elapsed):
     (OUT_DIR / "REPORT.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+# --------------------------------------------------------------------------- #
+# 6.5 双赛制 / 分段 TEG / 规模验证 出图
+# --------------------------------------------------------------------------- #
+def charts_modes(cmp, p=P):
+    cap, direct = cmp["cap"], cmp["direct"]
+    fig, axes = pk.subplots(1, 2, size=(10.6, 4.2),
+                            title="初赛（直接驱动）vs 决赛（超级电容）")
+    fig.add_data("t", cap["t"], role="coord")
+    fig.add_data("s_cap", cap["s"], role="series")
+    fig.add_data("s_dir", direct["s"], role="series")
+    fig.add_data("v_cap", cap["v"], role="series")
+    fig.add_data("v_dir", direct["v"], role="series")
+    fig.add_plot("line", x="t", y="s_cap", subplot=0, label="决赛 · 电容")
+    fig.add_plot("line", x="t", y="s_dir", subplot=0, label="初赛 · 直驱")
+    fig.add_plot("line", x="t", y="v_cap", subplot=1, label="决赛 · 电容")
+    fig.add_plot("line", x="t", y="v_dir", subplot=1, label="初赛 · 直驱")
+    fig.set_view(0, xlabel="时间 (s)", ylabel="里程 (m)")
+    fig.set_view(1, xlabel="时间 (s)", ylabel="车速 (m/s)")
+    save(fig, "30_mode_compare.png", width=1080, height=460)
+
+
+def charts_segments(seg, p=P):
+    th = seg["Th_seg"]
+    tc = seg["Tc_seg"]
+    n = th.shape[1]
+    fig = new(f"TEG 沿流向 {n} 段温度（状态数 {2 * n + 2}）", size=(7.6, 4.4))
+    fig.add_data("t", seg["t"], role="coord")
+    for i in range(n):
+        fig.add_data(f"th{i}", th[:, i], role="series")
+        fig.add_data(f"tc{i}", tc[:, i], role="series")
+        lab_h = f"热端 1（迎火面）" if i == 0 else (f"热端 {n}（背火面）" if i == n - 1 else None)
+        lab_c = f"冷端 1" if i == 0 else (f"冷端 {n}" if i == n - 1 else None)
+        fig.add_plot("line", x="t", y=f"th{i}", label=lab_h, legend=lab_h is not None,
+                     style={"color": f"#{int(230 - i * 20):02x}3b3b"})
+        fig.add_plot("line", x="t", y=f"tc{i}", label=lab_c, legend=lab_c is not None,
+                     style={"color": f"#2a{int(120 + i * 15):02x}d6"})
+    fig.set_view(0, xlabel="时间 (s)", ylabel="温度 (°C)")
+    save(fig, "31_seg_temperature.png", width=1000, height=560)
+
+
+def charts_scale(scale, p=P):
+    plate, cfd, beam = scale["plate"], scale["cfd"], scale["beam"]
+
+    fig = new(f"均温板稳态导热：{plate['nodes'] / 1e4:.1f} 万节点稀疏求解")
+    fig.add_data("T", plate["T"], role="field")
+    fig.add("heatmap", {"z": "T"}, style={"cmap": "inferno", "colorbar": True})
+    fig.set_view(0, xlabel="x 节点", ylabel="y 节点")
+    save(fig, "32_plate_fe_50k.png", width=900, height=560)
+
+    fig, axes = pk.subplots(1, 2, size=(10.6, 4.2),
+                            title=f"散热片通道 CFD：{cfd['cells'] / 1e4:.0f} 万单元")
+    fig.add_data("u", cfd["u"], role="series")
+    fig.add_data("yy", cfd["y"] * 1e3, role="coord")
+    fig.add_data("Tf", cfd["T"].T, role="field")   # 行=y、列=x
+    fig.add_plot("line", x="yy", y="u", subplot=0, label="速度剖面")
+    fig.add("heatmap", {"z": "Tf"}, subplot=1, style={"cmap": "coolwarm", "colorbar": True})
+    fig.set_view(0, xlabel="通道高度 (mm)", ylabel="速度 (m/s)")
+    fig.set_view(1, xlabel="x 节点（入口 → 出口）", ylabel="y 节点")
+    save(fig, "33_cfd_channel.png", width=1080, height=460)
+
+    fig = new("规模验证：求解规模 vs 耗时")
+    names = np.asarray(["导热 5 万节点", "CFD 10 万单元", "梁 2 万单元", f"瞬态 {scale['steps'] // 1000} 千步"])
+    ms = np.asarray([plate["ms"], cfd["ms"], beam["ms"], scale["long"]["wall_s"] * 1e3])
+    fig.add_data("n", names, role="auto")
+    fig.add_data("ms", ms, role="series")
+    fig.add_plot("bar", x="n", y="ms")
+    fig.set_view(0, xlabel="", ylabel="耗时 (ms)")
+    save(fig, "34_scale_time.png", width=980, height=460)
+    return {"plate_ms": plate["ms"], "cfd_ms": cfd["ms"], "beam_ms": beam["ms"],
+            "long_wall_s": scale["long"]["wall_s"], "steps": scale["steps"]}
+
+
 def build_all(*, quick: bool = False, t_end: float = 240.0, dt: float = 0.005,
-              n_points: int = 1_000_000) -> dict:
+              n_points: int = 1_000_000, stress: bool = False) -> dict:
     t_start = time.perf_counter()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1040,17 +1401,25 @@ def build_all(*, quick: bool = False, t_end: float = 240.0, dt: float = 0.005,
     conv = charts_convergence()
     fields = charts_3d(track=track, res=res)
     fields["assembly"] = assembly_3d()
-    fields["anim"] = animate_3d(res, track)
+    fields["anim"] = animate_3d(res, track, frames=600 if not quick else 200)
+    cmp = compare_modes(P, t_end=t_end, dt=dt)
+    charts_modes(cmp)
+    seg = segmented_run(P, n_seg=8, t_end=120.0, dt=0.01)
+    seg["lumped"] = simulate(P, t_end=120.0, dt=0.01)
+    charts_segments(seg)
+    scale = stress_scale(P, t_end=200.0 if stress else 40.0)
+    fields["scale"] = charts_scale(scale)
     perf = perf_test(n_points)
     chart_perf(perf)
 
     elapsed = time.perf_counter() - t_start
-    write_report(res, track, sens, conv, designs, fields, perf, elapsed)
+    write_report(res, track, sens, conv, designs, fields, perf, elapsed, cmp, seg, scale)
     n_png = len(list(OUT_DIR.glob("*.png")))
     n_gif = int((OUT_DIR / "29_animation_3d.gif").exists())
     print(f"[done] {n_png} charts + {n_gif} animation, {elapsed:.1f}s", flush=True)
     return {"res": res, "track": track, "sens": sens, "conv": conv,
-            "designs": designs, "fields": fields, "perf": perf, "elapsed": elapsed}
+            "designs": designs, "fields": fields, "perf": perf, "elapsed": elapsed,
+            "cmp": cmp, "seg": seg, "scale": scale}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1059,8 +1428,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--t-end", type=float, default=240.0)
     ap.add_argument("--dt", type=float, default=0.005)
     ap.add_argument("--points", type=int, default=1_000_000)
+    ap.add_argument("--stress", action="store_true",
+                    help="规模验证跑满：一百万步瞬态 + 600 帧动画")
     args = ap.parse_args(argv)
-    out = build_all(quick=args.quick, t_end=args.t_end, dt=args.dt, n_points=args.points)
+    out = build_all(quick=args.quick, t_end=args.t_end, dt=args.dt,
+                    n_points=args.points, stress=args.stress)
     r = out["res"]
     summary = {
         "peak_Th_C": round(float(r["Th"].max()), 2),
@@ -1070,6 +1442,8 @@ def main(argv: list[str] | None = None) -> int:
         "distance_m": round(float(r["s"][-1]), 1),
         "laps": round(float(r["s"][-1]) / L_LAP, 2),
         "min_clearance_m": round(float(out["track"]["clearance"].min()), 3),
+        "mode_direct_m": round(float(out["cmp"]["direct"]["s"][-1]), 1),
+        "seg_states": 2 * int(out["seg"]["n_seg"]) + 2,
         "charts": len(list(OUT_DIR.glob("*.png"))) + int((OUT_DIR / "29_animation_3d.gif").exists()),
         "elapsed_s": round(out["elapsed"], 1),
     }

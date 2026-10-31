@@ -163,13 +163,26 @@ fig.render(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
 ## 示例：生物质能小车多物理场仿真
 
 `examples/teg_car_sim.py` 是单文件、可独立运行的综合示例：热—电—机械—转向四域耦合的
-小车仿真，一次跑出 29 张图（含 4 张真算的三维场、整车装配图）+ 200 帧三维动画
+小车仿真，一次跑出 34 张图（含 4 张真算的三维场、整车装配图）+ 600 帧三维动画
 `29_animation_3d.gif`，外加 `docs/teg_car/REPORT.md`。
 
 ```bash
-PYTHONPATH=src python examples/teg_car_sim.py     # 约 60 s（含 12×12=144 组参数扫描）
-PYTHONPATH=src python examples/teg_car_sim.py --quick   # 约 20 s，6×6 扫描
+PYTHONPATH=src python examples/teg_car_sim.py            # 约 75 s（含 12×12=144 组扫描）
+PYTHONPATH=src python examples/teg_car_sim.py --quick    # 约 33 s，6×6 扫描
+PYTHONPATH=src python examples/teg_car_sim.py --stress   # 瞬态跑满 100 万步
 ```
+
+除了四域耦合，它还覆盖了工程上真正吃算力的几块，并且都是**真算**（不是贴图）：
+
+| 项目 | 规模 | 实测 |
+| --- | --- | --- |
+| 均温板稳态导热（稀疏有限差分） | 5.1 万节点 | 0.9 s |
+| 散热片通道对流-扩散（上风 + 稀疏求解） | 10 万单元 | 2.6 s |
+| 底盘梁有限元 | 4 万自由度 | 0.25 s |
+| 瞬态耦合（RK4，四状态） | 20 万步 | 6.7 s（约 3 万步/秒） |
+
+两种赛制分别建模（初赛温差发电直接驱动 107.3 m / 决赛超级电容 121.8 m），
+TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火面 98 °C、背火面 74 °C。
 
 它同时是规模压测：100 万点 × 3 通道入库 9 ms、M4 抽稀 24 ms、冷渲染 273 ms、峰值 42 MB。
 
