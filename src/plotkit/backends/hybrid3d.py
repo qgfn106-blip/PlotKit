@@ -119,6 +119,21 @@ def _compose(spec: Mapping[str, Any], store, image: np.ndarray, info: Mapping[st
 
     figure_cfg = spec.get("figure") or {}
     face = str(figure_cfg.get("facecolor") or "white")
+    # 默认 svg.fonttype="path" 会把每个字形转成路径：慢 2 倍、体积大、还不可选中/搜索。
+    # 这里要的就是"文字是文字"，所以强制 none（rc_context 不污染全局）。
+    from matplotlib import rc_context
+
+    rc = {"svg.fonttype": "none"} if fmt == "svg" else {}
+    with rc_context(rc):
+        return _compose_figure(spec, store, image, info, width=width, height=height,
+                               dpi=dpi, fmt=fmt, face=face, figure_cfg=figure_cfg)
+
+
+def _compose_figure(spec, store, image, info, *, width, height, dpi, fmt, face,
+                    figure_cfg) -> bytes:
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
     fig = Figure(figsize=(width / dpi, height / dpi), dpi=dpi, facecolor=face)
     FigureCanvasAgg(fig)
     ax = fig.add_axes([0.0, 0.0, 1.0, 1.0])
@@ -176,17 +191,24 @@ def _compose(spec: Mapping[str, Any], store, image: np.ndarray, info: Mapping[st
         from matplotlib import cm as _cm
         from matplotlib.patches import Rectangle
 
+        from matplotlib.collections import PolyCollection
+
         cmap = _cm.get_cmap(scalar["cmap"])
         lo, hi = scalar["clim"]
-        x0, w = width * 0.912, width * 0.022
+        x0, w = width * 0.905, width * 0.022
         y0, hgt = height * 0.16, height * 0.60
         steps = 64
-        # y 轴是倒置的（像素坐标向下为正）：frac=1（高值）要落在画布上方
+        # 一次 PolyCollection 画完整条色带（64 个 Rectangle 会白付 60+ms 的 add_patch 开销）
+        quads, colors = [], []
         for i in range(steps):
             frac = i / (steps - 1)
             y_rect = y0 + hgt * (1.0 - frac)
-            ax.add_patch(Rectangle((x0, y_rect), w, hgt / steps + 0.8,
-                                   facecolor=cmap(frac), edgecolor="none", zorder=3))
+            h_rect = hgt / steps + 0.8
+            quads.append([(x0, y_rect), (x0 + w, y_rect),
+                          (x0 + w, y_rect + h_rect), (x0, y_rect + h_rect)])
+            colors.append(cmap(frac))
+        ax.add_collection(PolyCollection(quads, facecolors=colors, edgecolors="none",
+                                         zorder=3))
         ax.add_patch(Rectangle((x0, y0), w, hgt, facecolor="none",
                                edgecolor=_AXIS_COLOR, linewidth=0.6, zorder=4))
         for i in range(5):

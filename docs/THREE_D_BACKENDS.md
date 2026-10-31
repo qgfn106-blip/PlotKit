@@ -267,4 +267,14 @@ result = sel.render(fig.store, width=800, height=500)   # -> RenderResult
 
 开关：`PLOTKIT_3D_SVG=hybrid`（默认）｜`mpl`（退回纯 mpl 真矢量，慢且观感差）｜显式 `backend="pyvista"` + `fmt="svg"` 即走混合。
 
-实测（800×600 曲面）：SVG 249 KB，其中位图 1 张（576×432pt 满幅），`<path>` 138 个、`<text>` 24 组；PDF 同尺寸 160 KB。文字可选中、可搜索，轴随分辨率无限缩放。
+实测（800×600、40×40 曲面、预热后 p50）：
+
+| 出口 | 耗时 | 体积 |
+| --- | --- | --- |
+| PyVista PNG（装饰齐全） | **19.6 ms** | 153 KB |
+| 混合 SVG（默认） | **192 ms** | 233 KB |
+| 混合 PDF | 224 ms | 107 KB |
+| mpl 三维纯矢量 SVG | 502 ms | 282 KB |
+
+拆解：场景渲染只要 **5.8 ms**，剩下全是 mpl 合成——其中约一半是 matplotlib 把嵌入位图重新编码进 SVG/PDF。相对纯矢量 mpl 快 2.6×、体积小 17%；相对 PNG 慢约 10×（换来可选中文字与无限缩放的轴）。
+两个必要的加速开关：`svg.fonttype="none"`（默认 `path` 会把每个字形转成路径，慢且不可选中）、色标用**一个** `PolyCollection` 画（64 个 Rectangle 要多付 60 ms 的 add_patch）。
