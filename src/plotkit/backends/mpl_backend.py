@@ -1287,6 +1287,16 @@ def to_figure(
         slot_fonts = {**fonts, **dict((insets.get(subplot) or {}).get("fonts") or {})}
         ax.set_facecolor(theme["plot"])
         _apply_view(ax, view, theme=theme, fonts=slot_fonts)
+        # 等比例坐标：轨迹/几何图必须 1:1，否则体育场跑道会被拉成椭圆
+        for layer in group:
+            aspect = (layer.get("style") or {}).get("aspect")
+            if aspect:
+                try:
+                    # constrained_layout 会无视 adjustable="box" 的收缩，只能靠 datalim 保住 1:1 比例
+                    ax.set_aspect(str(aspect), adjustable="datalim")
+                except (ValueError, TypeError):
+                    pass
+                break
         for index, layer in enumerate(group):
             kind = layer.get("kind")
             drawer = DRAWERS.get(kind)

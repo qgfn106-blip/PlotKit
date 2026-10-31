@@ -477,7 +477,7 @@ def _view_bounds(layers, xlim=None, ylim=None):
     return (x0, x1, y0, y1, z0, z1)
 
 
-def _apply_view(plotter, figure: Mapping[str, Any], bounds=None) -> None:
+def _apply_view(plotter, figure: Mapping[str, Any], bounds=None, layer_view=None) -> None:
     """按 elev/azim 摆相机。
 
     不能依赖 `camera_position = "iso"`：某些 VTK 版本上它会静默失败，相机留在默认的
@@ -486,9 +486,11 @@ def _apply_view(plotter, figure: Mapping[str, Any], bounds=None) -> None:
     """
     import math
 
-    elev = float(figure.get("elev", 26.0) or 26.0)
-    azim = float(figure.get("azim", -58.0) or -58.0)
-    zoom = float(figure.get("zoom", 1.0) or 1.0)
+    # 视角既可以在 figure 级给，也可以写在图层 view 里（fig.set_view(0, elev=…) 走的是后者）
+    layer_view = layer_view or {}
+    elev = float(figure.get("elev", layer_view.get("elev", 26.0)) or 26.0)
+    azim = float(figure.get("azim", layer_view.get("azim", -58.0)) or -58.0)
+    zoom = float(figure.get("zoom", layer_view.get("zoom", 1.0)) or 1.0)
     e = math.radians(elev)
     a = math.radians(azim)
     direction = np.array([math.cos(e) * math.cos(a),
@@ -578,7 +580,10 @@ def _render_sync(
 
         title = figure.get("title")
         if title:
-            plotter.add_text(str(title), position="upper_left", font_size=11, color="#111827")
+            # font_size 在 VTK 里是"字体相对大小"，11 会渲染成 ~45px 并被视口裁掉；
+            # 用 5 + 像素定位，标题才完整落在左上角
+            plotter.add_text(str(title), position=(14, int(height) - 16), font_size=5,
+                             color="#111827")
         plotter.show_bounds(
             grid=False, location="outer", show_xaxis=True, show_yaxis=True, show_zaxis=True,
             xtitle=str(figure.get("xlabel") or "x"),
@@ -589,7 +594,8 @@ def _render_sync(
             n_xlabels=4, n_ylabels=4, n_zlabels=2, fmt="%.2g",
         )
     # 相机每次都重设（转视角时不重建场景，只走这一步）
-    _apply_view(plotter, figure, _view_bounds(layers, xlim, ylim))
+    _apply_view(plotter, figure, _view_bounds(layers, xlim, ylim),
+                layer_view=(layers[0].get("view") or {}))
     image = plotter.screenshot(return_img=True)
     bounds = plotter.bounds
 
