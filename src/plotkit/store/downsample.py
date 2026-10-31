@@ -6,7 +6,9 @@
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Tuple, List
+
+import os
 
 import numpy as np
 
@@ -115,16 +117,71 @@ def get_downsample_backend() -> str:
     return _BACKEND
 
 
+#: 数据金字塔：超过这个长度才建（建一次约等于一次 M4，内存 +33%）
+PYRAMID_MIN_POINTS = int(os.environ.get("PLOTKIT_PYRAMID_MIN", "400000") or 400000)
+
+
+def build_pyramid(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    factor: int = 8,
+    min_points: int | None = None,
+) -> List[Tuple[np.ndarray, np.ndarray]]:
+    """把一条长序列建成多级摘要（M4 逐级抽稀）。
+
+    每级都是上一级的 M4 包络，所以**尖峰在每一级都保留**——这也是它敢替代原数据的原因。
+    返回 `[(x0, y0), (x1, y1), ...]`，第 0 级是原始数据。
+    """
+    limit = PYRAMID_MIN_POINTS if min_points is None else int(min_points)
+    x0 = np.asarray(x).ravel()
+    y0 = np.asarray(y).ravel()
+    levels: List[Tuple[np.ndarray, np.ndarray]] = [(x0, y0)]
+    if x0.size <= limit or factor < 2:
+        return levels
+    cx, cy = x0, y0
+    while cx.size > limit:
+        nxt = max(64, cx.size // factor)
+        cx, cy = m4_envelope(cx, cy, pixels=nxt // 2, per_pixel=2.0)
+        levels.append((cx, cy))
+        if cx.size < 64:
+            break
+    return levels
+
+
+def pick_level(
+    levels: List[Tuple[np.ndarray, np.ndarray]],
+    pixels: int,
+    *,
+    per_pixel: float = 2.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """挑最粗但仍够画的一级：输出点数必须 >= pixels*per_pixel，否则会丢细节。"""
+    need = max(64, int(pixels * per_pixel))
+    chosen = levels[0]
+    for level in levels:          # levels 由细到粗
+        if level[0].size >= need:
+            chosen = level
+        else:
+            break
+    return chosen
+
+
 def downsample_xy(
     x: np.ndarray,
     y: np.ndarray,
     pixels: int | None,
     *,
     per_pixel: float = 2.0,
+    levels: List[Tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """按当前后端降采样；``pixels`` 为空或 <=0 时原样返回（只做 ravel）。"""
+    """按当前后端降采样；``pixels`` 为空或 <=0 时原样返回（只做 ravel）。
+
+    `levels` 给了多级摘要就从够用的最粗一级开始抽，省掉在大数组上重复扫描。
+    """
     if not pixels or int(pixels) <= 0:
         return np.asarray(x).ravel(), np.asarray(y).ravel()
+    if levels:
+        x, y = pick_level(levels, int(pixels), per_pixel=per_pixel)
     if _BACKEND == "minmax":
         return minmax_envelope(x, y, int(pixels), per_pixel=per_pixel)
     return m4_envelope(x, y, int(pixels), per_pixel=per_pixel)

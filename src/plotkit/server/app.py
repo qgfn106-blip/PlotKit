@@ -251,6 +251,61 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         return Response(content=_binary_xyz(xv, yv, zv, meta),
                         media_type="application/octet-stream")
 
+    @app.get("/api/mesh")
+    def mesh(x: str, y: str, z: str, stride: int = 1) -> Response:
+        """曲面的三角网格出口：顶点 + 法线 + 索引，前端直接 drawElements。
+
+        `z` 按 `np.meshgrid(x, y)` 的约定解释（行 = y，列 = x）。
+        """
+        try:
+            xv = np.asarray(figure.store.values(x)).ravel().astype(float)
+            yv = np.asarray(figure.store.values(y)).ravel().astype(float)
+            zv = np.asarray(figure.store.values(z), dtype=float)
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        if zv.ndim == 1:  # 允许传已经摊平的一维场
+            if xv.size * yv.size != zv.size:
+                raise HTTPException(400, "z 的尺寸与 x×y 不匹配")
+            zv = zv.reshape(yv.size, xv.size)
+        if zv.shape != (yv.size, xv.size):
+            raise HTTPException(400, "z 的形状与 x/y 长度不匹配")
+        step = max(1, int(stride))
+        if step > 1:
+            xv, yv = xv[::step], yv[::step]
+            zv = zv[::step, ::step]
+
+        ny, nx = zv.shape
+        gx, gy = np.meshgrid(xv, yv)                     # (ny, nx)
+        verts = np.empty((nx * ny, 3), dtype="<f4")
+        verts[:, 0] = gx.ravel().astype(np.float32, copy=False)
+        verts[:, 1] = gy.ravel().astype(np.float32, copy=False)
+        verts[:, 2] = zv.ravel().astype(np.float32, copy=False)
+
+        # 法线：用数据坐标的梯度算（x/y 步长不等时也正确），不是索引空间
+        dz_dy, dz_dx = np.gradient(zv, yv, xv)
+        normals = np.empty((nx * ny, 3), dtype="<f4")
+        nrm = np.stack([-dz_dx.ravel(), -dz_dy.ravel(), np.ones(nx * ny)], axis=1)
+        nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12
+        normals[:] = nrm.astype(np.float32)
+
+        idx = np.arange(nx * ny, dtype=np.int64).reshape(ny, nx)
+        a = idx[:-1, :-1].ravel()
+        b = idx[:-1, 1:].ravel()
+        c = idx[1:, :-1].ravel()
+        d = idx[1:, 1:].ravel()
+        tris = np.empty((a.size * 2, 3), dtype="<u4")
+        tris[0::2] = np.stack([a, b, d], axis=1)         # 逆时针，正面朝 +z
+        tris[1::2] = np.stack([a, d, c], axis=1)
+
+        meta = {"x": x, "y": y, "z": z, "nx": int(nx), "ny": int(ny),
+                "nvert": int(verts.size // 3), "ntri": int(tris.shape[0])}
+        meta_bytes = json.dumps(meta, ensure_ascii=False).encode("utf-8")
+        header = MAGIC + struct.pack("<III", len(meta_bytes), int(verts.size // 3),
+                                     int(tris.shape[0]))
+        body = verts.tobytes(order="C") + normals.tobytes(order="C") + tris.tobytes(order="C")
+        return Response(content=header + meta_bytes + body,
+                        media_type="application/octet-stream")
+
     @app.get("/api/pick")
     def pick(x: float, y: float, sx: float = 1.0, sy: float = 1.0,
              tol: float = 0.03, layer: str | None = None) -> dict[str, Any]:

@@ -157,10 +157,24 @@ def test_pyvista_renders_surface():
     assert result.limits and "xlim" in result.limits and "zlim" in result.limits
 
 
-def test_pyvista_rejects_svg():
+def test_pyvista_svg_falls_back_to_vector_backend():
+    """要 SVG 时换 mpl 出真矢量：VTK 9.x 的 GL2PS 在 OpenGL2 后端只会塞位图。"""
+    fig = _surface_figure()
+    result = fig.render_result(width=200, height=140, backend="pyvista", fmt="svg")
+    assert result.backend == "mpl"
+    assert result.fmt == "svg"
+    text = result.payload.decode("utf-8", "ignore")
+    assert "<svg" in text and text.count("<path") > 50   # 真矢量路径，不是 <image>
+    assert result.meta.get("fallback") == "mpl"
+
+
+def test_pyvista_backend_rejects_svg_directly():
+    """直接调后端（不经 dispatch）仍应明确拒绝，而不是悄悄出位图。"""
+    from plotkit.backends import pyvista_backend
+
     fig = _surface_figure()
     with pytest.raises(dispatch.BackendUnsupported):
-        fig.render_result(width=200, height=140, backend="pyvista", fmt="svg")
+        pyvista_backend.render_result(fig.spec, fig.store, width=200, height=140, fmt="svg")
 
 
 def test_pyvista_auto_fallback_for_two_dimensional():

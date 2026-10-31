@@ -205,7 +205,10 @@ def render_result(
             xlim=xlim, ylim=ylim, with_limits=with_limits,
         )
     except (BackendUnsupported, BackendUnavailable) as exc:
-        if not auto:
+        # 要矢量图时**始终**回退 mpl：VTK 9.x 的 OpenGL2 后端把 GL2PS 导出退化成
+        # 「整幅位图塞进 SVG」（实测 cube/sphere/line 全是 <image>，零 <polygon>），
+        # 与其给假矢量，不如换后端出真矢量。
+        if not (auto or (fmt or "").lower() == "svg"):
             raise
         from . import mpl_backend
 

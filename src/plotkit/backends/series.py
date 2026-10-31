@@ -88,7 +88,14 @@ def _xy(layer: Mapping[str, Any], store: DataStore, *, pixels: int | None, per_p
     x, y = x_full[i0:i1], y_full[i0:i1]
     has_error = any(k.startswith("error_") for k in data)
     if pixels and not has_error:
-        x, y = downsample_xy(x, y, pixels, per_pixel=per_pixel)
+        # 超长序列走多级摘要：从够用的最粗一级开始抽，避免每次都在全量上扫一遍
+        levels = None
+        if i0 == 0 and i1 >= x_full.size:
+            try:
+                levels = store.pyramid(data["x"], data["y"])
+            except Exception:
+                levels = None
+        x, y = downsample_xy(x, y, pixels, per_pixel=per_pixel, levels=levels)
     elif x.dtype != np.float64:
         x = x.astype(np.float64, copy=False)
         y = y.astype(np.float64, copy=False)

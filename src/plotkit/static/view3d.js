@@ -8,18 +8,30 @@
 
   const VS = `#version 300 es
   in vec3 aPos;
+  in vec3 aNormal;
   uniform mat4 uMVP;
   uniform float uPointSize;
+  out vec3 vNormal;
   void main() {
     gl_Position = uMVP * vec4(aPos, 1.0);
     gl_PointSize = uPointSize;
+    vNormal = aNormal;
   }`;
 
   const FS = `#version 300 es
   precision mediump float;
   uniform vec4 uColor;
+  uniform float uLit;       // 1 = 曲面着色（Lambert），0 = 纯色
+  in vec3 vNormal;
   out vec4 outColor;
-  void main() { outColor = uColor; }`;
+  void main() {
+    if (uLit < 0.5) { outColor = uColor; return; }
+    vec3 n = normalize(vNormal);
+    vec3 L = normalize(vec3(0.45, -0.75, 0.9));   // 固定斜上方光，与视角无关
+    float diff = max(dot(n, L), 0.0);
+    float rim = 0.30 + 0.70 * diff;               // 30% 环境光，背面不至于全黑
+    outColor = vec4(uColor.rgb * rim, uColor.a);
+  }`;
 
   function mat4Mul(a, b) {
     const out = new Float32Array(16);
@@ -114,6 +126,8 @@
       }
       this.prog = prog;
       this.aPos = gl.getAttribLocation(prog, "aPos");
+      this.aNormal = gl.getAttribLocation(prog, "aNormal");
+      this.uLit = gl.getUniformLocation(prog, "uLit");
       this.uMVP = gl.getUniformLocation(prog, "uMVP");
       this.uColor = gl.getUniformLocation(prog, "uColor");
       this.uPointSize = gl.getUniformLocation(prog, "uPointSize");
@@ -176,7 +190,11 @@
     /** 用已经解好的 {name, color, mode, positions:Float32Array} 列表替换场景。 */
     setLayers(layers) {
       const gl = this.gl;
-      for (const item of this.layers) gl.deleteBuffer(item.buffer);
+      for (const item of this.layers) {
+        gl.deleteBuffer(item.buffer);
+        if (item.normalBuffer) gl.deleteBuffer(item.normalBuffer);
+        if (item.indexBuffer) gl.deleteBuffer(item.indexBuffer);
+      }
       this.layers = [];
       const lo = [Infinity, Infinity, Infinity];
       const hi = [-Infinity, -Infinity, -Infinity];
@@ -191,7 +209,19 @@
         const buffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
         gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
-        this.layers.push({ ...item, buffer, count: pos.length / 3 });
+        const entry = { ...item, buffer, count: pos.length / 3 };
+        if (item.normals) {
+          entry.normalBuffer = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, entry.normalBuffer);
+          gl.bufferData(gl.ARRAY_BUFFER, item.normals, gl.STATIC_DRAW);
+        }
+        if (item.indices) {
+          entry.indexBuffer = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, entry.indexBuffer);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, item.indices, gl.STATIC_DRAW);
+          entry.indexCount = item.indices.length;
+        }
+        this.layers.push(entry);
       }
       if (this.layers.length) {
         this.center = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
@@ -226,6 +256,21 @@
         gl.enableVertexAttribArray(this.aPos);
         gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
         gl.uniform4fv(this.uColor, layer.color);
+        if (layer.mode === "mesh" && layer.indexBuffer) {
+          gl.uniform1f(this.uLit, 1.0);
+          gl.uniform1f(this.uPointSize, 1);
+          gl.bindBuffer(gl.ARRAY_BUFFER, layer.normalBuffer);
+          gl.enableVertexAttribArray(this.aNormal);
+          gl.vertexAttribPointer(this.aNormal, 3, gl.FLOAT, false, 0, 0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, layer.buffer);
+          gl.vertexAttribPointer(this.aPos, 3, gl.FLOAT, false, 0, 0);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, layer.indexBuffer);
+          gl.drawElements(gl.TRIANGLES, layer.indexCount, gl.UNSIGNED_INT, 0);
+          gl.disableVertexAttribArray(this.aNormal);
+          gl.uniform1f(this.uLit, 0.0);
+          continue;
+        }
+        gl.uniform1f(this.uLit, 0.0);
         if (layer.mode === "lines") {
           gl.uniform1f(this.uPointSize, 1);
           gl.drawArrays(gl.LINE_STRIP, 0, layer.count);
@@ -265,5 +310,21 @@
     return { meta, positions };
   }
 
-  window.PK3D = { View3D, hexToRgba, parseFrame, PALETTE };
+  /** 解析 /api/mesh 的二进制帧：顶点 + 法线 + uint32 索引。 */
+  function parseMesh(buffer) {
+    const view = new DataView(buffer);
+    const metaLen = view.getUint32(4, true);
+    const nvert = view.getUint32(8, true);
+    const ntri = view.getUint32(12, true);
+    const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 16, metaLen)));
+    const base = 16 + metaLen;
+    const positions = new Float32Array(buffer.slice(base, base + nvert * 12));
+    const nOff = base + nvert * 12;
+    const normals = new Float32Array(buffer.slice(nOff, nOff + nvert * 12));
+    const iOff = nOff + nvert * 12;
+    const indices = new Uint32Array(buffer.slice(iOff, iOff + ntri * 12));
+    return { meta, positions, normals, indices };
+  }
+
+  window.PK3D = { View3D, hexToRgba, parseFrame, parseMesh, PALETTE };
 })();

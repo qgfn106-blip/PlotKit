@@ -275,6 +275,10 @@
 | P15-00 | 三维交互视图（WebGL）：`/api/xyz` 二进制点云 + 前端 `view3d.js`，拖动只改矩阵 | ✅ 完成：WebView2 实测 2 图层 / 25k 点 **120 fps**；`tests/test_server.py` 4 条新用例，全库 **305 passed** |
 | P15-01 | 二维实时预览：拖动/缩放中每 70ms 发一次半分辨率请求 | ✅ 完成：拖动中看到的是新视窗的真图（不再只是 CSS 拉伸），松手后 120ms 出全清图 |
 | P15-02 | 服务端 hover 拾取：`/api/pick` 按视窗跨度归一化找最近数据点 | ✅ 完成：读数从"像素反推"变成真实数据点（含 `#索引`） |
+| P15-03 | 三维矢量输出：`fmt=svg` 时 `dispatch` 一律回退 mpl（VTK 的 GL2PS 在本机只剩位图） | ✅ 完成：surface 600×420 SVG 161 KB / 731 ms / 890 个 `<path>`；pyvista 直接要 SVG 抛 `BackendUnsupported` |
+| P15-04 | 前端 3D 视图画曲面：`/api/mesh` 二进制网格 + `view3d.js` 的 Lambert 着色 | ✅ 完成：WebView2 实测 120 fps、canvas 189 KB，带光照的 sombrero 曲面 |
+| P15-05 | 数据金字塔：超 40 万点逐级 M4 摘要，按像素挑层 | ✅ 完成：300 万点抽稀 7.3→3.2 ms（2.3×）；端到端只占 <5%，属"为将来更大数据留的口子" |
+| P15-06 | 三维并发：`pyvista_pool.render_many` 进程池批量出图 | ✅ 完成：40 帧 17.4 s → 8.9 s（4 worker，1.95×），逐字节一致；8 帧反而更慢（worker 启动 ~2 s） |
 | P14-00 | 多后端框架（D38）：`builders` 表 + `dispatch` + PyVista 三维后端 + `/api/render?backend=` | ✅ 完成：`tests/test_multibackend.py` 20 项，全库 **314 passed**；11 种三维 kind 全部可出图；`tools/bench_3d.py`（mpl vs pyvista）：surface 100² **714→173ms**、scatter3d 10 万 **1375→218ms**、voxels 25³ **5966→164ms**；详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。

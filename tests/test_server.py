@@ -168,3 +168,44 @@ def test_pick_returns_nearest_data_point(client, fig):
 def test_pick_misses_when_far_away(client, fig):
     data = client.get("/api/pick", params={"x": 99, "y": 99}).json()
     assert data["hit"] is False
+
+
+def test_mesh_binary_frame(fig):
+    """曲面网格帧：顶点 + 法线 + uint32 索引，索引必须落在顶点范围内。"""
+    import struct
+
+    x = np.linspace(-1, 1, 9)
+    y = np.linspace(-2, 2, 7)
+    X, Y = np.meshgrid(x, y)
+    fig.add_data("gx", x, role="coord")
+    fig.add_data("gy", y, role="coord")
+    fig.add_data("gz", np.sin(X) * np.cos(Y), role="field")
+    fig.add("surface", {"x": "gx", "y": "gy", "z": "gz"})
+    from fastapi.testclient import TestClient
+
+    client = TestClient(create_app(fig, title="网格"))
+    res = client.get("/api/mesh", params={"x": "gx", "y": "gy", "z": "gz"})
+    assert res.status_code == 200
+    body = res.content
+    meta_len, nvert, ntri = struct.unpack("<III", body[4:16])
+    assert nvert == 9 * 7
+    assert ntri == 2 * (9 - 1) * (7 - 1)
+    assert len(body) == 16 + meta_len + nvert * 12 * 2 + ntri * 12
+    import json as _json
+
+    meta = _json.loads(body[16:16 + meta_len])
+    assert meta["nx"] == 9 and meta["ny"] == 7
+    idx = np.frombuffer(body[16 + meta_len + nvert * 24:], dtype="<u4")
+    assert idx.size == ntri * 3
+    assert idx.max() < nvert
+
+
+def test_mesh_rejects_shape_mismatch(fig):
+    from fastapi.testclient import TestClient
+
+    fig.add_data("ax", np.linspace(0, 1, 5), role="coord")
+    fig.add_data("ay", np.linspace(0, 1, 4), role="coord")
+    fig.add_data("az", np.zeros(7), role="field")
+    client = TestClient(create_app(fig, title="网格"))
+    res = client.get("/api/mesh", params={"x": "ax", "y": "ay", "z": "az"})
+    assert res.status_code == 400

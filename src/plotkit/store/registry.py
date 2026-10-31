@@ -58,13 +58,15 @@ class DataSet:
     追加时只在容量不够时扩容（1.5 倍），避免每次 `np.concatenate` 重拷全部历史。
     """
 
-    __slots__ = ("meta", "_buf", "_len", "history")
+    __slots__ = ("meta", "_buf", "_len", "history", "_pyr", "_pyr_version")
 
     def __init__(self, meta: "DataSetMeta", values, history=None) -> None:
         self.meta = meta
         self._buf = values if isinstance(values, np.ndarray) else np.asarray(values)
         self._len = int(self._buf.shape[0])
         self.history = list(history) if history else []
+        self._pyr = None          # 多级摘要（数据金字塔），懒建
+        self._pyr_version = -1
 
     @property
     def values(self) -> np.ndarray:
@@ -134,6 +136,30 @@ class DataStore:
         self.tmpdir = Path(tmpdir) if tmpdir else None
         self._sets: dict[str, DataSet] = {}
         self._aliases: dict[str, str] = {}
+        self._pyramids: dict[tuple[str, str], tuple[tuple[int, int], list]] = {}
+
+    # ---------------- 多级摘要（数据金字塔） ----------------
+    def pyramid(self, x_name: str, y_name: str):
+        """取 (x, y) 这对数据的分级摘要；数据没变就复用上次建好的。
+
+        只在总点数超过 `downsample.PYRAMID_MIN_POINTS` 时才建，小数据直接返回 None。
+        """
+        from .downsample import PYRAMID_MIN_POINTS, build_pyramid
+
+        x_set, y_set = self.get(x_name), self.get(y_name)
+        n = min(len(x_set), len(y_set))
+        if n <= PYRAMID_MIN_POINTS:
+            return None
+        key = (x_name, y_name)
+        stamp = (int(x_set.meta.version), int(y_set.meta.version))
+        hit = self._pyramids.get(key)
+        if hit and hit[0] == stamp:
+            return hit[1]
+        levels = build_pyramid(x_set.values[:n], y_set.values[:n])
+        if len(self._pyramids) > 16:      # 只留最近若干对，避免长会话攒满
+            self._pyramids.pop(next(iter(self._pyramids)))
+        self._pyramids[key] = (stamp, levels)
+        return levels
 
     # ---------------- 注册 ----------------
     def add(

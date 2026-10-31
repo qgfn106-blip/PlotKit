@@ -1332,6 +1332,28 @@ async function load3dLayers() {
   for (const layer of state.spec.layers || []) {
     const data = layer.data || {};
     if (!data.x || !data.y || !data.z) continue;   // 只有带 z 的图层能进三维
+    const surfaceLike = ["surface", "trisurf", "voxels", "heatmap", "contourf"].includes(layer.kind);
+    if (surfaceLike) {
+      // 曲面走三角网格：服务端给顶点 + 法线 + 索引，前端只 drawElements
+      try {
+        const res = await fetch(`api/mesh?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
+                                `&z=${encodeURIComponent(data.z)}&stride=1`);
+        if (res.ok) {
+          const m = PK3D.parseMesh(await res.arrayBuffer());
+          out.push({
+            name: layer.id,
+            mode: "mesh",
+            positions: m.positions,
+            normals: m.normals,
+            indices: m.indices,
+            color: PK3D.hexToRgba(PK3D.PALETTE[colorIndex++ % PK3D.PALETTE.length]),
+          });
+          continue;
+        }
+      } catch (err) {
+        setStatus(`曲面加载失败，退回点云：${err.message}`, "warn");
+      }
+    }
     const url = `api/xyz?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
                 `&z=${encodeURIComponent(data.z)}&max=300000`;
     try {

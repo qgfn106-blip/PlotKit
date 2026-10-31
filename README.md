@@ -199,8 +199,16 @@ TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火�
 
 ![三维视图](docs/webgl_3d_demo.png)
 
+曲面（`surface` / `trisurf` / `voxels` / `heatmap` / `contourf`）走另一条路：`GET /api/mesh` 回
+「顶点 + 法线 + 三角形索引」的二进制帧，前端做 Lambert 着色（环境光 0.3 + 漫反射 0.7）。
+
+![三维曲面](docs/webgl_3d_surface.png)
+
 二维那边同时补了「拖动中低清预览」（每 70 ms 一次半分辨率请求）与「服务端 hover 拾取」
 （`GET /api/pick` 返回最近的真实数据点，而不是从像素反推）。
+
+**要真矢量就别用 PyVista**：VTK 的 GL2PS 导出在本机（9.7.1 + OpenGL2）只剩位图，所以
+`fmt="svg"` 时调度层一律回退 matplotlib（surface 600×420 → 161 KB、890 个 `<path>`）。
 
 ## 性能（2026-10-31 实测，1200×700 / 6 通道 × 2 万点）
 
@@ -211,6 +219,8 @@ TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火�
 | 抽稀 200 万点 | **9 ms** | M4 包络，保尖峰、保 float32 |
 | 追加 2000 次 × 1000 点 | **35 ms** | 几何扩容缓冲（旧实现 4706 ms） |
 | 三维 10 万点（PyVista） | **196 ms** | 同规格 matplotlib `Axes3D` 是 1319 ms |
+| 批量三维 40 帧（4 进程） | **8.9 s** | 串行 17.4 s；8 帧时反而更慢（worker 启动 ~2 s） |
+| 抽稀 300 万点（金字塔） | **3.2 ms** | 无金字塔 7.3 ms；端到端只占 <5% |
 
 完整表格与复现命令见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)（`tools/bench_regress.py --check` 可当回归门禁）。
 

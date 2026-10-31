@@ -563,7 +563,9 @@ def _render_sync(
     with_limits: bool = False,
 ) -> RenderResult:
     if (fmt or "png").lower() != "png":
-        raise BackendUnsupported("pyvista 只能输出 PNG（VTK 没有矢量导出，见 §9 不做清单）")
+        # VTK 9.x 的 OpenGL2 后端会把 GL2PS 导出退化成「整幅位图塞进 SVG」，
+        # 所以这里不给假矢量；要矢量请让 dispatch 回退到 matplotlib（见 dispatch.render_result）
+        raise BackendUnsupported("pyvista 只出 PNG（真矢量请用 mpl 后端）")
     pv = _pv()
     pv.OFF_SCREEN = True
 
@@ -607,15 +609,16 @@ def _render_sync(
     _apply_view(plotter, figure, _view_bounds(layers, xlim, ylim),
                 layer_view=(layers[0].get("view") or {}))
     image = plotter.screenshot(return_img=True)
+    payload = _encode_png(image)
+    out_fmt = "png"
     bounds = plotter.bounds
 
-    payload = _encode_png(image)
     limits = None
     if with_limits:
         limits = {"xlim": [float(bounds[0]), float(bounds[1])],
                   "ylim": [float(bounds[2]), float(bounds[3])],
                   "zlim": [float(bounds[4]), float(bounds[5])]}
-    return RenderResult(payload=payload, fmt="png", width=width, height=height,
+    return RenderResult(payload=payload, fmt=out_fmt, width=width, height=height,
                         dpi=dpi, backend=BACKEND_PYVISTA, limits=limits,
                         meta={"kinds": [str((l.get("kind") or "")) for l in layers],
                               "scene_cached": bool(cached)})
