@@ -20,9 +20,11 @@ from __future__ import annotations
 import atexit
 import hashlib
 import io
+import itertools
 import json
 import os
 import queue
+import weakref
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Mapping
@@ -114,6 +116,22 @@ def _atexit_close() -> None:  # pragma: no cover - 进程退出路径
 atexit.register(_atexit_close)
 
 
+_STORE_TOKENS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
+_STORE_COUNTER = itertools.count(1)
+
+
+def _store_token(store) -> int:
+    """给每个 DataStore 一个稳定且互不相同的编号（GC 后自动回收，不复用 id）。"""
+    try:
+        token = _STORE_TOKENS.get(store)
+        if token is None:
+            token = next(_STORE_COUNTER)
+            _STORE_TOKENS[store] = token
+        return token
+    except TypeError:  # pragma: no cover - 不可弱引用的实现
+        return id(store)
+
+
 def _scene_key(spec: Mapping[str, Any], store) -> str:
     """场景指纹：**忽略相机参数**（view），数据一变就换。
 
@@ -134,7 +152,10 @@ def _scene_key(spec: Mapping[str, Any], store) -> str:
         versions = [(n, store.meta(n)["version"]) for n in store.names()]
     except Exception:  # pragma: no cover
         pass
-    return hashlib.blake2b((blob + repr(versions)).encode("utf-8"), digest_size=8).hexdigest()
+    # 必须带上 store 身份：不同 DataStore 的 version 都从 0 开始，光看 (名字, 版本)
+    # 会把"两个内容不同但版本号相同"的图判成同一场景，于是直接吐出上一帧
+    payload = blob + repr(versions) + repr(_store_token(store))
+    return hashlib.blake2b(payload.encode("utf-8"), digest_size=8).hexdigest()
 
 
 def _acquire_plotter(pv, width: int, height: int, scene_key: str = ""):
@@ -268,7 +289,7 @@ def build_scatter3d(layer, store) -> list[_Item]:
     pv = _pv()
     x, y, z = _xyz(layer, store)
     poly = pv.PolyData(np.column_stack([x, y, z]))
-    poly["value"] = z
+    poly["value"] = _values(layer, store, "scalar") if (layer.get("data") or {}).get("scalar") else z
     style = _style(layer)
     marker = style.get("marker") or {}
     return [_Item(mesh=poly, scalars=None if style.get("color") else "value",

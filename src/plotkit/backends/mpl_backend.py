@@ -547,9 +547,13 @@ def _draw_scatter3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0)
         "depthshade": False,
     }
     colored = not style.get("color")
+    values = np.ravel(z)
+    if (layer.get("data") or {}).get("scalar"):
+        # 用另一份场着色（例如按涡量给点上色），坐标仍由 x/y/z 决定
+        values = np.ravel(_flat(layer, store, "scalar"))
     if colored:
-        kwargs["c"] = np.ravel(z)
-    kwargs.update(_color_kwargs(style, z))
+        kwargs["c"] = values
+    kwargs.update(_color_kwargs(style, values))
     sc = ax.scatter(np.ravel(x), np.ravel(y), np.ravel(z), **kwargs)
     if not style.get("color"):
         _maybe_colorbar(ax, sc, style, default=False)

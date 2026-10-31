@@ -284,3 +284,19 @@ def test_renderer_selector_three_dimensional_auto():
     result = selector.render(fig.store, width=260, height=180)
     assert result.backend == "pyvista"
     assert selector.backend == "pyvista"
+
+def test_pyvista_scene_cache_separates_stores():
+    """不同 DataStore 的版本号都从 0 开始；场景缓存不能把内容不同的图判成同一场景。"""
+
+    def render(scale: float) -> bytes:
+        n = 24
+        x = np.linspace(0, 1, n)
+        y = np.linspace(0, 1, n)
+        X, Y = np.meshgrid(x, y)
+        fig = pk.figure()
+        fig.add("surface", {"x": X, "y": Y, "z": scale * np.sin(3 * X) * np.cos(3 * Y)})
+        return fig.render(width=180, height=140, backend="pyvista")
+
+    assert render(1.0) != render(2.0)
+
+

@@ -248,6 +248,19 @@ fig.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})   # 带 t 才有时�
 **要真矢量就别用 PyVista**：VTK 的 GL2PS 导出在本机（9.7.1 + OpenGL2）只剩位图，所以
 `fmt="svg"` 时调度层一律回退 matplotlib（surface 600×420 → 161 KB、890 个 `<path>`）。
 
+## 示例：纳维–斯托克斯方程的爆破解（三维矢量动画）
+
+`examples/ns_blowup.py` 用非定常 Burgers 涡——**Navier–Stokes 的精确解**——做有限时间爆破：
+
+```
+δ²(t) = (1 - t/T)·[δ₀² - 2νT·ln(1 - t/T)]      ω_max = Γ/(2πδ²) ~ 1/(T - t)
+```
+
+60 帧三维矢量场（箭头 = 速度方向，颜色 = 涡量），涡管一边被轴向拉伸一边收缩到细丝，
+涡量从 2.55 涨到 84.8。复现：`PYTHONPATH=src python examples/ns_blowup.py`（约 40 s）。
+
+![NS 爆破动画](docs/ns_blowup/02_ns_blowup_3d.gif)
+
 ## 性能（2026-10-31 实测，1200×700 / 6 通道 × 2 万点）
 
 | 指标 | 实测 | 说明 |
