@@ -272,6 +272,9 @@
 | P13-09 | 方法级缺口 15 种 + plotly bundle 删除 | ✅ 完成：`tests/test_kinds_gaps.py` 16 项，全库 **250 passed**；registry **50 种**；`static/` 1.1 MB → 76 KB。**不做**：`ScienceResult`/`SciencePlotter`（用户 2026-10-31：改用模板保存 `save_spec`/`load_spec` 即可）；plotly 代码本体待批准删除 |
 | P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **完成（性能部分 2026-10-31 达标）**：覆盖率 **18/18 + 50 种全部有绘制器**（`tools/coverage.py --check` 退出 0，234 passed）；性能基线见 [BENCHMARKS.md](BENCHMARKS.md)，回归脚本 `tools/bench_regress.py --check`：冷导出 PNG **111 ms**、热重绘 blit **48 ms**、抽稀 2M 点 **9 ms**、追加 2000 次 **35 ms**（均优于 D21 的 50/120 ms 目标，热重绘 <50 ms 已达成）；plotly 退役清单见 §3.10 |
 | P14-01 | plotly 退役（D33 收尾） | ✅ 完成：删 `backends/plotly_backend.py`（603 行）、`Figure.plotly()`、`/api/figure.json`；新增 `backends/series.py` 承接公共件；**301 passed**（净减 15 条 plotly 专属用例，其余改写成 mpl 断言）；netlab **348 passed** |
+| P15-00 | 三维交互视图（WebGL）：`/api/xyz` 二进制点云 + 前端 `view3d.js`，拖动只改矩阵 | ✅ 完成：WebView2 实测 2 图层 / 25k 点 **120 fps**；`tests/test_server.py` 4 条新用例，全库 **305 passed** |
+| P15-01 | 二维实时预览：拖动/缩放中每 70ms 发一次半分辨率请求 | ✅ 完成：拖动中看到的是新视窗的真图（不再只是 CSS 拉伸），松手后 120ms 出全清图 |
+| P15-02 | 服务端 hover 拾取：`/api/pick` 按视窗跨度归一化找最近数据点 | ✅ 完成：读数从"像素反推"变成真实数据点（含 `#索引`） |
 | P14-00 | 多后端框架（D38）：`builders` 表 + `dispatch` + PyVista 三维后端 + `/api/render?backend=` | ✅ 完成：`tests/test_multibackend.py` 20 项，全库 **314 passed**；11 种三维 kind 全部可出图；`tools/bench_3d.py`（mpl vs pyvista）：surface 100² **714→173ms**、scatter3d 10 万 **1375→218ms**、voxels 25³ **5966→164ms**；详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。

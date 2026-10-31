@@ -19,6 +19,7 @@
       <button class="btn" id="btn-add" title="新增图层">＋ 图层</button>
       <button class="btn" id="btn-png" title="用 matplotlib 导出一张静态图">导出 PNG</button>
       <button class="btn" id="btn-anim" title="按 figure.anim 逐帧播放（再点停止）">动画</button>
+      <button class="btn" id="btn-3d" title="WebGL 三维视图：拖动旋转，数据不经服务端重绘">3D</button>
       <button class="btn ghost" id="btn-theme" title="切换深浅色">◐</button>
       <button class="btn ghost" id="btn-panel" title="收起/展开右侧面板">▸</button>
     </div>
@@ -49,6 +50,8 @@
     <section class="plotwrap">
       <div id="plot" class="plot">
         <img id="plotImg" alt="" draggable="false">
+        <canvas id="plot3d" hidden></canvas>
+        <div id="plot3d-hud" class="plot-hover" hidden></div>
         <div id="plotHover" class="plot-hover" hidden></div>
       </div>
       <div id="inset-overlay" class="inset-overlay" hidden></div>
@@ -113,6 +116,7 @@
     <span id="warnings"></span>
   </footer>
 
+  <script src="static/view3d.js"></script>
   <script src="static/app.js"></script>
 </body>
 </html>

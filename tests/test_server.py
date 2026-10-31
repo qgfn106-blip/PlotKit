@@ -133,3 +133,38 @@ def test_sink_detection_fallback(monkeypatch):
 
     monkeypatch.setattr(sink, "detect_sink", lambda: "browser")
     assert sink.detect_sink() == "browser"
+
+
+def test_xyz_binary_frame(client, fig):
+    """/api/xyz：magic + meta_len + n + json + float32 (x,y,z)，供 WebGL 直接上传。"""
+    fig.add_data("z", np.linspace(0, 1, 11))
+    res = client.get("/api/xyz", params={"x": "t", "y": "v", "z": "z"})
+    assert res.status_code == 200
+    body = res.content
+    assert body[:4] == MAGIC
+    meta_len, n = struct.unpack("<II", body[4:12])
+    meta = json.loads(body[12:12 + meta_len])
+    assert n == 11 and meta["total"] == 11
+    assert len(body) == 12 + meta_len + n * 12
+    values = np.frombuffer(body[12 + meta_len:], dtype="<f4").reshape(-1, 3)
+    assert np.allclose(values[0], [0.0, 10.0, 0.0], atol=1e-6)
+    assert np.allclose(values[-1], [1.0, 0.0, 1.0], atol=1e-6)
+
+
+def test_xyz_unknown_dataset_is_404(client):
+    res = client.get("/api/xyz", params={"x": "nope", "y": "v", "z": "z"})
+    assert res.status_code == 404
+
+
+def test_pick_returns_nearest_data_point(client, fig):
+    res = client.get("/api/pick", params={"x": 0.5, "y": 5.0, "sx": 1, "sy": 10})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["hit"] is True
+    assert 0 <= data["i"] < 11
+    assert abs(data["x"] - 0.5) < 0.06 and abs(data["y"] - 5.0) < 0.6
+
+
+def test_pick_misses_when_far_away(client, fig):
+    data = client.get("/api/pick", params={"x": 99, "y": 99}).json()
+    assert data["hit"] is False

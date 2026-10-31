@@ -171,6 +171,15 @@ PYTHONPATH=src python examples/teg_car_sim.py     # 约 20 s
 
 它同时是规模压测：100 万点 × 3 通道入库 9 ms、M4 抽稀 24 ms、冷渲染 273 ms、峰值 42 MB。
 
+## 三维视图
+
+页面右上角「3D」按钮：把带 `z` 的图层（`scatter3d` / `line3d` / `stream3d`）交给 WebGL2 直接画，
+拖动只改 MVP 矩阵、不请求服务端（实测 25k 点 120 fps）。数据走 `GET /api/xyz` 的二进制帧
+（`magic + meta_len + n + json + float32(x,y,z)`），前端把 buffer 原样上传成顶点缓冲。
+
+二维那边同时补了「拖动中低清预览」（每 70 ms 一次半分辨率请求）与「服务端 hover 拾取」
+（`GET /api/pick` 返回最近的真实数据点，而不是从像素反推）。
+
 ## 性能（2026-10-31 实测，1200×700 / 6 通道 × 2 万点）
 
 | 指标 | 实测 | 说明 |

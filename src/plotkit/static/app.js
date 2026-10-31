@@ -506,6 +506,34 @@ function scheduleRender(reason) {
   }, SETTLE_MS);
 }
 
+/* 拖动/缩放中的低清预览（P2）：每 70ms 允许一次半分辨率请求，
+   回来后直接替换成新视窗的图，所以"拖的时候看到的就是真的"，不再只是拉伸旧图。 */
+const PREVIEW_MS = 70;
+const PREVIEW_SCALE = 0.55;
+let previewBusy = false;
+let previewAt = 0;
+let zooming = false;
+let zoomTimer = null;
+
+function schedulePreview() {
+  const now = performance.now();
+  if (previewBusy || now - previewAt < PREVIEW_MS) return;
+  if (!state.img || !state.img.xlim || !state.img.ylim) return;
+  previewAt = now;
+  previewBusy = true;
+  const { w, h } = plotSize();
+  const pw = Math.max(240, Math.round(w * PREVIEW_SCALE));
+  const ph = Math.max(160, Math.round(h * PREVIEW_SCALE));
+  fetch(renderUrl(pw, ph))
+    .then((res) => (res.ok ? res.blob() : null))
+    .then((blob) => {
+      previewBusy = false;
+      if (!blob || (!plotDrag && !zooming)) return;   // 已经松手：交给最终渲染
+      showBlob(blob);
+    })
+    .catch(() => { previewBusy = false; });
+}
+
 function pushTiming(label, ms, parts) {
   const detail = parts ? Object.entries(parts).map(([k, v]) => `${k} ${v.toFixed(1)}ms`).join(" · ") : "";
   state.timings.unshift({ label, ms, detail, at: new Date().toLocaleTimeString() });
@@ -1294,6 +1322,78 @@ document.addEventListener("click", (ev) => {
 startPolling(500);
 
 
+/* ---------------- 3D 视图（P15）：WebGL 直画，拖动只改矩阵 ---------------- */
+
+const view3d = { view: null, on: false };
+
+async function load3dLayers() {
+  const out = [];
+  let colorIndex = 0;
+  for (const layer of state.spec.layers || []) {
+    const data = layer.data || {};
+    if (!data.x || !data.y || !data.z) continue;   // 只有带 z 的图层能进三维
+    const url = `api/xyz?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
+                `&z=${encodeURIComponent(data.z)}&max=300000`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const frame = PK3D.parseFrame(await res.arrayBuffer());
+      const lineLike = ["line3d", "stream3d", "line", "step"].includes(layer.kind);
+      out.push({
+        name: layer.id,
+        mode: lineLike ? "lines" : "points",
+        positions: frame.positions,
+        color: PK3D.hexToRgba(PK3D.PALETTE[colorIndex++ % PK3D.PALETTE.length]),
+      });
+    } catch (err) {
+      setStatus(`三维数据加载失败：${err.message}`, "bad");
+    }
+  }
+  return out;
+}
+
+async function toggle3d(force) {
+  const want = force === undefined ? !view3d.on : !!force;
+  const canvas = $("plot3d");
+  const hud = $("plot3d-hud");
+  const plot = $("plot");
+  if (!want) {
+    view3d.on = false;
+    canvas.hidden = true;
+    hud.hidden = true;
+    plot.classList.remove("mode-3d");
+    $("btn-3d").classList.remove("on");
+    return;
+  }
+  if (!view3d.view) {
+    try {
+      view3d.view = new PK3D.View3D(canvas);
+    } catch (err) {
+      setStatus(`3D 视图不可用：${err.message}`, "bad");
+      return;
+    }
+    view3d.view.onStats = ({ fps, points }) => {
+      hud.hidden = false;
+      hud.textContent = `${fps.toFixed(0)} fps · ${(points / 1000).toFixed(0)}k 点`;
+      hud.style.left = "12px";
+      hud.style.top = "12px";
+    };
+  }
+  const layers = await load3dLayers();
+  if (!layers.length) {
+    setStatus("当前没有带 z 的图层（scatter3d / line3d / stream3d 才有）", "bad");
+    return;
+  }
+  const total = view3d.view.setLayers(layers);
+  view3d.on = true;
+  canvas.hidden = false;
+  plot.classList.add("mode-3d");
+  $("btn-3d").classList.add("on");
+  setStatus(`3D 视图 · ${layers.length} 图层 / ${(total / 1000).toFixed(0)}k 点（拖动旋转，滚轮缩放，Shift 平移）`, "good");
+}
+
+$("btn-3d").addEventListener("click", () => { toggle3d().catch((err) => setStatus(err.message, "bad")); });
+
 /* ---------------- 缩放 / 平移 / 读数（D34） ---------------- */
 
 function axesFraction(ev) {
@@ -1307,6 +1407,27 @@ function axesFraction(ev) {
   return { fx: (fx - x0) / bw, fy: (fy - y0) / bh, inside, r };
 }
 
+let pickBusy = false;
+let pickAt = 0;
+let pickSeq = 0;
+
+function hoverPick(x, y, xlim, ylim, chip, seq) {
+  const now = performance.now();
+  if (pickBusy || now - pickAt < 90) return;
+  pickAt = now;
+  pickBusy = true;
+  const sx = Math.abs(xlim[1] - xlim[0]) || 1;
+  const sy = Math.abs(ylim[1] - ylim[0]) || 1;
+  fetch(`api/pick?x=${x}&y=${y}&sx=${sx}&sy=${sy}`)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      pickBusy = false;
+      if (!data || !data.hit || seq !== pickSeq) return;
+      chip.textContent = `x ${data.x.toPrecision(6)}   y ${data.y.toPrecision(6)}   #${data.i}`;
+    })
+    .catch(() => { pickBusy = false; });
+}
+
 function hoverAt(ev) {
   const chip = $("plotHover");
   const hit = axesFraction(ev);
@@ -1317,6 +1438,8 @@ function hoverAt(ev) {
   chip.textContent = `x ${x.toPrecision(4)}   y ${y.toPrecision(4)}`;
   chip.style.left = `${ev.clientX - hit.r.left + 12}px`;
   chip.style.top = `${ev.clientY - hit.r.top + 12}px`;
+  pickSeq += 1;
+  hoverPick(x, y, state.img.xlim, state.img.ylim, chip, pickSeq);
 }
 
 $("plot").addEventListener("wheel", (ev) => {
@@ -1331,6 +1454,10 @@ $("plot").addEventListener("wheel", (ev) => {
   state.view.ylim = [cy - (cy - y0) * factor, cy + (y1 - cy) * factor];
   const scale = Math.max(0.5, Math.min(2, 1 / factor));
   $("plotImg").style.transform = `scale(${scale})`;
+  zooming = true;
+  clearTimeout(zoomTimer);
+  zoomTimer = setTimeout(() => { zooming = false; }, 320);
+  schedulePreview();
   scheduleRender("缩放");
 }, { passive: false });
 
@@ -1354,6 +1481,7 @@ $("plot").addEventListener("pointermove", (ev) => {
   state.view.xlim = [x0 - sx, x1 - sx];
   state.view.ylim = [y0 + sy, y1 + sy];
   $("plotImg").style.transform = `translate(${ev.clientX - plotDrag.x}px, ${ev.clientY - plotDrag.y}px)`;
+  schedulePreview();
 });
 function endPlotDrag() {
   if (!plotDrag) return;

@@ -31,10 +31,24 @@ from fastapi.staticfiles import StaticFiles
 
 from ..backends import registry as reg
 from ..spec.validate import SpecError, validate_spec
-from ..store.downsample import minmax_envelope
+from ..store.downsample import downsample_xy
 from .assets import STATIC_DIR
 
 MAGIC = b"PK01"
+
+
+def _binary_xyz(x: np.ndarray, y: np.ndarray, z: np.ndarray, meta: Mapping[str, Any]) -> bytes:
+    """帧格式：magic(4) + meta_len(4) + npoints(4) + meta json + float32 交错 (x,y,z)。
+
+    三维视图直接把这段 buffer 传给 WebGL 的 ARRAY_BUFFER，不做任何解析。
+    """
+    meta_bytes = json.dumps(dict(meta), ensure_ascii=False).encode("utf-8")
+    rows = np.empty((x.size, 3), dtype="<f4")
+    rows[:, 0] = x.astype(np.float32, copy=False)
+    rows[:, 1] = y.astype(np.float32, copy=False)
+    rows[:, 2] = z.astype(np.float32, copy=False)
+    header = MAGIC + struct.pack("<II", len(meta_bytes), int(x.size))
+    return header + meta_bytes + rows.tobytes(order="C")
 
 
 def _binary_series(x: np.ndarray, y: np.ndarray, meta: Mapping[str, Any]) -> bytes:
@@ -214,9 +228,63 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         stop = None if i1 < 0 else min(i1, xv.size)
         xv, yv = xv[i0:stop], yv[i0:stop]
         if pixels:
-            xv, yv = minmax_envelope(xv, yv, pixels, per_pixel=per_pixel)
+            xv, yv = downsample_xy(xv, yv, pixels, per_pixel=per_pixel)
         meta = {"x": x, "y": y, "i0": i0, "i1": (stop if stop is not None else int(xv.size))}
         return Response(content=_binary_series(xv, yv, meta), media_type="application/octet-stream")
+
+    @app.get("/api/xyz")
+    def xyz(x: str, y: str, z: str, max: int = 200_000) -> Response:
+        """三维视图的数据出口：float32 交错 (x,y,z)，前端直接塞进 WebGL 顶点缓冲。"""
+        try:
+            xv = np.asarray(figure.store.values(x)).ravel()
+            yv = np.asarray(figure.store.values(y)).ravel()
+            zv = np.asarray(figure.store.values(z)).ravel()
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        n = min(xv.size, yv.size, zv.size)
+        xv, yv, zv = xv[:n], yv[:n], zv[:n]
+        limit = _clamp(max, 1_000, 2_000_000)
+        if n > limit:  # 均匀抽样：三维不按像素列抽稀，只控总量
+            idx = np.linspace(0, n - 1, limit).astype(np.int64)
+            xv, yv, zv = xv[idx], yv[idx], zv[idx]
+        meta = {"x": x, "y": y, "z": z, "n": int(xv.size), "total": int(n)}
+        return Response(content=_binary_xyz(xv, yv, zv, meta),
+                        media_type="application/octet-stream")
+
+    @app.get("/api/pick")
+    def pick(x: float, y: float, sx: float = 1.0, sy: float = 1.0,
+             tol: float = 0.03, layer: str | None = None) -> dict[str, Any]:
+        """hover 精确拾取：在数据点上找最近邻（按视窗跨度归一化），而不是从像素反推。"""
+        sx = abs(sx) or 1.0
+        sy = abs(sy) or 1.0
+        best: dict[str, Any] | None = None
+        for item in figure.spec.get("layers") or []:
+            if layer and item.get("id") != layer:
+                continue
+            data = item.get("data") or {}
+            xn, yn = data.get("x"), data.get("y")
+            if not xn or not yn:
+                continue
+            try:
+                xv = np.asarray(figure.store.values(xn)).ravel()
+                yv = np.asarray(figure.store.values(yn)).ravel()
+            except KeyError:
+                continue
+            n = min(xv.size, yv.size)
+            if not n:
+                continue
+            xv, yv = xv[:n].astype(float, copy=False), yv[:n].astype(float, copy=False)
+            dist = ((xv - x) / sx) ** 2 + ((yv - y) / sy) ** 2
+            i = int(np.argmin(dist))
+            if best is None or dist[i] < best["d2"]:
+                best = {"d2": float(dist[i]), "x": float(xv[i]), "y": float(yv[i]),
+                        "i": i, "layer": item.get("id"),
+                        "label": (item.get("label") or item.get("kind") or "")}
+        if best is None or best["d2"] > tol * tol:
+            return {"hit": False}
+        best.pop("d2")
+        best["hit"] = True
+        return best
 
     layout_file = Path(layout_path) if layout_path else Path.cwd() / "layout.json"
 
