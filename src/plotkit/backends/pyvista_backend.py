@@ -579,6 +579,13 @@ def _render_sync(
     scene_key = _scene_key(spec, store)
     plotter, cached = _acquire_plotter(pv, width, height, scene_key)
     plotter.background_color = str(figure.get("facecolor") or "white")
+    global _SUPPRESS_SCALAR_BAR
+    _SUPPRESS_SCALAR_BAR = False
+    if cached and getattr(plotter, "_plotkit_decorated", True) is False:
+        # 缓存里是「混合出图用的无装饰场景」，这里要带刻度/色标，必须重建
+        plotter.clear()
+        cached = False
+    plotter._plotkit_decorated = True
     if not cached:
         # 场景重建：只在数据/样式/尺寸变了时付一次这个钱
         for layer in layers:
@@ -624,6 +631,97 @@ def _render_sync(
                               "scene_cached": bool(cached)})
 
 
+def _project(plotter, points):
+    """把世界坐标投到**像素坐标**（左上原点，和截图数组一致）。"""
+    ren = plotter.renderer
+    height = float(plotter.window_size[1])
+    out = []
+    for px, py, pz in points:
+        ren.SetWorldPoint(float(px), float(py), float(pz), 1.0)
+        ren.WorldToDisplay()
+        dx, dy, _dz = ren.GetDisplayPoint()
+        out.append((float(dx), height - float(dy)))
+    return out
+
+
+def render_scene(
+    spec: Mapping[str, Any],
+    store,
+    *,
+    width: int = 900,
+    height: int = 520,
+    dpi: int = 100,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    decorate: bool = False,
+):
+    """只画三维内容（默认不带标题/包围盒/刻度），并回传投影信息。
+
+    混合出图用它：3D 部分是位图，坐标轴/刻度/标题交给 matplotlib 画成矢量。
+    返回 `(image_rgba, info)`，`info` 里有 bounds、尺寸和 8 个包围盒角的像素坐标。
+    """
+    pv = _pv()
+    pv.OFF_SCREEN = True
+    width = max(80, min(4000, int(width)))
+    height = max(60, min(4000, int(height)))
+    figure = spec.get("figure") or {}
+    layers = spec.get("layers") or []
+    if not layers:
+        raise BackendUnsupported("没有可画的图层")
+
+    scene_key = _scene_key(spec, store)
+    plotter, cached = _acquire_plotter(pv, width, height, scene_key)
+    plotter.background_color = str(figure.get("facecolor") or "white")
+    global _SUPPRESS_SCALAR_BAR
+    _SUPPRESS_SCALAR_BAR = not decorate
+    if cached and getattr(plotter, "_plotkit_decorated", None) != decorate:
+        # 带刻度/色标与不带的场景是两种东西，混用会让位图里烙着一个多余的色标
+        plotter.clear()
+        cached = False
+    plotter._plotkit_decorated = decorate
+    if not cached:
+        for layer in layers:
+            kind = str(layer.get("kind") or "")
+            real = registry.ALIASES.get(kind, kind)
+            builder = _BUILDERS.get(real)
+            if builder is None:
+                raise BackendUnsupported(f"pyvista 不支持图层类型 {kind!r}")
+            for item in builder(layer, store):
+                _add_item(plotter, item)
+        if decorate:
+            title = figure.get("title")
+            if title:
+                plotter.add_text(str(title), position=(14, int(height) - 16), font_size=5,
+                                 color="#111827")
+            plotter.show_bounds(grid=False, location="outer", color="#374151", font_size=10,
+                                n_xlabels=4, n_ylabels=4, n_zlabels=2, fmt="%.2g")
+
+    _apply_view(plotter, figure, _view_bounds(layers, xlim, ylim),
+                layer_view=(layers[0].get("view") or {}))
+    image = plotter.screenshot(return_img=True)
+    b = plotter.bounds
+    corners = [(x, y, z) for x in (b[0], b[1]) for y in (b[2], b[3]) for z in (b[4], b[5])]
+    info = {
+        "bounds": tuple(float(v) for v in b),
+        "size": (int(width), int(height)),
+        "corners_px": _project(plotter, corners),
+        "corners": corners,
+    }
+    return image, info
+
+
+def render_scene_threaded(spec, store, **kwargs):
+    """在 VTK 工作线程上跑 `render_scene`（OpenGL 上下文绑线程，不能在主线程碰）。"""
+    import threading as _threading
+
+    if _WORKER is not None and _threading.current_thread() is _WORKER:
+        return render_scene(spec, store, **kwargs)
+    return _run_on_worker(lambda: render_scene(spec, store, **kwargs))
+
+
+_SUPPRESS_SCALAR_BAR = False
+
+
 def _add_item(plotter, item: _Item) -> None:
     kwargs: dict[str, Any] = {"opacity": float(item.opacity)}
     if item.mode == "points":
@@ -641,7 +739,8 @@ def _add_item(plotter, item: _Item) -> None:
 
     if item.scalars:
         kwargs.update({
-            "scalars": item.scalars, "cmap": item.cmap, "show_scalar_bar": True,
+            "scalars": item.scalars, "cmap": item.cmap,
+            "show_scalar_bar": not _SUPPRESS_SCALAR_BAR,
             "scalar_bar_args": {
                 "title": "", "position_x": 0.86, "position_y": 0.12,
                 "width": 0.06, "height": 0.62, "vertical": True,

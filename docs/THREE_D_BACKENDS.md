@@ -244,3 +244,27 @@ result = sel.render(fig.store, width=800, height=500)   # -> RenderResult
 | 版面 | `constrained_layout`，留白紧凑 | 大片留白，需要手动 `zoom` |
 | 输出 | PNG / SVG / PDF（矢量） | 仅 PNG 光栅 |
 | 速度（surface 100²） | 633ms | 125ms |
+
+## 11. 混合出图（三维矢量出口，2026-11-01）
+
+**问题**：VTK 9.7.1 的 `vtkGL2PSExporter` 在 OpenGL2 后端抓不到图元，只能回读帧缓冲——SVG 里只有一个 `<image>`，零个 `<polygon>`（见 §10.6 实测）。所以三维没有"真矢量"出口。
+
+**做法**（`src/plotkit/backends/hybrid3d.py`）：GPU 继续画三维，外面那圈轴交给 matplotlib。
+
+| 元素 | 谁画 | 是否矢量 |
+| --- | --- | --- |
+| 曲面 / 点云 / 体渲染 | PyVista（离屏） | 位图（`<image>`） |
+| 包围盒 12 条棱 | matplotlib | ✅ `<path>` |
+| 三条主轴 + 刻度 + 轴名 | matplotlib（世界坐标投影到像素） | ✅ `<path>` + `<text>` |
+| 标题、图层标签 | matplotlib | ✅ `<text>` |
+| 色标 | matplotlib（64 段色块） | ✅ `<path>` |
+
+关键实现点：
+- `pyvista_backend.render_scene(..., decorate=False)` 出**无装饰**场景，并用 `vtkRenderer.WorldToDisplay()` 把包围盒 8 个角投到像素坐标（左上原点），交给 mpl。
+- 三条主轴不是猜的：对每个方向在 4 条平行棱里挑**屏幕上最靠下**的一条，被遮挡的概率最小。
+- 位图占画布左侧 86%，右侧留 14% 给矢量色标，避免色标压在曲面上。
+- 场景缓存要区分"带刻度/不带刻度"（`plotter._plotkit_decorated`），否则混合出图会拿到一张烙着旧色标的位图。
+
+开关：`PLOTKIT_3D_SVG=hybrid`（默认）｜`mpl`（退回纯 mpl 真矢量，慢且观感差）｜显式 `backend="pyvista"` + `fmt="svg"` 即走混合。
+
+实测（800×600 曲面）：SVG 249 KB，其中位图 1 张（576×432pt 满幅），`<path>` 138 个、`<text>` 24 组；PDF 同尺寸 160 KB。文字可选中、可搜索，轴随分辨率无限缩放。

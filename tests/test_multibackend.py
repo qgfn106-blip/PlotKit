@@ -157,8 +157,32 @@ def test_pyvista_renders_surface():
     assert result.limits and "xlim" in result.limits and "zlim" in result.limits
 
 
-def test_pyvista_svg_falls_back_to_vector_backend():
-    """要 SVG 时换 mpl 出真矢量：VTK 9.x 的 GL2PS 在 OpenGL2 后端只会塞位图。"""
+def test_hybrid_svg_is_raster_scene_plus_vector_overlay(monkeypatch):
+    """默认三维矢量出口 = 混合：一张位图 + 真矢量坐标轴/刻度/标题。"""
+    monkeypatch.delenv("PLOTKIT_3D_SVG", raising=False)
+    fig = _surface_figure()
+    result = fig.render_result(width=320, height=240, backend="pyvista", fmt="svg")
+    text = result.payload.decode("utf-8")
+    assert result.backend == "pyvista"
+    assert text.count("<image") == 1          # 只有三维场景是位图
+    assert text.count("<path") > 30           # 轴/刻度/色块是真矢量
+    assert 'id="text' in text                 # 标题与刻度是文字对象，可检索
+
+
+def test_hybrid_can_be_disabled_with_env(monkeypatch):
+    monkeypatch.setenv("PLOTKIT_3D_SVG", "mpl")
+    fig = _surface_figure()
+    result = fig.render_result(width=200, height=140, backend="pyvista", fmt="svg")
+    text = result.payload.decode("utf-8")
+    assert result.backend == "mpl"
+    # mpl 自己的色标条是 3.6pt 宽的窄位图，不算「整幅位图」；场景本体必须全是矢量
+    assert text.count("<image") <= 1
+    assert text.count("<path") > 50
+
+
+def test_pyvista_svg_falls_back_to_mpl_when_hybrid_disabled(monkeypatch):
+    """关掉混合后，SVG 走 mpl 纯矢量：VTK 9.x 的 GL2PS 在 OpenGL2 后端只会塞位图。"""
+    monkeypatch.setenv("PLOTKIT_3D_SVG", "mpl")
     fig = _surface_figure()
     result = fig.render_result(width=200, height=140, backend="pyvista", fmt="svg")
     assert result.backend == "mpl"

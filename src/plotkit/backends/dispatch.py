@@ -169,6 +169,15 @@ def choose(spec: Mapping[str, Any], requested: str | None = None) -> str:
     return want
 
 
+def _hybrid_3d(fmt: str) -> bool:
+    """矢量格式 + 三维场景 → 用混合出图（PyVista 位图 + mpl 矢量轴）。
+
+    `PLOTKIT_3D_SVG=mpl` 可强制回退到纯 mpl 真矢量（老行为）。
+    """
+    mode = (os.environ.get("PLOTKIT_3D_SVG") or "hybrid").strip().lower()
+    return (fmt or "").lower() in ("svg", "pdf") and mode != "mpl"
+
+
 def render_result(
     spec: Mapping[str, Any],
     store: Any,
@@ -199,6 +208,29 @@ def render_result(
 
     try:
         from . import pyvista_backend
+
+        if _hybrid_3d(fmt):
+            # 混合出图：三维场景仍是 GPU 位图，坐标轴/刻度/标题由 mpl 画成真矢量
+            # （GL2PS 在 OpenGL2 下只剩位图，见 docs/THREE_D_BACKENDS.md §11）
+            from . import hybrid3d
+
+            payload = hybrid3d.render_hybrid(
+                spec, store, width=width, height=height, dpi=dpi, fmt=fmt,
+                xlim=xlim, ylim=ylim,
+            )
+            limits = None
+            if with_limits:
+                try:
+                    _, info = pyvista_backend.render_scene_threaded(
+                        spec, store, width=width, height=height, dpi=dpi)
+                    b = info["bounds"]
+                    limits = {"xlim": [b[0], b[1]], "ylim": [b[2], b[3]],
+                              "zlim": [b[4], b[5]], "backend": BACKEND_PYVISTA}
+                except Exception:
+                    limits = None
+            return RenderResult(payload=payload, fmt=fmt, width=width, height=height,
+                                dpi=dpi, backend=BACKEND_PYVISTA, limits=limits,
+                                meta={"hybrid": True})
 
         return pyvista_backend.render_result(
             spec, store, width=width, height=height, dpi=dpi, fmt=fmt,
