@@ -290,7 +290,9 @@
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 
-**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **325 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
+| P16-00 | 三维 NS 涡旋可视化（模式 A-prime）：自相似场 + WebGL2 体积/粒子 + 双轨诊断 + 实时调参 | ✅ 完成：`src/plotkit/ns/`（field/diagnostics/app）+ `static/ns.html`/`nsview.js` + `server/ns_app.py`；`tests/test_ns_field.py` 14 条 + `tests/test_ns_api.py` 6 条；1280×820 **98–120 fps**；不可压残差 2.1–2.5%；详见 [NS_VORTEX.md](NS_VORTEX.md) |
+
+**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **356 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
 
 **性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms。
 

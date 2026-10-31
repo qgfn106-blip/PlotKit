@@ -207,7 +207,18 @@ TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火�
 二维那边同时补了「拖动中低清预览」（每 70 ms 一次半分辨率请求）与「服务端 hover 拾取」
 （`GET /api/pick` 返回最近的真实数据点，而不是从像素反推）。
 
-### 三维动画（`figure.anim3d()`）
+### 三维 NS 涡旋可视化（模式 A-prime）
+
+`python -m plotkit.ns.app` 打开一个 WebGL2 页面：真实前导阶自相似 Navier–Stokes 涡旋场，体积渲染 + 螺旋粒子 + 轨迹，左侧双轨诊断（解析连续场 / N³ 网格），顶部公式，右侧三个旋钮（`h`、`X₀`、`η₀`）实时改场。
+
+- 场：`plotkit.ns.SimilarityField`（相似坐标 `r=√(2qX)`、`z=q^{1/2-h}η`，标度 `‖u‖∞~τ^{-(1/2+h)}`、`‖ω‖∞~τ^{-1}`）
+- 诊断：`plotkit.ns.analyze` / `grid_stats` / `convergence`
+- 接口：`/api/ns/{meta,field,slice,velocity,pathlines,diagnostics,convergence,formula.svg}`，二进制帧 `PKNS + meta_len + meta + float32`
+- 实测：1280×820 窗口 **98–120 fps**，24 000 粒子，不可压残差 2.1–2.5%
+
+详细推导、决策与限制见 [docs/NS_VORTEX.md](docs/NS_VORTEX.md)。**它不是爆破解**，界面常驻标注 `Mode A-prime - Leading-order similarity field (not a verified blow-up solution)`。
+
+## 三维动画（`figure.anim3d()`）
 
 三维不能像二维那样"改数据再整图重画"——每次新建 Plotter 都要重建 OpenGL 上下文
 （实测 450–600 ms/帧）。所以动画 API 复用**同一个**离屏窗口，逐帧只改 actor 的
