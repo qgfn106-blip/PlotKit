@@ -243,7 +243,8 @@ class Figure:
         # 数据键 vs 样式键：`labels` 在 pie 里是数据、在 contour 里是布尔样式，
         # 所以先看该 kind 的 REQUIRED_DATA，再按"值不是标量"兜底。
         required = set(REQUIRED_DATA.get(kind, {}))
-        optional = ("z", "u", "v", "w", "error_x", "error_y", "header", "cells", "image", "values")
+        optional = ("z", "u", "v", "w", "error_x", "error_y", "header", "cells", "image",
+                    "values", "scalar")
         data = {}
         for key in list(payload):
             if key in required:

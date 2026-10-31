@@ -233,11 +233,21 @@ def build_surface(layer, store) -> list[_Item]:
     grid = pv.StructuredGrid()
     grid.dimensions = (int(nx), int(ny), 1)
     grid.points = np.column_stack([np.ravel(X), np.ravel(Y), np.ravel(Z)])
-    grid["value"] = np.ravel(Z)
     style = _style(layer)
+    # 默认用几何高度着色；给了 `scalar` 就用那份场（切片平面要按温度着色，几何 z 是平面坐标）
+    scalar_key = _data(layer).get("scalar")
+    if scalar_key:
+        field = np.ravel(_values(layer, store, "scalar"))
+        if field.size != nx * ny:
+            raise BackendUnsupported(
+                f"surface: scalar {scalar_key!r} 有 {field.size} 个点，几何是 {nx * ny}")
+        grid["value"] = field
+    else:
+        grid["value"] = np.ravel(Z)
     return [_Item(mesh=grid, scalars="value", cmap=str(style.get("cmap") or "viridis"),
                   opacity=float(style.get("opacity", 1.0)),
-                  mode="wireframe" if style.get("wireframe") else "surface")]
+                  mode="wireframe" if style.get("wireframe") else "surface",
+                  kwargs={"clim": style["clim"]} if style.get("clim") else {})]
 
 
 def build_trisurf(layer, store) -> list[_Item]:
@@ -638,4 +648,9 @@ def _add_item(plotter, item: _Item) -> None:
     else:
         kwargs["color"] = item.color or "#3b82f6"
         kwargs["show_scalar_bar"] = False
+    if item.kwargs:
+        extra = dict(item.kwargs)
+        if "clim" in extra:
+            extra["clim"] = tuple(float(v) for v in extra["clim"])
+        kwargs.update(extra)
     plotter.add_mesh(item.mesh, **kwargs)

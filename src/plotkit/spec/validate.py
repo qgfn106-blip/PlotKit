@@ -107,7 +107,7 @@ KNOWN_STYLE_KEYS = {
     # P13-03：矢量场
     "scale", "density", "arrowsize", "color_by", "shaft", "key",
     # P13-04：3D
-    "stride", "shade", "length", "normalize",
+    "stride", "shade", "length", "normalize", "clim",
     # P13-05：统计/信号族
     "where", "gridsize", "widths", "showfliers", "showmeans", "mincnt",
     # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram

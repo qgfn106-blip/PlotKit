@@ -629,6 +629,91 @@ def heatsink_cfd(nx: int = 400, ny: int = 250, p: Params = P,
             "x": np.linspace(0.0, L, nx), "y": y}
 
 
+def heatsink_cfd3d(nx: int = 110, ny: int = 26, nz: int = 44, p: Params = P,
+                   u_mean: float = 0.8, t_hot: float | None = None) -> dict:
+    """散热片间通道的**三维**共轭传热：速度场真解 + 三维对流-扩散能量方程。
+
+    与二维版（`heatsink_cfd`）的区别：这里同时解出截面上 (y, z) 两个方向的速度
+    分布与温度分布，因此能给出真正的三维温度场和三维热流矢量
+    `q = ρ·c_p·T·u − k∇T`（对流项 + 导热项）。
+
+    1) 速度：矩形通道充分发展层流，解 ∂²u/∂y² + ∂²u/∂z² = −G/µ（SOR 迭代）；
+       两侧翅片与底板无滑移，顶面按自由滑移（du/dz = 0）。
+    2) 温度：沿程抛物型推进 u·∂T/∂x = α(∂²T/∂y² + ∂²T/∂z²)，
+       每个 x 切片用 SOR 解「横向扩散 + 上游对流」的二维方程；
+       入口 T_amb、翅片与底板 T_hot、顶面绝热。
+    """
+    t0 = time.perf_counter()
+    L, W, H = 0.070, 0.007, 0.030                 # 通道：长 70 mm、片间距 7 mm、片高 30 mm
+    k_air, rho, cp, nu = 0.0262, 1.16, 1007.0, 1.6e-5
+    alpha = k_air / (rho * cp)
+    t_hot = float(t_hot if t_hot is not None else 52.0)
+
+    y = np.linspace(0.0, W, ny)
+    z = np.linspace(0.0, H, nz)
+    dy, dz = W / (ny - 1), H / (nz - 1)
+
+    # ---- 1) 充分发展层流：先解单位源项的形状，再按平均速度缩放 ----
+    u = np.ones((ny, nz))
+    u[0, :] = 0.0
+    u[-1, :] = 0.0
+    u[:, 0] = 0.0
+    wy, wz = 1.0 / dy ** 2, 1.0 / dz ** 2
+    den = 2.0 * wy + 2.0 * wz
+    for _ in range(3000):
+        u[1:-1, 1:-1] = ((u[:-2, 1:-1] + u[2:, 1:-1]) * wy
+                         + (u[1:-1, :-2] + u[1:-1, 2:]) * wz
+                         + 1.0) / den
+        u[1:-1, -1] = u[1:-1, -2]                 # 顶面自由滑移
+        u[0, :] = 0.0
+        u[-1, :] = 0.0
+        u[:, 0] = 0.0
+    shape_mean = float(u.mean())
+    u *= u_mean / max(shape_mean, 1e-12)
+
+    # ---- 2) 三维温度场：沿 x 抛物型推进 ----
+    T = np.full((nx, ny, nz), float(p.Tamb))
+    T[:, 0, :] = t_hot
+    T[:, -1, :] = t_hot
+    T[:, :, 0] = t_hot
+    dx = L / (nx - 1)
+    a_y, a_z = alpha / dy ** 2, alpha / dz ** 2
+    uu = u / dx
+    for i in range(1, nx):
+        prev = T[i - 1]
+        cur = prev.copy()
+        for _ in range(50):
+            cur[1:-1, 1:-1] = (
+                a_y * (cur[:-2, 1:-1] + cur[2:, 1:-1])
+                + a_z * (cur[1:-1, :-2] + cur[1:-1, 2:])
+                + uu[1:-1, 1:-1] * prev[1:-1, 1:-1]
+            ) / (2.0 * a_y + 2.0 * a_z + uu[1:-1, 1:-1])
+            cur[1:-1, -1] = cur[1:-1, -2]         # 顶面绝热
+            cur[0, :] = t_hot
+            cur[-1, :] = t_hot
+            cur[:, 0] = t_hot
+        T[i] = cur
+
+    x = np.linspace(0.0, L, nx)
+    # 出口截面体平均温度与换热量
+    out = T[-1]
+    w = u
+    t_bulk = float((out * w).sum() / max(w.sum(), 1e-12))
+    area = W * H
+    q_removed = float(rho * cp * u_mean * area * (t_bulk - p.Tamb))
+    # 压降：源项 G = µ·u_mean/mean(shape) → Δp = G·L
+    G = 1.81e-5 * u_mean / max(shape_mean, 1e-12)
+    dp = float(G * L)
+    dh = 2.0 * W * H / (W + H)
+    return {
+        "x": x, "y": y, "z": z, "T": T, "u": u,
+        "t_bulk": t_bulk, "q_removed": q_removed, "dp": dp,
+        "re": float(u_mean * dh / nu), "dh": dh,
+        "cells": int(nx * ny * nz), "ms": (time.perf_counter() - t0) * 1e3,
+        "k": k_air, "rho": rho, "cp": cp, "u_mean": u_mean,
+    }
+
+
 def chassis_beam_fe_sparse(n_el: int = 20000, L: float = 0.25, load_n: float = 6.0,
                            width: float = 0.20, thick: float = 0.003,
                            E: float = 2.4e9) -> dict:
@@ -1066,6 +1151,78 @@ def charts_3d(p=P, track=None, res=None):
 # --------------------------------------------------------------------------- #
 # 7. PlotKit 规模压力测试
 # --------------------------------------------------------------------------- #
+def charts_heat3d(hs: dict) -> dict:
+    """散热板**三维矢量热传递**：三维温度切片 + 三维热流矢量 + 出口截面。"""
+    x, y, z = hs["x"], hs["y"], hs["z"]
+    T, u = hs["T"], hs["u"]
+    X, Y, Z = np.meshgrid(x * 1e3, y * 1e3, z * 1e3, indexing="ij")   # mm
+    # 温度只在壁面附近的薄边界层里升起来，按全量程上色会一片黑：
+    # 把色标压到「入口温度 → 出口体均温度 + 8 K」，才看得见沿程发展
+    clim = [float(T.min()), min(float(T.max()), hs["t_bulk"] + 8.0)]
+
+    # ---- 35) 三维温度场：三张贴壁截面（热量集中在壁面薄边界层，取中间面看不出来）----
+    i = int(0.88 * (x.size - 1))   # x = 0.88L
+    j = 3                          # y ≈ 0.8 mm，贴着翅片
+    k = 2                          # z ≈ 1.4 mm，贴着底板
+    clim = [float(P.Tamb), float(T.max())]
+    fig = pk.figure(size=(7.2, 5.4), dpi=110, title="Heatsink 3D Temperature (near-wall slices)")
+    for xs, ys, zs, field in (
+        (X[i], Y[i], Z[i], T[i]),                          # 出口附近截面
+        (X[:, j], Y[:, j], Z[:, j], T[:, j]),              # 贴翅片的竖直面
+        (X[:, :, k], Y[:, :, k], Z[:, :, k], T[:, :, k]),  # 贴底板的水平面
+    ):
+        fig.add("surface", {"x": xs, "y": ys, "z": zs, "scalar": field},
+                style={"cmap": "turbo", "clim": clim})
+    fig.set_view(0, xlabel="x (mm)", ylabel="y (mm)", zlabel="z (mm)",
+                 elev=24, azim=-64, zoom=0.95)
+    save(fig, "35_heatsink_3d_slices.png", backend="pyvista", width=900, height=640)
+
+    # 三维热流矢量：q_cond = −k∇T（三个分量都在三维网格上算）
+    dx, dy, dz = x[1] - x[0], y[1] - y[0], z[1] - z[0]
+    gz, gy, gx = np.gradient(T, dz, dy, dx, edge_order=1)
+    k_air = hs["k"]
+    qx, qy, qz = -k_air * gx, -k_air * gy, -k_air * gz
+
+    # ---- 36) 热流矢量：三维场算出的 q = −k∇T，在出口截面上画矢量图 ----
+    # 三维体积里铺箭头读不出来（互相遮挡），工程上标准做法是在截面上看矢量分布；
+    # 这里画的是三维解里 y、z 两个分量，箭头方向 = 热从壁面流向空气
+    iy = slice(0, y.size, 4)
+    iz = slice(0, z.size, 6)
+    Yc, Zc = np.meshgrid(y[iy] * 1e3, z[iz] * 1e3, indexing="ij")
+    qy_s = qy[-1][iy, :][:, iz]
+    qz_s = qz[-1][iy, :][:, iz]
+    mag = np.hypot(qy_s, qz_s)
+    # 箭头统一长度（方向才是信息），否则 |q| 上千 W/m² 会画成长线
+    safe = np.where(mag > 1e-9, mag, 1.0)
+    qy_n, qz_n = qy_s / safe, qz_s / safe
+    fig = pk.figure(size=(6.6, 4.8), dpi=110,
+                    title=f"出口截面热流矢量（峰值 {mag.max():.0f} W/m²）")
+    fig.add_data("Y", Yc, role="field")
+    fig.add_data("Z", Zc, role="field")
+    fig.add_data("qy", qy_n, role="field")
+    fig.add_data("qz", qz_n, role="field")
+    fig.add("quiver", {"x": "Y", "y": "Z", "u": "qy", "v": "qz"},
+            style={"color": "#c2410c", "scale": 2.2})
+    fig.set_view(0, xlabel="y (mm)", ylabel="z (mm)")
+    save(fig, "36_heat_flux_3d.png", width=780, height=560)
+
+    # ---- 37) 出口截面：温度云图 + 速度等值线 ----
+    fig = pk.figure(size=(6.4, 4.6), dpi=110,
+                    title=f"出口截面 T(y,z)：体均 {hs['t_bulk']:.1f} °C")
+    fig.add_data("y", y * 1e3, role="coord")
+    fig.add_data("z", z * 1e3, role="coord")
+    # mpl 约定 z 的形状是 (行=y 轴, 列=x 轴)，这里横轴是 y、纵轴是 z，所以要转置
+    fig.add_data("T", T[-1].T, role="field")
+    fig.add_data("u", u.T, role="field")
+    fig.add("contourf", {"x": "y", "y": "z", "z": "T"}, style={"cmap": "turbo", "levels": 18})
+    fig.add("contour", {"x": "y", "y": "z", "z": "u"}, style={"color": "#e5e7eb", "width": 0.7})
+    fig.set_view(0, xlabel="y (mm)", ylabel="z (mm)")
+    save(fig, "37_cross_section.png", width=760, height=560)
+
+    return {"cells3d": hs["cells"], "t_bulk": hs["t_bulk"], "q_removed": hs["q_removed"],
+            "dp": hs["dp"], "re": hs["re"], "ms": hs["ms"]}
+
+
 def assembly_3d(p=P) -> dict:
     """整车三维装配图（单位 mm）：底盘 / 四轮 / TEG 模块 / 散热片 / 超级电容 / 电机 / 转向连杆。
 
@@ -1298,6 +1455,27 @@ def write_report(res, track, sens, conv, designs, fields, perf, elapsed,
         "| 产物 | 内容 | 说明 |", "| --- | --- | --- |",
         "| `28_assembly_3d.png` | 整车装配（底盘/四轮/TEG/散热片/电容/电机/转向） | PyVista 多实体建模，单位 mm，包络 200×250 |",
         "| `29_animation_3d.gif` | 小车沿真实轨迹跑一圈（200 帧） | 复用同一 Plotter，每帧只改 actor 位姿 |",
+        "", "## 7.1 散热板三维矢量热传递", "",
+        "速度场与温度场都在三维网格上真解（不是把二维结果贴成三维）：",
+        "",
+        "| 项 | 值 |",
+        "| --- | --- |",
+        f"| 网格 | 110 × 26 × 44 = **{fields.get('heat3d', {}).get('cells3d', 0):,} 单元** |",
+        "| 通道 | 长 70 mm × 片间距 7 mm × 片高 30 mm |",
+        "| 平均流速 | 0.8 m/s（矩形通道充分发展层流，SOR 迭代） |",
+        f"| 雷诺数 | Re = {fields.get('heat3d', {}).get('re', 0):.0f}（层流） |",
+        f"| 出口体均温度 | **{fields.get('heat3d', {}).get('t_bulk', 0):.1f} °C** |",
+        f"| 换热量 | **{fields.get('heat3d', {}).get('q_removed', 0):.2f} W** |",
+        f"| 压降 | {fields.get('heat3d', {}).get('dp', 0):.3f} Pa |",
+        f"| 求解耗时 | {fields.get('heat3d', {}).get('ms', 0):.0f} ms |",
+        "",
+        "- `35_heatsink_3d_slices.png`：三张贴壁截面（出口 / 贴翅片 / 贴底板）上的三维温度场；",
+        "- `36_heat_flux_3d.png`：三维解的热流矢量 q = −k∇T 在出口截面上的分布（两侧翅片各指向中心）；",
+        "- `37_cross_section.png`：出口截面温度云图 + 速度等值线，热边界层从两侧壁面往中心推进。",
+        "",
+        "> 口径：速度是「充分发展层流」的矩形通道泊肃叶解，温度沿流向抛物型推进；",
+        "> **不是完整三维 N-S**（无回流、无湍流模型）。",
+        "",
         "", "## 8. 图表清单", "",
         *[f"- `{p.name}`" for p in sorted(OUT_DIR.glob("*.png"))],
         *([f"- `29_animation_3d.gif`（{fields.get('anim', {}).get('frames', 0)} 帧）"] if (OUT_DIR / "29_animation_3d.gif").exists() else []),
@@ -1400,6 +1578,7 @@ def build_all(*, quick: bool = False, t_end: float = 240.0, dt: float = 0.005,
     designs = charts_design_compare()
     conv = charts_convergence()
     fields = charts_3d(track=track, res=res)
+    fields["heat3d"] = charts_heat3d(heatsink_cfd3d(t_hot=float(res["Tc"][-1])))
     fields["assembly"] = assembly_3d()
     fields["anim"] = animate_3d(res, track, frames=600 if not quick else 200)
     cmp = compare_modes(P, t_end=t_end, dt=dt)
