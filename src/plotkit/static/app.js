@@ -723,7 +723,7 @@ function renderInsets() {
 const overlayState = { active: null };
 
 function overlayPixels() {
-  // D33 后没有 plotly 的 _fullLayout，改用服务端返回的各槽位包围盒（X-PlotKit-Axes）
+  // 改用服务端返回的各槽位包围盒（X-PlotKit-Axes）
   if (!state.img || !state.img.slots || !state.img.slots.length || !state.img.px) return null;
   const [W, H] = state.img.px;
   const fl = {};
@@ -759,7 +759,7 @@ function renderInsetOverlay() {
     const dom = axisDomainOf(fl, Number(ins.parent || 0));
     if (!dom) return;
     const r = ins.rect || [0.6, 0.6, 0.35, 0.35];
-    // rect 是父轴绘图区的比例；plotly 的 y domain 从下往上，屏幕坐标从上往下
+    // rect 是父轴绘图区的比例（y 从下往上），屏幕坐标从上往下，需要翻转
     const left = size.l + (dom.x[0] + r[0] * (dom.x[1] - dom.x[0])) * size.w;
     const width = r[2] * (dom.x[1] - dom.x[0]) * size.w;
     const top = size.t + (1 - (dom.y[0] + (r[1] + r[3]) * (dom.y[1] - dom.y[0]))) * size.h;

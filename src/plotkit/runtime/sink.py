@@ -2,7 +2,7 @@
 
 | sink | 触发条件 | 行为 |
 |---|---|---|
-| `inline` | 在 IPython/Jupyter 里（能拿到 `get_ipython`） | 内联自包含 HTML（plotly bundle 已 vendor，不需网络） |
+| `inline` | 在 IPython/Jupyter 里（能拿到 `get_ipython`） | 内联自包含 HTML（SVG 直接嵌进页面，不需网络） |
 | `window` | 能 import PySide6 | 起本地服务 + QtWebEngine 原生窗口（VS Code 里不会再跳浏览器） |
 | `browser` | 其余 | 起本地服务 + 浏览器打开 |
 

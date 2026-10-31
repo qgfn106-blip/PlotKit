@@ -23,9 +23,9 @@
 | **PK-R08** | 「新功能完全实现，就要能准确将原方法删去」「UI 与软件 UI 相兼容，并且可自定义 UI」 | 完成即删旧的等价迁移；外观级 + 布局级可自定义（`theme` + `layout.json`） | 部分：能力已对齐中；**旧 canvas 与分析面板不删**（2026-10-31 用户决定，D37） |
 | **PK-R09** | 「我在 vs code 运行程序时，能弹出窗口，而不是直接跳到浏览器去」 | `show()` 三级 sink：inline → window（PySide6 + QtWebEngine）→ browser | 完成（`runtime/sink.py`、`runtime/window.py`） |
 | **PK-R10** | 「netlab 内部做可分离的内嵌窗口」「补齐老画布能力」 | 停靠 ⇄ 浮出两种形态；时间窗/回放/播放/清空/信号筛选对齐老 canvas | 完成（P12-05、P12-06） |
-| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **进行中**：`registry.kinds()` **18 种全部完成**（11×2D + 7×3D，见 §3.3），另有 3 种附加 kind（`contourf` / `correlation` / `barbs`），registry 共 21 种 |
-| **PK-R12** | 「以及 matplotlib API 中所有的绘图功能」 | 以 `Axes` 绘图方法为全集（约 55 个），逐个给出归属：双后端 / mpl 兜底 / 不做 | **未盘点**：归属表见 §3.4 |
-| **PK-R13** | 「按照 multiplotter 中的逻辑进行预设计与编写程序」 | 预设表、分发别名、透传白名单、严格模式、`init()` 全局样式、`style_scope`、`register_layer` 契约 | 仅 `reg.register` 有雏形（无 presets/passthrough/strict） |
+| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **完成**：`registry.kinds()` **18 种核心全部完成**（11×2D + 7×3D，见 §3.3），另有扩展 kind（`contourf` / `correlation` / `barbs` / 信号族 / 三角族 / voxels 等），registry 共 **50** 种（`tools/coverage.py --check` 全绿） |
+| **PK-R12** | 「以及 matplotlib API 中所有的绘图功能」 | 以 `Axes` 绘图方法为全集（约 55 个），逐个给出归属：独立 kind / 复用 kind / shapes / 轴级 / 不做 | **完成**：83 个 Axes/Axes3D 绘图方法全部归属，`tools/mpl_method_audit.py --check` 机器校验通过；归属表见 §3.4 |
+| **PK-R13** | 「按照 multiplotter 中的逻辑进行预设计与编写程序」 | 预设表、分发别名、透传白名单、严格模式、`init()` 全局样式、`style_scope`、`register_layer` 契约 | **完成**：presets / 分发别名 / 透传白名单 / 严格模式 / `pk.init()` / `pk.style_scope()` / `pk.register_layer()` 全部落地（`src/plotkit/__init__.py`、`tests/test_pk_init.py`） |
 | **PK-R14** | 「并且可自己优化」 | 允许偏离原实现：服务端分箱/相关矩阵、重绘缓存与 ETag、按像素宽度抽稀、节流刷新 | 部分已有（D22 缓存、min-max 抽稀） |
 | **PK-R15** | 「开始前做好项目规划，确定需求，以及项目推进流程，验收标准」 | 需求 + 分期 + 四件套验收见 §3.5/§3.6 | 完成（2026-10-30） |
 | **PK-R16** | 「以及持续更新文档」 | 每票收尾四处同步，不允许只改代码 | 执行中（§3.8 口径） |
@@ -54,7 +54,7 @@
 | D18 | "软件怎么摆"进 `layout.json`，不进 spec | 分组/停靠不是图的一部分 |
 | D19 | 撤销 = 前端 spec 快照栈 | 50 步足够，不引命令模式 |
 | D20 | 菜单栏 + 快捷键 + 右键 | 对齐 netlab 的操作习惯 |
-| D21 | 门槛修正：热重绘 <50 ms、冷启动 <1 s（**2026-10-31 修订**：mpl 单后端下 1200×700×6×20k 实测 **214 ms**，120 ms 未达；已试 `constrained_layout=False`（137 ms 但布局风险）、path simplify / chunksize / PNG compress_level 均无收益。真正达标要「持久 Figure + 艺术家增量更新」，记 P13-09） | `Plotly.react` 冷启动 ~180 ms，"首帧 <100 ms" 不可达 |
+| D21 | 门槛修正：热重绘 <50 ms、冷启动 <1 s（**2026-10-31 修订**：mpl 单后端下 1200×700×6×20k 原实测 214 ms；同日经几何缓冲 + M4 + 视窗零拷贝 + 持久 Figure/blit + 统一 PNG 编码器优化后，热重绘 **48 ms**、冷导出 **111 ms**，**两项均已达标**，基线见 [BENCHMARKS.md](BENCHMARKS.md)） | `Plotly.react` 冷启动 ~180 ms，"首帧 <100 ms" 不可达 |
 | D22 | GZip + 服务端构图缓存（`X-PlotKit-Cache`） | 同一 spec 反复取图不该重算 |
 | D23 | 时间窗进 spec（`figure.window`），回放游标属 L3 不回写 | 静态导出与交互共用同一份数据口径 |
 | D24 | `kind` 唯一图层类型；`layer.data` 按 kind 声明多键（`z/u/v/labels/values/image/cells`），`REQUIRED_DATA` 表驱动校验 | 不为每种图造新字段 |
@@ -71,6 +71,7 @@
 | D35 | 实时流 = 服务端**节流重绘**（默认 8 fps，可调 2–20）+ `ETag`/spec revision 缓存；数据按像素宽度抽稀（≤2 点/列） | PNG 重绘 ~60–100 ms/帧，60 fps 不可能；先保正确与可读 |
 | D36 | inset 拖拽 = 前端覆盖层画框，松手 PUT spec 再重绘；`LayerSpec` 用 `interactive: bool` 取代 `browser_native` | 拖拽中不回后端，避免抖动 |
 | D37 | **不删旧 canvas**：netlab 原生时间序列/示波器/李萨如/相图与分析面板长期保留，PlotKit 作为**并行**能力（2026-10-31 用户决定） | 用户明确要求「先不要将原生绘图分析删掉」；两条路径并存，谁都不阻塞谁 |
+| D38 | **多后端框架**：`LayerSpec.builders` 支持按后端注册 builder；`dispatch` 负责选后端与回退；matplotlib 仍是默认与兜底，PyVista 作**可选三维工程后端**，VisPy 只留名字（2026-10-31 实现） | 三维在 mpl 上 10 万点要 1.4–6s（`Axes3D` 逐面片走 Agg），PyVista 交给 GPU 后 0.16–0.22s；但 VTK 常驻 ~165MB 且只出 PNG，所以不做全局替换 |
 
 ## 3. 图表能力扩展计划（P13 / D24–D36，2026-10-30 立项，2026-10-31 架构修订）
 
@@ -115,7 +116,7 @@
 | surface / line3d / scatter3d / bar3d / hist3d / quiver3d | 3D | x,y,z(,u,v,w) | plot_surface / plot / scatter / bar3d / hist3d / quiver | ✅ P13-04 |
 | stream3d | 3D | x,y,z,u,v,w | RK2 积分后 plot3D（mpl 无原生 stream3d） | ✅ P13-04 |
 
-### 3.4 matplotlib 方法归属（约 55 个）
+### 3.4 matplotlib 方法归属（83 个，`tools/mpl_method_audit.py` 机器可校验）
 
 渲染全部走 mpl，分类依据变成「要不要 figure 级字段」而不是「浏览器有没有」：
 
@@ -148,7 +149,7 @@
 
 **每个 kind 四件套（D32，按 mpl 单后端修订）**：① spec 往返字节相等、未知字段保留；② PNG 像素快照（固定 `metadata`，逐像素比对或 SSIM > 0.995）；③ 视窗重绘一致性（改 xlim/ylim 后轴刻度与数据位置符合预期）；④ CDP 截图 + 轴/图例/色条存在性断言。
 
-**通用门槛**：PlotKit 测试只增不减（124 起）；`node --check static/app.js`；改前端 bump `index.html` 两处 `?v=`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
+**通用门槛**：PlotKit 测试只增不减（250 起）；`node --check static/app.js`；改前端 bump `index.html` 两处 `?v=`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
 
 **量化**：hist 与 `np.histogram` 逐箱相等；correlation 与 `np.corrcoef` 差 < 1e-12；contour levels 与 mpl 默认一致；3D 的 `elev/azim` 写入 spec 后可复现；动画 60 帧；对流传热 Nu 与 de Vahl Davis 差 1–2%。
 
@@ -230,7 +231,7 @@
 
 > 重跑：`PYTHONPATH=src python tools/coverage.py`；CI 用 `--check`（有缺项返回非零）。
 >
-> **口径**：18/18 指 §3.3 的 kind 覆盖。§3.4 的 mpl 方法表在 P13-09 又补了 15 个（triplot / tricontour(f) / tripcolor / voxels / trisurf / stem3D / text3D / csd / cohere / acorr / xcorr / angle·magnitude·phase_spectrum）。仍未单独建 kind 的：`fill_between`（用 stackplot 或 shapes 表达）、`figimage`、`spy`；`vlines`/`hlines`/`axline` 走 `figure.shapes`，`errorbar` 走 `line` 的 `error_x/y`。
+> **口径**：18/18 指 §3.3 的 kind 覆盖。§3.4 的 mpl 方法表在 P13-09 又补了 15 个（triplot / tricontour(f) / tripcolor / voxels / trisurf / stem3D / text3D / csd / cohere / acorr / xcorr / angle·magnitude·phase_spectrum）。**PK-R12 已完成**：83 个 Axes/Axes3D 绘图方法在 `tools/mpl_method_audit.py` 全部归属（`--check` 通过），每个方法标为 kind / reuse / shapes / annotations / axis / skip 并给目标或原因。其中 `fill_between`→`stackplot`（或 shapes）、`hist2d`/`matshow`/`pcolor*`→`heatmap`、`clabel`→`contour(labels=True)`、`quiverkey`→`quiver(key=True)`、`errorbar`→`line(error_x/y)`；`figimage`/`spy` 明确 skip（与 `image`/`heatmap` 语义重合，不单建 kind）；`vlines`/`hlines`/`axline`/`axhspan`→`figure.shapes`；`twinx`/`twiny`/`secondary_*`/`colorbar`/`legend`/`grid`→轴级字段。自定义 kind 的渲染回退到 `reg.resolve(kind).builder`。
 
 ### 3.10 plotly 退役清单（D33）
 
@@ -241,10 +242,13 @@
 | 3 | 自包含导出 `fig.html()` 改内联 mpl SVG（不再内联 bundle） | ✅ P13-07 |
 | 4 | `/api/figure.json` 仅遗留，遇到无 builder 的 kind 跳过而不是 500 | ✅ P13-02 |
 | 5 | 删除 `static/vendor/plotly-basic.min.js`（1.1 MB）+ 精简 `server/assets.py` | ✅ P13-09（静态目录从 1.1 MB 降到 76 KB） |
-| 5b | 删除 `backends/plotly_backend.py`（603 行）与 `Figure.plotly()` | ⬜ 待办：会连带删 6 个测试文件里约 100 条用例，需单独批准 |
-| 6 | 删除 `Figure.plotly()` / `self_contained_html()` / `/api/figure.json` | ⬜ 同上 |
+| 5b | 删除 `backends/plotly_backend.py`（603 行）与 `Figure.plotly()` | ✅ P14-01（2026-10-31 用户批准） |
+| 6 | 删除 `Figure.plotly()` / `self_contained_html()` / `/api/figure.json` | ✅ P14-01：方法、端点、`X-PlotKit-Cache` 缓存全部删除 |
+| 7 | 后端无关的公共件迁出（`PALETTE`/`THEMES`/`color_for`/`_TRANGE`/`_window_slice`/`_xy`/`_step`/`time_bounds`） | ✅ P14-01：新模块 `backends/series.py` |
+| 8 | `line`/`marker`/`bar` 三个基础图层的注册搬到 `mpl_backend`（原来靠 import plotly 后端注册） | ✅ P14-01 |
+| 9 | 全仓清死代码与失效依赖 | ✅ P14-01：`ruff --select F401,F811,F841,E9` 全绿；`pyproject` 的 `desktop` extra 由 PySide6 改 pywebview |
 
-> 保留到 P13-09 的原因：`plotly()` 仍是「给浏览器出 {data, layout}」的独立出口，删它要连带改测试与文档口径；按「测试只增不减」的约定，不在收尾票里顺手删。
+> P14-01 同时修掉两处退役带出来的真问题：①`/api/clear` 里还引用着已删的 plotly 构图缓存（NameError）；②**`figure.window` 的实时窗口语义原先在 plotly 后端里实现**，删掉后会静默失效——现在由 `Figure.render_result()` 接管（无 `t_end` 时取「数据末尾往回 window 秒」）。
 
 ## 4. 当前进度
 
@@ -266,11 +270,13 @@
 | P13-06 | 动画：`figure.anim` + 逐帧渲染 + GIF；前端「动画」按钮播放 | ✅ 完成：`tests/test_anim.py` 10 项，全库 **218 passed**；40 帧 / 700×440 首次 6.3 s、缓存后瞬时；CDP 实测按钮进入播放态。**未做**：MP4（需 ffmpeg，转 P13-07） |
 | P13-07 | 漏项 6 种 + 表格高亮 + MP4 + 自包含导出改内联 SVG | ✅ 已做：stairs/broken_barh/eventplot/bxp/psd/specgram、`highlight=max/min/[[r,c]]`、MP4（ffmpeg）、`fig.html()` 内联 SVG。**未做**：`ScienceResult`/`SciencePlotter`、`shrink_field`、colorbar 细化（转 P13-09） |
 | P13-09 | 方法级缺口 15 种 + plotly bundle 删除 | ✅ 完成：`tests/test_kinds_gaps.py` 16 项，全库 **250 passed**；registry **50 种**；`static/` 1.1 MB → 76 KB。**不做**：`ScienceResult`/`SciencePlotter`（用户 2026-10-31：改用模板保存 `save_spec`/`load_spec` 即可）；plotly 代码本体待批准删除 |
-| P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **部分完成**：覆盖率 **18/18 + 35 种全部有绘制器**（`tools/coverage.py --check` 退出 0，表见 §3.9，234 passed）；**性能未达**：1200×700 × 6×20k 实测 **214 ms**（目标 120 ms）；plotly 退役清单见 §3.10 |
+| P13-08 | 覆盖率表 / 性能回归 / plotly 退役清单 | **完成（性能部分 2026-10-31 达标）**：覆盖率 **18/18 + 50 种全部有绘制器**（`tools/coverage.py --check` 退出 0，234 passed）；性能基线见 [BENCHMARKS.md](BENCHMARKS.md)，回归脚本 `tools/bench_regress.py --check`：冷导出 PNG **111 ms**、热重绘 blit **48 ms**、抽稀 2M 点 **9 ms**、追加 2000 次 **35 ms**（均优于 D21 的 50/120 ms 目标，热重绘 <50 ms 已达成）；plotly 退役清单见 §3.10 |
+| P14-01 | plotly 退役（D33 收尾） | ✅ 完成：删 `backends/plotly_backend.py`（603 行）、`Figure.plotly()`、`/api/figure.json`；新增 `backends/series.py` 承接公共件；**301 passed**（净减 15 条 plotly 专属用例，其余改写成 mpl 断言）；netlab **348 passed** |
+| P14-00 | 多后端框架（D38）：`builders` 表 + `dispatch` + PyVista 三维后端 + `/api/render?backend=` | ✅ 完成：`tests/test_multibackend.py` 20 项，全库 **314 passed**；11 种三维 kind 全部可出图；`tools/bench_3d.py`（mpl vs pyvista）：surface 100² **714→173ms**、scatter3d 10 万 **1375→218ms**、voxels 25³ **5966→164ms**；详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 
-**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **124 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
+**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **314 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
 
 **性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms。
 
@@ -288,7 +294,8 @@
 6. **`mpl` 的 `inset_axes` 是子轴**：`len(fig.axes)` 仍是 1，判断要看 `parent.child_axes`。
 7. **验证网页渲染不能用 QtWebEngine offscreen**（只得到灰图）；用 `msedge --headless=new --remote-debugging-port=…` + `tools/cdp_flow.mjs`（**一条 CDP 连接跑完整串动作**，反复建 WS 会把页面拖死）。2026-10-31 补：本机直接用这条命令**不行**，见第 13 条。
 8. **plotly 分部包的能力边界不能靠 grep 字符串判断**：在 `plotly-basic.min.js` 里 `grep heatmap/contour/surface` 都能命中（错误提示与 schema 里带这些词），据此会误判成"只差 builder"。真实判据是文件末尾 `Plotly.register([...])` 的模块列表——basic 只注册 scatter/bar/pie 三个；或直接在页面里用最小 trace 试 `Plotly.newPlot` 看是否报 "not registered"。
-9. **mpl 渲染的耗时结构**（2026-10-31 实测，1200×700 / 6 通道 / 20k 点）：`to_figure` ≈ 118 ms、`savefig` ≈ 190 ms，合计 ~310 ms。**按像素抽稀只压数据量，压不动 savefig 这个常数**——要冲 <120 ms 得动 `constrained_layout`、`canvas.print_png` 与字体预热（P13-08）。
+9. **mpl 渲染的耗时结构**（2026-10-31 首测，1200×700 / 6 通道 / 20k 点）：`to_figure` ≈ 118 ms、`savefig` ≈ 190 ms，合计 ~310 ms；当时结论是"按像素抽稀压不动 savefig 这个常数"。
+   **同日优化后更正**：`savefig` 的常数其实由**内部再 `draw()` 一次整图**（刻度/文本重算 ~28 ms）+ PNG 编码（~33 ms）构成。改用 `livecache.encode_png()` 直接从 canvas 缓冲编码、并复用持久 Figure 后：冷导出 **111 ms**、热重绘 blit **48 ms**、抽稀 2M 点 **9 ms**、追加 2000 次 **35 ms**（见 [BENCHMARKS.md](BENCHMARKS.md)）。教训：先分清"必要的栅格化"与"重复绘制"再谈常数。
 10. **去掉 plotly 后 `#plot._fullLayout` 不存在**：inset 覆盖层原来靠它换算像素，会静默失效（覆盖层永远 hidden）。改用服务端返回的 `X-PlotKit-Axes`（各槽位包围盒）后恢复。
 11. **`KIND_ALIASES` 里把 `hist` 映射成 `None` 会挡住新图层**：那是早期"明确不支持"的写法，P13-01 加了 hist 之后 `fig.add("hist", …)` 仍报「不支持的图层类型」。新增 kind 时先 grep 别名表，别只改注册表。
 12. **非别名的样式键要走 `KNOWN_STYLE_KEYS` 分支**：`bins`/`cmap`/`colorbar` 不在 `STYLE_ALIASES` 里，原来会被当成"不认识的参数"记 warning 并丢掉，柱子永远是默认 30 箱。修法：`_style_from_kwargs` 先查别名，再查 `KNOWN_STYLE_KEYS`，最后才算忽略。
@@ -338,3 +345,10 @@
 - `docs/p13_3d.png`：P13-04 3D 四联（surface / line3d / scatter3d / hist3d）
 - `docs/p13_stats.png`：P13-05 统计族四联（boxplot / violinplot / hexbin+colorbar / stackplot）
 - `docs/p13_gaps.png`：P13-09 方法级补齐四联（tricontourf / voxels / magnitude_spectrum / trisurf）
+
+## 6. 三维与大规模后端评估（2026-10-31，只决策未实现）
+
+- 结论：Matplotlib 保留为默认/回退；**PyVista 作可选 3D 工程后端**（网格/体场/矢量场）；**VisPy 预留**为百万级动态点线；**Trame 只做浏览器交互层**。
+- 依据与本机基线：`surface 100²=619ms`、`scatter3d 10 万=1969ms`、`voxels 35³=4322ms`（800×600 冷渲染），三维在万级单元已比整张 2D 大图慢一个数量级。
+- 三个硬边界：`LayerSpec` 单 builder 要改多后端 builders；三维数组不能 `dtype=float` 悄悄升精度；`stream3d` 必须保留 `algorithm="plotkit_rk2"` 兼容模式。
+- 详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md)（逐 kind 映射、实施顺序、验收指标、不做清单）。

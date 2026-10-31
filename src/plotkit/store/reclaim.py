@@ -24,7 +24,7 @@ class TrashEntry:
 
     @property
     def nbytes(self) -> int:
-        return int(self.dataset.values.nbytes)
+        return int(self.dataset.capacity_bytes)
 
 
 class Reclaimer:

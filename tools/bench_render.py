@@ -92,7 +92,6 @@ def main():
     # 2) 复用 artist：只 set_data + set_xlim
     fig, canvas, ax, lines = build_figure(t, ys)
     canvas.draw()
-    rng = np.random.default_rng(7)
     state = {"k": 0}
 
     def reuse():

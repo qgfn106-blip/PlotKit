@@ -54,7 +54,7 @@ ax.plot(t, v); ax.set_xlabel("t / s")
 | 原生窗口 | `fig.show(sink="window")` | PySide6 + QtWebEngine；VS Code 里跑不会跳浏览器 |
 | Notebook | `fig.show()` | 有 IPython 时自动内联 iframe |
 | 静态图 | `fig.savefig("x.png", dpi=200)` | matplotlib 后端，论文/报告用 |
-| 单文件 HTML | `fig.html()` | 内联 plotly bundle，可直接发给别人 |
+| 单文件 HTML | `fig.html()` | 内联 matplotlib SVG，零 JS、零 CDN，可直接发给别人 |
 
 > 需求 · 决策 · 进度 · 经验（单一入口）：[docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md)
 
@@ -65,10 +65,12 @@ src/plotkit/
 ├─ spec/        model（spec 数据类） / validate（一次收齐全部错误） / io（原子写、逐字节稳定）
 ├─ store/       registry（命名数据集、append/replace、history） / reclaim（引用计数+待回收区）
 │                downsample（min-max 包络、LTTB） / disk（分块 float32 落盘）
-├─ backends/    registry（LayerSpec + register） / plotly_backend / mpl_backend
+├─ backends/    registry（LayerSpec + builders） / dispatch（选后端） / series（公共件）
+│                mpl_backend / pyvista_backend（可选三维） / livecache（热重绘）
 ├─ api/         native（Figure） / mpl_proxy（ax.plot 风格代理）
-├─ server/      app（REST + 二进制序列） / live（后台线程 uvicorn） / assets（vendor bundle）
+├─ server/      app（REST + 二进制序列） / live（后台线程 uvicorn） / assets（静态资源定位）
 ├─ runtime/     sink（三出口探测） / window（QtWebEngine 窗口）
+├─ desktop/     pywebview + WebView2 桌面壳（D39）
 └─ static/      index.html / app.css / app.js（零依赖手写）
 ```
 
@@ -153,21 +155,22 @@ netlab 里的用法（`NetlabHome/netlab/plotkit_bridge.py`）：每 200 ms 拉�
 
 ```python
 fig.window(5.0)                 # 只显示最近 5 秒；fig.window(None) = 全部历史
-fig.plotly(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
+fig.render(t_end=12.5)          # 回放游标：截 7.5–12.5 s 这一段
 ```
 
 `GET /api/meta` 会带 `time: {min, max, count}`（回放滑杆的范围与帧数）和 `window`。
 
-## 性能（2026-10-30 实测，28 数据集 / 11 图层 / ~1.4k 点）
+## 性能（2026-10-31 实测，1200×700 / 6 通道 × 2 万点）
 
 | 指标 | 实测 | 说明 |
 |---|---|---|
-| 冷启动首帧 | **862 ms** | 页面打开到图出现，含 plotly-basic 1.1 MB 解析 + 首次排版 |
-| 热重绘（改 spec 后） | **14–23 ms** | 第 2 次起 `Plotly.react` 的增量开销 |
-| 服务端构图 | 65 ms（未命中）→ 4.8 ms（命中） | `GET /api/figure.json` 带 `X-PlotKit-Cache: hit/miss` |
-| 首帧里的后端占比 | 65 ms / 862 ms | 瓶颈在浏览器引擎冷启动，不在 Python 侧 |
+| 冷导出 PNG | **111 ms** | `fig.render()`，含 M4 抽稀 + matplotlib 绘制 + PNG 编码 |
+| 热重绘（固定视窗，blit） | **41–48 ms** | 持久 Figure + 只重画数据 artist；PNG 编码约 33 ms 是地板 |
+| 抽稀 200 万点 | **9 ms** | M4 包络，保尖峰、保 float32 |
+| 追加 2000 次 × 1000 点 | **35 ms** | 几何扩容缓冲（旧实现 4706 ms） |
+| 三维 10 万点（PyVista） | **196 ms** | 同规格 matplotlib `Axes3D` 是 1319 ms |
 
-> 原定「首帧 <100 ms」在 plotly 上不可达：光 `Plotly.react` 冷启动就 ~180 ms。改为 **热重绘 <50 ms + 冷启动 <1 s** 作为 D15 的实际门槛（见 docs/DESIGN_v0.md）。
+完整表格与复现命令见 [docs/BENCHMARKS.md](docs/BENCHMARKS.md)（`tools/bench_regress.py --check` 可当回归门禁）。
 
 ## 当前状态
 

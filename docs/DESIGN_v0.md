@@ -1,5 +1,7 @@
 # PlotKit 设计计划 v0（拟定稿，未动代码）
 
+> **历史文档提示（2026-10-31）**：本文是 v0 设计阶段的记录。D33 之后 plotly 后端已整体删除（`backends/plotly_backend.py`、`Figure.plotly()`、`/api/figure.json`），D38 之后新增 PyVista 可选三维后端。当前的唯一口径见 [REQUIREMENTS_AND_PROGRESS.md](REQUIREMENTS_AND_PROGRESS.md)。
+
 > 状态：grilling 收口稿。本文件只描述设计，不含任何实现代码。确认后按 §11 票单开工。
 > 日期：2026-10-30　｜　暂名：**PlotKit**（目录 `ProjectPoint/PlotKit/`，包名 `plotkit`，可随时改名）
 > 需求来源：用户原话「将得到的数据用 Bokeh 库绘制出来，能否提高效率与运行速度，并且提高交互性能，先拟定计划」→ 经 Q1–Q15 逐轮收口。

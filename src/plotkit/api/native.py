@@ -1,6 +1,6 @@
 """原生 API：`pk.figure()` / `fig.add_plot(...)`。
 
-三种入口（native / mpl 代理 / plotly 代理）都只往同一个 `Figure.spec` 里写东西，
+两种入口（native / mpl 代理）都只往同一个 `Figure.spec` 里写东西，
 因此"同一调用 → 同一份 spec"是结构上成立的，不靠约定。
 """
 
@@ -9,24 +9,22 @@ from __future__ import annotations
 import hashlib
 import warnings
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from ..backends import mpl_backend, plotly_backend
+from ..backends import dispatch, mpl_backend
+from ..backends.series import time_bounds as _time_bounds
 from ..backends import registry as reg
 from ..spec import io as spec_io
 from .. import presets as preset_mod
 from ..spec import model
 from ..spec.model import (
-    SPEC_VERSION,
     new_inset,
     new_layer,
     new_spec,
-    nrows,
-    subplot_xy,
 )
-from ..spec.validate import KNOWN_STYLE_KEYS, REQUIRED_DATA, validate_spec
+from ..spec.validate import KNOWN_STYLE_KEYS, KNOWN_VIEW_KEYS, REQUIRED_DATA, validate_spec
 from ..store.registry import DataStore
 
 # 样式简写 → (字段, 值转换)
@@ -47,6 +45,17 @@ STYLE_ALIASES: dict[str, tuple[str, Any]] = {
 }
 
 KIND_ALIASES = {"plot": "line", "scatter": "marker", "points": "marker"}
+
+# 只用 (x, y) 绘制、可以按时间窗口零拷贝切片的 kind。
+# 其它 kind（image/heatmap/3D 等）读整块数组，仍走整体截断的 _store_at 保底。
+_WINDOWABLE_KINDS = frozenset({"line", "scatter", "marker", "points", "bar"})
+
+
+def _all_windowable(spec: Mapping[str, Any]) -> bool:
+    for layer in spec.get("layers") or []:
+        if layer.get("kind") not in _WINDOWABLE_KINDS:
+            return False
+    return True
 
 
 def default_store() -> DataStore:
@@ -79,7 +88,7 @@ def _style_from_kwargs(kwargs: Mapping[str, Any], *, sink: list[str]) -> dict[st
             # bins / cmap / colorbar / autopct… 直接就是样式字段，不需要别名
             style[key] = value
         else:
-            # mpl/plotly 专有参数：不静默吞掉，明确告诉用户"被忽略了"
+            # 后端专有参数：不静默吞掉，明确告诉用户"被忽略了"
             sink.append(key)
     return style
 
@@ -115,8 +124,9 @@ class Figure:
         self.warnings: list[str] = []
         #: 严格模式：跨后端不支持的参数直接抛错，而不是 warning 后忽略（D28）
         self.strict = bool(strict)
-        #: `pk.init()` 灌进来的全局默认（view/style），合并优先级低于显式参数（D27）
-        self.defaults: dict[str, Any] = dict(defaults or {})
+        #: 全局默认（`pk.init()` / `pk.style_scope()` + 构造时显式 defaults）。
+        #: 合并优先级低于显式参数、高于 KIND_PRESETS（D27）。
+        self.defaults: dict[str, Any] = {**preset_mod.global_defaults(), **dict(defaults or {})}
 
     # ---------------- 图层 ----------------
     def add_plot(
@@ -158,22 +168,50 @@ class Figure:
             raise ValueError(f"{real_kind} 缺少数据参数: {', '.join(missing)}（传数据集名字或数组）")
 
         ignored: list[str] = []
-        # 预设（KIND_PRESETS）→ 显式 style → **kwargs，后者覆盖前者（D27）
-        merged_style, preset_view = preset_mod.merged(real_kind, style=style)
-        merged_style = {k: v for k, v in merged_style.items() if k in KNOWN_STYLE_KEYS}
+        layer_spec = reg.resolve(real_kind)
+        passthrough_keys = set(layer_spec.passthrough)
+
+        def _merge_style(dest: dict[str, Any], extra: Mapping[str, Any]) -> None:
+            for key, value in extra.items():
+                if key in ("marker", "error") and isinstance(value, Mapping):
+                    dest[key] = {**dict(dest.get(key) or {}), **dict(value)}
+                else:
+                    dest[key] = value
+
+        def _as_passthrough(key: str, value: Any) -> bool:
+            """透传白名单：kind 声明过的后端专有 kwargs 原样收进 style["passthrough"]。"""
+            if key in passthrough_keys:
+                merged_style.setdefault("passthrough", {})[key] = value
+                return True
+            return False
+
+        # 合并链（低 → 高）：KIND_PRESETS < 全局默认(init/style_scope) < 显式 style < **kwargs（D27）
+        base = preset_mod.preset(real_kind)
+        merged_style = {k: v for k, v in (base.get("style") or {}).items() if k in KNOWN_STYLE_KEYS}
+        preset_view = dict(base.get("view") or {})
+
+        # 全局默认覆盖预设；随后被显式 view/style 覆盖
+        _merge_style(merged_style, {k: v for k, v in self.defaults.items() if k in KNOWN_STYLE_KEYS})
+        for key in KNOWN_VIEW_KEYS:
+            if key in self.defaults:
+                preset_view[key] = self.defaults[key]
+
         for key, value in (style or {}).items():
             if key not in KNOWN_STYLE_KEYS:
+                if _as_passthrough(key, value):
+                    continue
                 ignored.append(key)
                 continue
-            if key in ("marker", "error") and isinstance(value, Mapping):
-                merged_style[key] = dict(value)
-            else:
-                merged_style[key] = value
-        for field, value in _style_from_kwargs(kwargs, sink=ignored).items():
-            if field in ("marker", "error") and field in merged_style:
-                merged_style[field].update(value)
-            else:
-                merged_style[field] = value
+            _merge_style(merged_style, {key: value})
+
+        extra_kwargs = dict(kwargs)
+        for key in list(extra_kwargs):
+            if key in STYLE_ALIASES or key in KNOWN_STYLE_KEYS:
+                continue
+            if key in passthrough_keys:
+                _as_passthrough(key, extra_kwargs.pop(key))
+        for field, value in _style_from_kwargs(extra_kwargs, sink=ignored).items():
+            _merge_style(merged_style, {field: value})
         if ignored:
             msg = (f"图层 {real_kind}: 参数 {', '.join(sorted(ignored))} 不属于样式白名单，已忽略"
                    f"（可用: {', '.join(sorted(STYLE_ALIASES))}）")
@@ -182,13 +220,8 @@ class Figure:
             self.warnings.append(msg)
             warnings.warn(msg, stacklevel=2)
 
-        # 全局默认（pk.init）只补显式没给的键
-        if self.defaults:
-            for key in ("xlabel", "ylabel", "grid", "xscale", "yscale"):
-                if key in self.defaults and (view is None or key not in view):
-                    preset_view[key] = self.defaults[key]
-            if label is None and self.defaults.get("legend") is False:
-                legend = False
+        if label is None and self.defaults.get("legend") is False:
+            legend = False
 
         merged_view = dict(preset_view)
         merged_view.update(dict(view or {}))
@@ -249,7 +282,7 @@ class Figure:
                              label=label, style=merged, **kwargs)
 
     def add_trace(self, trace: Mapping[str, Any]) -> dict[str, Any]:
-        """plotly 风格：`{"type": "scatter", "x": ..., "y": ..., "mode": "lines"}`。"""
+        """plotly 风格字典：`{"type": "scatter", "x": ..., "y": ..., "mode": "lines"}`（只解析，不依赖 plotly）。"""
         kind = {"scatter": "line", "bar": "bar"}.get(str(trace.get("type", "scatter")), "line")
         mode = str(trace.get("mode", "lines"))
         if kind == "line" and mode == "markers":
@@ -470,7 +503,7 @@ class Figure:
         """版本指纹：spec 内容摘要 + 每个数据集 version。
 
         用内容摘要而不是 `id(spec)`：原地改 `fig.spec`（改主题、改样式）也要让缓存失效。
-        服务端拿它做 `/api/render` 与 `figure.json` 的缓存键（D22）。
+        服务端拿它做 `/api/render` 的 ETag 缓存键（D22）。
         """
         try:
             digest = hashlib.blake2b(spec_io.dumps(self.spec).encode("utf-8"), digest_size=8).hexdigest()
@@ -488,16 +521,6 @@ class Figure:
             report.raise_if_bad()
         return report
 
-    def plotly(self, *, pixels: int | None = None, per_pixel: float = 2.0,
-               t_end: float | None = None) -> dict[str, Any]:
-        """交互后端：得到 `Plotly.react(el, data, layout)` 的两个参数。
-
-        `t_end` 是回放游标：配合 `figure.window` 截出"该时刻往回 N 秒"的数据。
-        """
-        self.validate()
-        return plotly_backend.to_figure(self.spec, self.store, pixels=pixels,
-                                        per_pixel=per_pixel, t_end=t_end)
-
     def window(self, seconds: float | None = None) -> "Figure":
         """设置"最近 N 秒"滚动窗口（None = 显示全部历史）。"""
         self.spec["figure"]["window"] = float(seconds) if seconds else None
@@ -505,7 +528,7 @@ class Figure:
 
     def time_bounds(self) -> tuple[float | None, float | None]:
         """所有图层 x 数据的时间范围，给回放滑杆用。"""
-        return plotly_backend.time_bounds(self.spec, self.store)
+        return _time_bounds(self.spec, self.store)
 
     def to_spec(self) -> dict[str, Any]:
         return self.spec
@@ -528,17 +551,62 @@ class Figure:
     def render(self, *, width: int = 900, height: int = 520, dpi: int = 100, fmt: str = "png",
                xlim: tuple[float, float] | None = None,
                ylim: tuple[float, float] | None = None,
-               with_limits: bool = False, t_end: float | None = None):
+               with_limits: bool = False, t_end: float | None = None,
+               backend: str | None = None):
         """按像素尺寸渲染（网页呈现的唯一出口，D33/D34）。
 
         `with_limits=True` 时返回 `(bytes, (xlim, ylim))`，供前端把"当前图实际显示的范围"
         记下来，后续缩放/平移才有正确的起点。
+
+        `backend`（D37）：`"mpl"`（默认）/ `"pyvista"` / `"auto"`；不传则读
+        `figure.backend` 或环境变量 `PLOTKIT_BACKEND`，都没有就是 matplotlib。
         """
+        result = self.render_result(width=width, height=height, dpi=dpi, fmt=fmt,
+                                    xlim=xlim, ylim=ylim, with_limits=with_limits,
+                                    t_end=t_end, backend=backend)
+        if not with_limits:
+            return result.payload
+        payload, limits = result.as_tuple()
+        if limits is not None:
+            limits = dict(limits)
+            limits["backend"] = result.backend
+            if result.meta.get("fallback"):
+                limits["fallback"] = result.meta["fallback"]
+        return payload, limits
+
+    def render_result(self, *, width: int = 900, height: int = 520, dpi: int = 100,
+                      fmt: str = "png",
+                      xlim: tuple[float, float] | None = None,
+                      ylim: tuple[float, float] | None = None,
+                      with_limits: bool = False, t_end: float | None = None,
+                      backend: str | None = None):
+        """同 `render`，但返回带后端信息的 `RenderResult`。"""
         self.validate()
-        store = self._store_at(t_end) if t_end is not None else self.store
-        return mpl_backend.render_bytes(self.spec, store, width=width, height=height,
-                                        dpi=dpi, fmt=fmt, xlim=xlim, ylim=ylim,
-                                        with_limits=with_limits)
+        trange = None
+        store = self.store
+        wnd = (self.spec.get("figure") or {}).get("window")
+        if t_end is not None:
+            t1 = float(t_end)
+            # window 有值 → 取 [t_end-window, t_end]；无值 → 取 (-inf, t_end] 前缀。
+            trange = (t1 - float(wnd), t1) if wnd else (float("-inf"), t1)
+            if not _all_windowable(self.spec):
+                # 非 xy 图层（图像/热图/3D 等）无法按时间切片，退回整体截断的旧行为。
+                store = self._store_at(t_end)
+        elif wnd:
+            # 没有回放游标：实时视图 = 数据末尾往回 window 秒（plotly 退役后由这里接管）
+            _, t_hi = _time_bounds(self.spec, self.store)
+            t1 = float(t_hi)
+            trange = (t1 - float(wnd), t1)
+            if not _all_windowable(self.spec):
+                store = self._store_at(t1)
+        token = mpl_backend.push_trange(trange)
+        try:
+            return dispatch.render_result(
+                self.spec, store, backend=backend, width=width, height=height,
+                dpi=dpi, fmt=fmt, xlim=xlim, ylim=ylim, with_limits=with_limits,
+            )
+        finally:
+            mpl_backend.pop_trange(token)
 
     def _store_at(self, t_end: float):
         """回放：按游标截断到 `t <= t_end` 的一份临时 store（只读，不改原数据）。"""

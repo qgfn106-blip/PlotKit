@@ -1,6 +1,5 @@
 import json
 
-import numpy as np
 import pytest
 
 import plotkit as pk
@@ -102,12 +101,6 @@ def test_save_and_load_spec(tmp_path):
     reloaded = pk.Figure.load_spec(path)
     assert strip_ids(reloaded.to_spec()) == strip_ids(fig.to_spec())
 
-
-def test_plotly_output_is_json_serializable():
-    fig = pk.figure()
-    fig.add_plot("line", x=np.linspace(0, 1, 5), y=np.linspace(0, 1, 5))
-    payload = fig.plotly()
-    json.dumps(payload)  # 不抛异常即通过
 
 
 def test_png_bytes_nonempty():

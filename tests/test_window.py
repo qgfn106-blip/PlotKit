@@ -18,34 +18,36 @@ def _figure(window=None):
     return fig, t
 
 
+def _assert_window(limits, lo, hi, margin=0.06):
+    """mpl 的 xlim 带 5% autoscale 边距，所以只校验"数据区间被完整包含且没跑远"。"""
+    got_lo, got_hi = limits["xlim"]
+    span = hi - lo
+    assert got_lo <= lo + 1e-9 and got_hi >= hi - 1e-9
+    assert got_lo >= lo - margin * span and got_hi <= hi + margin * span
+
+
 def test_window_keeps_only_recent_part():
-    fig, t = _figure(window=2.0)
-    out = fig.plotly(pixels=400)
-    x = [v for v in out["data"][0]["x"] if v is not None]
-    assert min(x) >= 8.0 - 1e-9
-    assert max(x) == pytest.approx(10.0)
-    assert out["layout"]["xaxis"]["range"] == pytest.approx([8.0, 10.0])
+    fig, _ = _figure(window=2.0)
+    _, limits = fig.render(width=400, height=250, with_limits=True)
+    _assert_window(limits, 8.0, 10.0)
 
 
 def test_window_with_replay_cursor():
     fig, _ = _figure(window=2.0)
-    out = fig.plotly(pixels=400, t_end=5.0)
-    x = [v for v in out["data"][0]["x"] if v is not None]
-    assert min(x) >= 3.0 - 1e-9
-    assert max(x) <= 5.0 + 1e-9
-    assert out["layout"]["xaxis"]["range"] == pytest.approx([3.0, 5.0])
+    _, limits = fig.render(width=400, height=250, t_end=5.0, with_limits=True)
+    _assert_window(limits, 3.0, 5.0)
 
 
 def test_window_clamped_to_data_start():
     fig, _ = _figure(window=5.0)
-    out = fig.plotly(pixels=400, t_end=1.0)
-    assert out["layout"]["xaxis"]["range"] == pytest.approx([0.0, 1.0])
+    _, limits = fig.render(width=400, height=250, t_end=1.0, with_limits=True)
+    _assert_window(limits, 0.0, 1.0)
 
 
 def test_no_window_returns_everything():
     fig, _ = _figure(window=None)
-    out = fig.plotly(pixels=None)
-    assert len(out["data"][0]["x"]) == 1001
+    _, limits = fig.render(width=400, height=250, with_limits=True)
+    _assert_window(limits, 0.0, 10.0)
 
 
 def test_window_validation_rejects_negative():
@@ -72,13 +74,17 @@ def test_meta_reports_time_and_api_window():
     assert meta["time"]["count"] == 1001
 
 
-def test_figure_json_accepts_replay_cursor():
+def test_render_endpoint_accepts_replay_cursor():
+    """回放游标走 /api/render 的 t 参数（figure.json 已随 plotly 退役删除）。"""
     fig, _ = _figure(window=2.0)
     client = TestClient(create_app(fig))
-    live = client.get("/api/figure.json?pixels=300").json()
-    past = client.get("/api/figure.json?pixels=300&t=5").json()
-    assert live["layout"]["xaxis"]["range"] == pytest.approx([8.0, 10.0])
-    assert past["layout"]["xaxis"]["range"] == pytest.approx([3.0, 5.0])
+    live = client.get("/api/render?w=300&h=200")
+    past = client.get("/api/render?w=300&h=200&t=5")
+    assert live.status_code == 200 and past.status_code == 200
+    live_lo, live_hi = [float(v) for v in live.headers["x-plotkit-xlim"].strip("[]").split(",")]
+    past_lo, past_hi = [float(v) for v in past.headers["x-plotkit-xlim"].strip("[]").split(",")]
+    assert live_lo <= 8.0 + 1e-9 and live_hi >= 10.0 - 1e-9
+    assert past_lo <= 3.0 + 1e-9 and past_hi >= 5.0 - 1e-9
 
 
 def test_clear_endpoint_empties_layers_and_data():

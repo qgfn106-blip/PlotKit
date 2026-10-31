@@ -32,7 +32,6 @@ def open_window(
     server.start()
 
     app = QApplication.instance()
-    owns_app = app is None
     if app is None:
         app = QApplication([])
 

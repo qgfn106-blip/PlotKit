@@ -5,7 +5,6 @@
   GET  /api/meta             版本 / 可用 kind / 主题
   GET  /api/spec             当前 spec
   PUT  /api/spec             全量替换 spec（D10：默认回写方式）
-  GET  /api/figure.json      plotly 图对象 {data, layout}
   GET  /api/datasets         命名数据集目录（前端下拉用）
   GET  /api/series           float32 二进制列（ArrayBuffer 通道）
   GET  /api/png              matplotlib 渲染的静态图
@@ -122,7 +121,7 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
 def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path | None = None) -> FastAPI:
     """`figure` 是 plotkit.api.native.Figure。"""
     app = FastAPI(title=title or "PlotKit", docs_url=None, redoc_url=None)
-    # figure.json 动辄几十 KB，压缩后 ~1/10；本地回环也受益于解析前的字节数
+    # 图 JSON/spec 动辄几十 KB，压缩后 ~1/10；本地回环也受益于解析前的字节数
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # 开发期绕开浏览器缓存：静态资源一律 no-store（否则改完 JS 刷新还是旧页面）
@@ -173,29 +172,6 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         figure.spec = payload
         return JSONResponse({"ok": True, "warnings": [i.as_dict() for i in report.warnings]})
 
-    # 构图缓存：spec 或任何数据集版本变化才重算（revision 是由对象身份 + 版本号拼的便宜指纹）
-    cache: dict[tuple, tuple[tuple, dict[str, Any]]] = {}
-
-    @app.get("/api/figure.json")
-    def figure_json(pixels: int | None = None, per_pixel: float = 2.0, t: float | None = None) -> Any:
-        """t = 回放游标（秒）；配合 figure.window 就能截出"某时刻往回 N 秒"这一段。"""
-        key = (pixels, per_pixel, t)
-        try:
-            revision = figure.revision
-            hit = cache.get(key)
-            if hit and hit[0] == revision:
-                payload = hit[1]
-            else:
-                payload = figure.plotly(pixels=pixels, per_pixel=per_pixel, t_end=t)
-                cache[key] = (revision, payload)
-                if len(cache) > 8:  # 只留最近几种像素宽/游标的构图
-                    cache.pop(next(iter(cache)))
-        except SpecError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        body = JSONResponse(payload)
-        body.headers["X-PlotKit-Cache"] = "hit" if hit and hit[0] == revision else "miss"
-        return body
-
     def _time_info() -> dict[str, Any]:
         lo, hi = figure.time_bounds()
         count = 0
@@ -215,7 +191,6 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
                              unit=meta.get("unit", ""), role=meta.get("role", "series"),
                              life=meta.get("life", "append"), overwrite=True)
         figure.clear()
-        cache.clear()
         return {"ok": True, "datasets": len(figure.store)}
 
     @app.get("/api/datasets")
@@ -276,10 +251,12 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         xlim: str | None = None,
         ylim: str | None = None,
         t: float | None = None,
+        backend: str | None = None,
     ) -> Response:
         """按像素尺寸渲染（D33/D34）：网页呈现的唯一图片出口。
 
         - 支持 `xlim/ylim` 覆盖视窗（前端缩放/平移停手后带新范围来重绘）；
+        - `backend` 可选 `mpl` / `pyvista` / `auto`（D37，默认走 figure 自己的选择）；
         - 同一 spec + 同一视窗走 ETag，命中返回 304；
         - `X-PlotKit-Render: hit|miss` 便于前端/验收区分。
         """
@@ -288,17 +265,22 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
             raise HTTPException(400, f"不支持的格式 {fmt!r}（png / svg）")
         width, height, dpi = _clamp(w, 80, 4000), _clamp(h, 60, 4000), _clamp(dpi, 40, 400)
         xr, yr = _parse_limits(xlim), _parse_limits(ylim)
-        key = (figure.revision, "render", width, height, dpi, fmt, xr, yr, t)
+        backend = (backend or "").strip().lower() or None
+        key = (figure.revision, "render", width, height, dpi, fmt, xr, yr, t, backend)
 
         def build():
             payload, limits = figure.render(width=width, height=height, dpi=dpi, fmt=fmt,
-                                            xlim=xr, ylim=yr, with_limits=True, t_end=t)
-            extra = {}
+                                            xlim=xr, ylim=yr, with_limits=True, t_end=t,
+                                            backend=backend)
+            extra = {"X-PlotKit-Backend": str((limits or {}).get("backend") or backend or "mpl")}
             if limits:
-                extra["X-PlotKit-Xlim"] = f"{limits['xlim'][0]:.6g},{limits['xlim'][1]:.6g}"
-                extra["X-PlotKit-Ylim"] = f"{limits['ylim'][0]:.6g},{limits['ylim'][1]:.6g}"
-                extra["X-PlotKit-Box"] = ",".join(f"{v:.5f}" for v in limits["box"])
-                extra["X-PlotKit-Px"] = f"{limits['px'][0]},{limits['px'][1]}"
+                if limits.get("xlim") and limits.get("ylim"):
+                    extra["X-PlotKit-Xlim"] = f"{limits['xlim'][0]:.6g},{limits['xlim'][1]:.6g}"
+                    extra["X-PlotKit-Ylim"] = f"{limits['ylim'][0]:.6g},{limits['ylim'][1]:.6g}"
+                if limits.get("box"):
+                    extra["X-PlotKit-Box"] = ",".join(f"{v:.5f}" for v in limits["box"])
+                if limits.get("px"):
+                    extra["X-PlotKit-Px"] = f"{limits['px'][0]},{limits['px'][1]}"
                 if limits.get("slots"):
                     extra["X-PlotKit-Axes"] = ";".join(
                         f"{s['slot']}," + ",".join(f"{v:.5f}" for v in s["box"]) for s in limits["slots"])

@@ -72,11 +72,6 @@ def test_put_spec_invalid_returns_all_errors(client, fig):
     assert len(body["errors"]) >= 2
 
 
-def test_figure_json_endpoint(client):
-    payload = client.get("/api/figure.json").json()
-    assert payload["data"][0]["type"] == "scatter"
-    assert "layout" in payload
-
 
 def test_datasets_catalog(client):
     payload = client.get("/api/datasets").json()

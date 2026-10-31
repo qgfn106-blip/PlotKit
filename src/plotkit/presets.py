@@ -104,6 +104,36 @@ def register_preset(kind: str, *, style: Mapping[str, Any] | None = None,
     return copy.deepcopy(entry)
 
 
+# ---------------------------------------------------------------------------
+# 全局默认（`pk.init()` / `pk.style_scope()`，PK-R13）
+#
+# 语义（与 KIND_PRESETS 一起构成合并链，优先级低 → 高）：
+#     KIND_PRESETS  <  GLOBAL_DEFAULTS（init / style_scope）  <  add_plot 显式参数  <  **kwargs
+# 这里只存"图层级"的 view / style 键；figure 级（size/dpi/theme）请直接传给 pk.figure()。
+# ---------------------------------------------------------------------------
+
+#: 进程级全局默认。`style_scope` 通过临时替换本 dict 的内容实现作用域隔离。
+GLOBAL_DEFAULTS: dict[str, Any] = {}
+
+
+def init_globals(**kwargs: Any) -> dict[str, Any]:
+    """`pk.init()` 的存储端：把非 None 的值并入 `GLOBAL_DEFAULTS`，返回新副本。"""
+    for key, value in kwargs.items():
+        if value is not None:
+            GLOBAL_DEFAULTS[key] = value
+    return copy.deepcopy(GLOBAL_DEFAULTS)
+
+
+def global_defaults() -> dict[str, Any]:
+    """取当前全局默认的深拷贝（Figure 构造时并入 `self.defaults`）。"""
+    return copy.deepcopy(GLOBAL_DEFAULTS)
+
+
+def reset_globals() -> None:
+    """清空全局默认（测试与 `style_scope` 收尾用）。"""
+    GLOBAL_DEFAULTS.clear()
+
+
 def merged(kind: str, *, style: Mapping[str, Any] | None = None,
            view: Mapping[str, Any] | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
     """预设 + 显式参数合并，返回 (style, view)。"""

@@ -15,10 +15,10 @@ import numpy as np
 
 from ..spec.model import DEFAULT_FONTS
 from ..spec.model import layers as spec_layers
-from ..spec.model import nrows, subplot_xy
 from ..store.registry import DataStore
 from . import registry as reg
-from .plotly_backend import PALETTE, THEMES, _step, color_for  # noqa: F401
+from .series import PALETTE, THEMES, _step, color_for, _window_slice, current_trange  # noqa: F401
+from .series import push_trange, pop_trange  # noqa: F401
 
 FONT_FALLBACK = ("Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "DejaVu Sans", "Arial")
 
@@ -48,7 +48,7 @@ def _error_bars(ax, layer, store, *, color: str) -> None:
     data = layer.get("data") or {}
     if not any(k.startswith("error_") for k in data):
         return
-    from ..backends.plotly_backend import _xy
+    from ..backends.series import _xy
 
     x, y = _xy(layer, store, pixels=None, per_pixel=2.0)
     cfg = dict((layer.get("style") or {}).get("error") or {})
@@ -57,10 +57,11 @@ def _error_bars(ax, layer, store, *, color: str) -> None:
     capsize = (float(width) / 2.0) if width else 0.0
 
     def _band(axis: str):
-        plus = np.asarray(store.values(data[f"error_{axis}"])).ravel().astype(float)
+        raw = np.asarray(store.values(data[f"error_{axis}"])).ravel()
         minus_name = data.get(f"error_{axis}_minus")
-        minus = np.asarray(store.values(minus_name)).ravel().astype(float) if minus_name else plus
-        return np.vstack([minus, plus])
+        raw_minus = np.asarray(store.values(minus_name)).ravel() if minus_name else raw
+        i0, i1 = _window_slice(np.asarray(store.values(data["x"])).ravel(), current_trange())
+        return np.vstack([raw_minus[i0:i1], raw[i0:i1]]).astype(float)
 
     yerr = _band("y") if data.get("error_y") else None
     xerr = _band("x") if data.get("error_x") else None
@@ -75,7 +76,7 @@ def _error_bars(ax, layer, store, *, color: str) -> None:
 
 
 def _draw_line(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
-    from ..backends.plotly_backend import _xy
+    from ..backends.series import _xy
 
     x, y = _xy(layer, store, pixels=pixels, per_pixel=per_pixel)
     style = layer.get("style") or {}
@@ -104,7 +105,7 @@ def _draw_line(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> N
 
 
 def _draw_scatter(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
-    from ..backends.plotly_backend import _xy
+    from ..backends.series import _xy
 
     x, y = _xy(layer, store, pixels=pixels, per_pixel=per_pixel)
     style = layer.get("style") or {}
@@ -127,7 +128,7 @@ def _draw_scatter(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -
 
 
 def _draw_bar(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
-    from ..backends.plotly_backend import _xy
+    from ..backends.series import _xy
 
     x, y = _xy(layer, store, pixels=pixels, per_pixel=per_pixel)
     style = layer.get("style") or {}
@@ -471,11 +472,11 @@ def _draw_streamplot(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0
 
 def _surface_grid(layer, store):
     data = layer.get("data") or {}
-    z = np.asarray(store.values(data["z"]), dtype=float)
+    z = as_float_keep(store.values(data["z"]))
     if z.ndim != 2:
         raise ValueError("surface 需要二维 z（行 = y，列 = x）")
-    x = np.asarray(store.values(data["x"]), dtype=float) if data.get("x") else None
-    y = np.asarray(store.values(data["y"]), dtype=float) if data.get("y") else None
+    x = as_float_keep(store.values(data["x"])) if data.get("x") else None
+    y = as_float_keep(store.values(data["y"])) if data.get("y") else None
     if x is None or y is None:
         return np.meshgrid(np.arange(z.shape[1]), np.arange(z.shape[0])) + (z,)
     if x.ndim == 2 and y.ndim == 2:
@@ -511,9 +512,20 @@ def _color_kwargs(style: Mapping[str, Any], values) -> dict[str, Any]:
     return kwargs
 
 
+def as_float_keep(arr):
+    """保持输入浮点精度：float32 就是 float32，别悄悄升成 float64（D37 硬边界 §5.2）。
+
+    整型/其它 dtype 才转 float64——整数参与 3D 计算必须先变浮点。
+    """
+    arr = np.asarray(arr)
+    if arr.dtype in (np.float32, np.float64):
+        return arr
+    return arr.astype(np.float64)
+
+
 def _xyz_arrays(layer, store, keys=("x", "y", "z")):
     data = layer.get("data") or {}
-    return tuple(np.asarray(store.values(data[k]), dtype=float) for k in keys)
+    return tuple(as_float_keep(store.values(data[k])) for k in keys)
 
 
 def _draw_line3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
@@ -606,9 +618,16 @@ def _draw_quiver3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) 
         _maybe_colorbar(ax, q, style, default=False)
 
 
-def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
-    """matplotlib 没有 stream3d：在网格上做 RK2 积分，再把轨迹画成 3D 折线。"""
+def stream3d_paths(layer, store):
+    """在三维网格上做 RK2 积分，返回 (paths, style)。
+
+    D37：抽成公共函数——matplotlib 与 PyVista 必须**同一条轨迹**（硬边界 §5.3：
+    VTK 自带 stream tracer 的结果不等价，不能拿它冒充 `algorithm="plotkit_rk2"`）。
+    """
     style = layer.get("style") or {}
+    algorithm = str(style.get("algorithm") or "plotkit_rk2")
+    if algorithm != "plotkit_rk2":
+        raise ValueError(f"stream3d 只支持 algorithm='plotkit_rk2'，收到 {algorithm!r}")
     X, Y, Z, U, V, W = _xyz_arrays(layer, store, ("x", "y", "z", "u", "v", "w"))
     if X.ndim != 3:
         raise ValueError("stream3d 需要三维网格：x/y/z 与 u/v/w 都要是 3D 数组")
@@ -622,17 +641,19 @@ def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) 
         ix = int(np.abs(xs - point[0]).argmin())
         iy = int(np.abs(ys - point[1]).argmin())
         iz = int(np.abs(zs - point[2]).argmin())
-        vec = np.array([U[iz, iy, ix], V[iz, iy, ix], W[iz, iy, ix]], dtype=float)
+        vec = np.array([U[ix, iy, iz], V[ix, iy, iz], W[ix, iy, iz]], dtype=float)
         norm = float(np.linalg.norm(vec))
         return vec / norm if norm > 1e-12 else np.zeros(3)
 
-    color = str(style.get("color") or color_for(index))
     lo = np.array([xs.min(), ys.min(), zs.min()])
     hi = np.array([xs.max(), ys.max(), zs.max()])
-    for iz in range(0, Z.shape[0], every):
-        for iy in range(0, Y.shape[1], every):
-            for ix in range(0, X.shape[2], every):
-                p = np.array([X[iz, iy, ix], Y[iz, iy, ix], Z[iz, iy, ix]], dtype=float)
+    paths = []
+    # 数组按 (ix, iy, iz) 存放（与 xs=X[:,0,0] / ys=Y[0,:,0] / zs=Z[0,0,:] 一致）。
+    # 2026-10-31 修正：原来写成 U[iz, iy, ix]，网格非立方时（如 9×9×5）会索引越界。
+    for iz in range(0, X.shape[2], every):
+        for iy in range(0, X.shape[1], every):
+            for ix in range(0, X.shape[0], every):
+                p = np.array([X[ix, iy, iz], Y[ix, iy, iz], Z[ix, iy, iz]], dtype=float)
                 path = [p.copy()]
                 for _ in range(40):
                     d1 = direction(p)
@@ -645,9 +666,17 @@ def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) 
                         break
                     path.append(p.copy())
                 if len(path) > 3:
-                    pts = np.array(path)
-                    ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], color=color,
-                            linewidth=float(style.get("width", 1.0) or 1.0), alpha=0.9)
+                    paths.append(np.array(path))
+    return paths, style
+
+
+def _draw_stream3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """matplotlib 没有 stream3d：在网格上做 RK2 积分，再把轨迹画成 3D 折线。"""
+    paths, style = stream3d_paths(layer, store)
+    color = str(style.get("color") or color_for(index))
+    for pts in paths:
+        ax.plot(pts[:, 0], pts[:, 1], pts[:, 2], color=color,
+                linewidth=float(style.get("width", 1.0) or 1.0), alpha=0.9)
 
 
 
@@ -722,7 +751,6 @@ def _draw_ecdf(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> N
 
 def _draw_hexbin(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     style = layer.get("style") or {}
-    data = layer.get("data") or {}
     x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
     if x.size != y.size:
         raise ValueError(f"hexbin 的 x/y 长度必须一致：{x.size} vs {y.size}")
@@ -771,7 +799,6 @@ def _draw_step(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> N
 
 def _draw_stem(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     style = layer.get("style") or {}
-    data = layer.get("data") or {}
     x, y = _flat(layer, store, "x"), _flat(layer, store, "y")
     color = str(style.get("color") or color_for(index))
     container = ax.stem(x, y, linefmt="-", markerfmt="o", basefmt=" ", bottom=0.0)
@@ -1084,7 +1111,7 @@ def _apply_view(ax, view: Mapping[str, Any], *, theme, fonts) -> None:
         ax.set_xlim(*[float(v) for v in view["xlim"]])
     if view.get("ylim"):
         ax.set_ylim(*[float(v) for v in view["ylim"]])
-    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
+    from matplotlib.ticker import FuncFormatter, LogLocator
 
     if view.get("xscale") == "log":
         ax.set_xscale("log")
@@ -1207,7 +1234,6 @@ def to_figure(
     size = fig_cfg.get("size", [12.8, 8.4])
     ncols = int(fig_cfg.get("ncols", 1))
     subplots = int(fig_cfg.get("subplots", 1))
-    rows = nrows(ncols, subplots)
 
     fig = Figure(figsize=(float(size[0]), float(size[1])), dpi=int(dpi or fig_cfg.get("dpi", 100)),
                  constrained_layout=True, facecolor=theme["paper"])
@@ -1251,6 +1277,7 @@ def to_figure(
         axes[slot] = parent.inset_axes([rx, ry, rw, rh])
 
     views: dict[int, dict[str, Any]] = {}
+    artists: dict[str, list] = {}
     for subplot, group in by_subplot.items():
         ax = axes.get(subplot)
         if ax is None:
@@ -1264,8 +1291,20 @@ def to_figure(
             kind = layer.get("kind")
             drawer = DRAWERS.get(kind)
             if drawer is None:
+                # 自定义 kind：优先用注册时声明的 builder（PK-R13 register_layer 契约）
+                try:
+                    custom = reg.resolve(kind)
+                except KeyError:
+                    custom = None
+                drawer = custom.builder if custom is not None else None
+            if drawer is None:
                 raise ValueError(f"matplotlib 后端暂不支持 kind={kind}（图层 {layer.get('id')}）")
+            n_lines, n_colls, n_patches = len(ax.lines), len(ax.collections), len(ax.patches)
             drawer(ax, layer, store, index, pixels=pixels)
+            made = (list(ax.lines[n_lines:]) + list(ax.collections[n_colls:])
+                    + list(ax.patches[n_patches:]))
+            if made and layer.get("id") is not None:
+                artists.setdefault(str(layer["id"]), []).extend(made)
 
     for subplot, ax in axes.items():
         group = by_subplot.get(subplot, [])
@@ -1302,6 +1341,7 @@ def to_figure(
         _ = view
 
     _draw_decorations(fig, spec, axes, views, theme=theme, fonts=fonts)
+    fig._plotkit_artists = artists
     return fig
 
 
@@ -1367,13 +1407,29 @@ def render_bytes(
             if ylim:
                 view["ylim"] = [float(ylim[0]), float(ylim[1])]
 
+    from . import livecache
+
+    cache = livecache.get_cache()
     buffer = _io.BytesIO()
     with rc_context({"font.sans-serif": list(FONT_FALLBACK), "axes.unicode_minus": False}):
-        # 按像素宽度抽稀（D35）：6×20k 点直接画会到 300–400 ms，抽到 ≤2 点/列后回到百毫秒内
-        figure = to_figure(work, store, dpi=dpi, pixels=width)
-        meta = {"Software": None} if fmt == "png" else {"Date": None}
-        figure.savefig(buffer, format=fmt, dpi=dpi, metadata=meta, bbox_inches=None)
-        payload = buffer.getvalue()
+        entry = cache.lookup(work, width, height, dpi) if fmt == "png" else None
+        if entry is not None and cache.update(entry, store, pixels=width,
+                                              trange=current_trange()):
+            cache.hits += 1
+            payload = cache.paint(entry, fmt=fmt, blit=livecache.limits_fixed(work))
+            figure = entry.figure
+        else:
+            # 按像素宽度抽稀（D35）：6×20k 点直接画会到 300–400 ms，抽到 ≤2 点/列后回到百毫秒内
+            figure = to_figure(work, store, dpi=dpi, pixels=width)
+            if fmt == "png":
+                # 与缓存路径共用同一个编码器：不触发 savefig 内部那次整图重绘
+                figure.canvas.draw()
+                payload = livecache.encode_png(figure.canvas)
+                cache.store(work, width, height, dpi, figure, spec_layers(work))
+            else:
+                figure.savefig(buffer, format=fmt, dpi=dpi, metadata={"Date": None},
+                               bbox_inches=None)
+                payload = buffer.getvalue()
         limits = None
         if with_limits and figure.axes:
             main = figure.axes[0]
@@ -1391,6 +1447,13 @@ def render_bytes(
                       "px": [int(width), int(height)]}
     return (payload, limits) if with_limits else payload
 
+
+# ---------------- 注册 v0 三种基础图层（原在 plotly 后端注册，D33 迁移过来） ----------------
+reg.register("line", 2, None, defaults={"mode": "lines", "width": 1.6},
+             description="折线 / 曲线（时间序列主力）")
+reg.register("marker", 2, None, defaults={"mode": "markers"},
+             aliases=("scatter", "points"), description="散点")
+reg.register("bar", 2, None, defaults={"mode": "bars"}, description="柱状图")
 
 # ---------------- 注册 P13-01 的四种图层（渲染统一走 mpl，builder 留空） ----------------
 reg.register("hist", 2, None, defaults={"bins": 30}, description="直方图（服务端分箱）")

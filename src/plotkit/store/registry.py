@@ -13,7 +13,7 @@ import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping, Sequence
+from typing import Any, Iterable, Iterator, Sequence
 
 import numpy as np
 
@@ -52,11 +52,54 @@ class DataSetMeta:
         }
 
 
-@dataclass
 class DataSet:
-    meta: DataSetMeta
-    values: np.ndarray
-    history: list[tuple[int, int, float]] = field(default_factory=list)
+    """一份数据集：`values` 永远是"逻辑长度"的视图，背后是几何增长的缓冲区。
+
+    追加时只在容量不够时扩容（1.5 倍），避免每次 `np.concatenate` 重拷全部历史。
+    """
+
+    __slots__ = ("meta", "_buf", "_len", "history")
+
+    def __init__(self, meta: "DataSetMeta", values, history=None) -> None:
+        self.meta = meta
+        self._buf = values if isinstance(values, np.ndarray) else np.asarray(values)
+        self._len = int(self._buf.shape[0])
+        self.history = list(history) if history else []
+
+    @property
+    def values(self) -> np.ndarray:
+        if self._len == self._buf.shape[0]:
+            return self._buf
+        return self._buf[: self._len]
+
+    def __len__(self) -> int:
+        return self._len
+
+    def __getitem__(self, item):
+        """`ds[-100:]` / `ds[0]` 直接取数据，省得每次都写 `.values`。"""
+        return self.values[item]
+
+    @values.setter
+    def values(self, array) -> None:
+        self._buf = array if isinstance(array, np.ndarray) else np.asarray(array)
+        self._len = int(self._buf.shape[0])
+
+    def append(self, array: np.ndarray) -> None:
+        n = int(array.shape[0])
+        need = self._len + n
+        if need > int(self._buf.shape[0]):
+            newcap = max(need, int(int(self._buf.shape[0]) * 1.5) + 16)
+            grown = np.empty((newcap,) + self._buf.shape[1:], dtype=self._buf.dtype)
+            if self._len:
+                grown[: self._len] = self._buf[: self._len]
+            self._buf = grown
+        self._buf[self._len:need] = array
+        self._len = need
+
+    @property
+    def capacity_bytes(self) -> int:
+        """缓冲区实际占用（含预留容量），用于内存核算。"""
+        return int(self._buf.nbytes)
 
     def snapshot(self) -> dict[str, Any]:
         return {
@@ -142,7 +185,7 @@ class DataStore:
                 raise ValueError(f"数据集 {name} 维度不一致: {data.values.ndim} vs {array.ndim}")
             if array.ndim == 2 and data.values.shape[1:] != array.shape[1:]:
                 raise ValueError(f"数据集 {name} 列数不一致: {data.values.shape[1:]} vs {array.shape[1:]}")
-            data.values = np.concatenate([data.values, array], axis=0)
+            data.append(array)
         else:
             data.values = array
         data.meta.length = int(data.values.shape[0])
@@ -151,6 +194,29 @@ class DataStore:
         data.meta.version += 1
         data.meta.updated_at = time.time()
         data.history.append((data.meta.version, data.meta.length, data.meta.updated_at))
+        return data.meta
+
+    def trim(self, name: str, keep: int) -> DataSetMeta:
+        """原地裁掉旧数据、只留最近 ``keep`` 行，**不改数据集的 life**。
+
+        环形窗口要用它，而不是 `add(..., life="replace")`：后者会把追加语义
+        永久改成替换，下一次 `push()` 就把整条曲线换成最后一帧。
+        """
+        key = self._resolve(name)
+        if key not in self._sets:
+            raise KeyError(f"数据集不存在: {name}")
+        keep = max(0, int(keep))
+        data = self._sets[key]
+        n = int(data.values.shape[0])
+        if n <= keep:
+            return data.meta
+        data._buf = data._buf[n - keep: n].copy()
+        data._len = keep
+        data.meta.length = keep
+        data.meta.shape = tuple(int(s) for s in data._buf.shape)
+        data.meta.version += 1
+        data.meta.updated_at = time.time()
+        data.history.append((data.meta.version, keep, data.meta.updated_at))
         return data.meta
 
     def rename(self, old: str, new: str) -> DataSetMeta:
@@ -240,4 +306,4 @@ class DataStore:
         return target
 
     def nbytes(self) -> int:
-        return sum(int(d.values.nbytes) for d in self._sets.values())
+        return sum(int(d.capacity_bytes) for d in self._sets.values())

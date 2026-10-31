@@ -10,7 +10,6 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from ..spec.model import new_layer
 
 
 class AxesProxy:

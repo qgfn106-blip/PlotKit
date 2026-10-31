@@ -113,6 +113,8 @@ KNOWN_STYLE_KEYS = {
     # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram
     "nfft", "fs", "orientation", "lineoffsets", "linelengths", "row", "height", "whis",
     "highlight", "fontsize3d",
+    # PK-R13：透传白名单——kind 允许把后端专有 kwargs 原样存进 style["passthrough"]
+    "passthrough",
 }
 KNOWN_FIGURE_KEYS = {
     "window",
@@ -348,6 +350,16 @@ def validate_spec(
                 scale = view.get(axis, "linear")
                 if scale not in ("linear", "log"):
                     report.add("layer.view.scale", f"{path}.view.{axis}", f"不支持的 scale: {scale!r}")
+                if scale == "log":
+                    lim = view.get("xlim" if axis == "xscale" else "ylim")
+                    if isinstance(lim, (list, tuple)) and len(lim) == 2:
+                        try:
+                            lo, hi = float(lim[0]), float(lim[1])
+                        except (TypeError, ValueError):
+                            continue
+                        if lo <= 0 or hi <= 0:
+                            report.add("layer.view.log_limit", f"{path}.view.{axis}lim",
+                                       "对数轴的范围必须全部为正数")
 
         anns = layer.get("annotations", [])
         if not isinstance(anns, list):

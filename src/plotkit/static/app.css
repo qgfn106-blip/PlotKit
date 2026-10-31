@@ -294,7 +294,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .status .good { color: var(--ok); }
 button.small { padding: 2px 8px; font-size: 11px; border-radius: 6px; }
 
-/* 内嵌子图的拖拽覆盖层：只画框和把手，不影响 plotly 自己的交互 */
+/* 内嵌子图的拖拽覆盖层：只画框和把手，不接管底图的交互 */
 .inset-overlay { position: absolute; inset: 8px; pointer-events: none; }
 .inset-box {
   position: absolute;

@@ -3,7 +3,7 @@
 设计要点（见 docs/DESIGN_v0.md §5）：
 - spec 是纯 JSON 可序列化的 dict，字段名即契约；
 - 未知字段一律保留（前向兼容），校验只针对已知字段；
-- 同一个 spec 同时喂给 plotly 后端与 matplotlib 后端。
+- 同一个 spec 可以喂给不同渲染后端（matplotlib 默认、PyVista 可选）。
 """
 
 from __future__ import annotations

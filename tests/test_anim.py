@@ -9,7 +9,6 @@ import pytest
 from PIL import Image
 
 import plotkit as pk
-from plotkit.backends import mpl_backend
 
 
 def _fig(frames: int = 8) -> pk.Figure:

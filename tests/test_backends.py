@@ -3,7 +3,7 @@ import pytest
 
 import plotkit as pk
 from plotkit.backends import registry as reg
-from plotkit.backends import mpl_backend, plotly_backend
+from plotkit.backends import mpl_backend, series
 from plotkit.spec.model import new_layer, new_spec
 
 
@@ -33,114 +33,25 @@ def test_duplicate_register_needs_overwrite():
         reg.register("line", 2, None)
 
 
-def test_describe_reports_builder_presence():
+def test_describe_lists_every_kind():
     items = {d["kind"]: d for d in reg.describe()}
-    assert items["line"]["has_builder"] is True
     assert items["line"]["dimension"] == 2
+    assert items["surface"]["dimension"] == 3
+    assert len(items) >= 50
 
 
-# ---------------- plotly ----------------
-def test_plotly_trace_shape():
-    spec, store = make_figure()
-    fig = plotly_backend.to_figure(spec, store)
-    assert len(fig["data"]) == 1
-    trace = fig["data"][0]
-    assert trace["type"] == "scatter"
-    assert trace["mode"] == "lines"
-    assert len(trace["x"]) == 50
-    assert trace["name"] == "V"
+# ---------------- 调色板与主题（原 plotly 后端，D33 迁到 series） ----------------
+def test_color_cycle_is_stable():
+    """调色板取色必须与图层序号绑定（不能随数据变）。"""
+    assert series.color_for(0) != series.color_for(1)
+    assert series.color_for(0) == series.color_for(0)
 
 
-def test_plotly_axes_per_subplot():
-    spec, store = make_figure(subplot=1)
-    fig = plotly_backend.to_figure(spec, store)
-    assert "xaxis2" in fig["layout"]
-    assert fig["data"][0]["xaxis"] == "x2"  # trace 侧用 x2 引用 layout.xaxis2
-    assert fig["layout"]["xaxis2"]["domain"][0] >= 0.5
+def test_themes_are_available():
+    assert "netlab-dark" in series.THEMES
+    assert series.THEMES["netlab-dark"]["paper"]
 
 
-def test_plotly_layout_is_autosize_and_axes_are_anchored():
-    """浏览器后端不能写死像素宽高，且 anchor 必须用轴 id（x2/y2）而不是 layout 键名。
-
-    这两个都是真实渲染时暴露出来的 bug：写死 width=1100 会把右侧面板挤出屏幕；
-    anchor 写成 "xaxis2" 会让第二个子图的 y 轴画到最左边、和第一个子图重叠。
-    """
-    spec, store = make_figure(subplot=1)
-    fig = plotly_backend.to_figure(spec, store)
-    assert "width" not in fig["layout"] and "height" not in fig["layout"]
-    assert fig["layout"]["autosize"] is True
-    assert fig["layout"]["xaxis2"]["anchor"] == "y2"
-    assert fig["layout"]["yaxis2"]["anchor"] == "x2"
-
-
-def test_plotly_bar_width_is_not_line_width():
-    store = pk.DataStore()
-    store.add("x", [0, 1, 2], role="coord")
-    store.add("y", [3, 7, 5], role="series")
-    spec = new_spec()
-    spec["layers"].append(new_layer("bar", data={"x": "x", "y": "y"}))
-    fig = plotly_backend.to_figure(spec, store)
-    # 默认 0.6 个坐标单位；不能拿 line 的 width=1.6 当柱宽（会把柱子糊满整张图）
-    assert fig["data"][0]["width"] == 0.6
-
-
-def test_plotly_nan_becomes_null():
-    store = pk.DataStore()
-    store.add("t", [0, 1, 2], role="coord")
-    store.add("v", [1.0, np.nan, 3.0], role="series")
-    spec = new_spec()
-    spec["layers"].append(new_layer("line", data={"x": "t", "y": "v"}))
-    fig = plotly_backend.to_figure(spec, store)
-    assert fig["data"][0]["y"] == [1.0, None, 3.0]
-
-
-def test_plotly_bar_and_scatter_modes():
-    store = pk.DataStore()
-    store.add("t", [0, 1], role="coord")
-    store.add("v", [1, 2], role="series")
-    spec = new_spec()
-    spec["layers"].append(new_layer("bar", data={"x": "t", "y": "v"}))
-    spec["layers"].append(new_layer("marker", data={"x": "t", "y": "v"}))
-    fig = plotly_backend.to_figure(spec, store)
-    assert fig["data"][0]["type"] == "bar"
-    assert fig["data"][1]["mode"] == "markers"
-
-
-def test_plotly_downsample_respects_pixels():
-    spec, store = make_figure(n=200_000)
-    fig = plotly_backend.to_figure(spec, store, pixels=400)
-    assert len(fig["data"][0]["x"]) <= 808
-
-
-def test_plotly_color_cycle_stable():
-    spec, store = make_figure()
-    spec["layers"].append(new_layer("line", subplot=1, data={"x": "t", "y": "v"}))
-    fig = plotly_backend.to_figure(spec, store)
-    assert fig["data"][0]["line"]["color"] == plotly_backend.color_for(0)
-    assert fig["data"][1]["line"]["color"] == plotly_backend.color_for(1)
-
-
-def test_plotly_annotations_mapped():
-    spec, store = make_figure()
-    spec["layers"][0]["annotations"] = [
-        {"type": "hline", "y": 0.5},
-        {"type": "text", "x": 0.1, "y": 0.9, "text": "峰值"},
-    ]
-    fig = plotly_backend.to_figure(spec, store)
-    # 横线走 shapes；文字走 mode="text" 的 trace（layout.annotations 在部分 bundle 下整组不渲染）
-    assert any(s.get("type") == "line" for s in fig["layout"]["shapes"])
-    texts = [t for t in fig["data"] if t.get("mode") == "text"]
-    assert any("峰值" in str(t.get("text")) for t in texts)
-
-
-def test_plotly_theme_dark():
-    spec, store = make_figure()
-    spec["figure"]["theme"] = "netlab-dark"
-    fig = plotly_backend.to_figure(spec, store)
-    assert fig["layout"]["paper_bgcolor"] == plotly_backend.THEMES["netlab-dark"]["paper"]
-
-
-# ---------------- matplotlib ----------------
 def test_mpl_savefig_png(tmp_path):
     spec, store = make_figure()
     target = tmp_path / "a.png"
