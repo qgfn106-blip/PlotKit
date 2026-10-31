@@ -207,6 +207,25 @@ TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火�
 二维那边同时补了「拖动中低清预览」（每 70 ms 一次半分辨率请求）与「服务端 hover 拾取」
 （`GET /api/pick` 返回最近的真实数据点，而不是从像素反推）。
 
+### 三维动画（`figure.anim3d()`）
+
+三维不能像二维那样"改数据再整图重画"——每次新建 Plotter 都要重建 OpenGL 上下文
+（实测 450–600 ms/帧）。所以动画 API 复用**同一个**离屏窗口，逐帧只改 actor 的
+位置与朝向，成本回到 10–30 ms/帧：
+
+```python
+anim = fig.anim3d(frames=60, fps=20, width=560, height=380)   # fig 里已有 surface 图层
+car = anim.add_box("car", size=(0.7, 0.45, 0.3), color="#ef4444")
+anim.set_pose(car, poses, heading=np.degrees(theta))          # (frames,3) + (frames,)，弧度也认
+anim.add_trail("path", poses)                                 # 轨迹逐帧生长
+anim.orbit(azim=(-60, 60))                                    # 相机扫一圈（可选）
+anim.save_gif("car.gif")                                      # 不依赖 ffmpeg；save_mp4() 才要
+```
+
+60 帧 560×380 实测 **2.33 s（38.8 ms/帧）**，GIF 1.4 MB：
+
+![三维动画](docs/anim3d_demo.gif)
+
 **要真矢量就别用 PyVista**：VTK 的 GL2PS 导出在本机（9.7.1 + OpenGL2）只剩位图，所以
 `fmt="svg"` 时调度层一律回退 matplotlib（surface 600×420 → 161 KB、890 个 `<path>`）。
 

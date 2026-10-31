@@ -722,6 +722,12 @@ def render_scene_threaded(spec, store, **kwargs):
 _SUPPRESS_SCALAR_BAR = False
 
 
+def supports(layer: Mapping[str, Any]) -> bool:
+    """这个图层能不能交给 pyvista 画（供三维动画等调用方筛选）。"""
+    kind = str((layer or {}).get("kind") or "")
+    return registry.ALIASES.get(kind, kind) in SUPPORTED_KINDS
+
+
 def _add_item(plotter, item: _Item) -> None:
     kwargs: dict[str, Any] = {"opacity": float(item.opacity)}
     if item.mode == "points":

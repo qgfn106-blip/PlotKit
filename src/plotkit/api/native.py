@@ -390,6 +390,17 @@ class Figure:
         self.spec.setdefault("figure", {})["anim"] = anim
         return self
 
+    def anim3d(self, *, frames: int = 120, fps: float = 20.0,
+               width: int = 640, height: int = 400, dpi: int = 100):
+        """三维动画（D39）：复用同一个离屏 Plotter，逐帧只改 actor 位姿/相机。
+
+        用法见 `plotkit.anim3d.Anim3D`：`add_box / add_points / add_trail /
+        set_pose / orbit`，最后 `save_gif()` 或 `frames_png()`。
+        """
+        from ..anim3d import Anim3D
+
+        return Anim3D(self, frames=frames, fps=fps, width=width, height=height, dpi=dpi)
+
     def anim_settings(self) -> dict[str, Any]:
         """返回补齐默认值后的动画参数（时间范围缺省取 `t` 数据集的区间）。"""
         raw = dict((self.spec.get("figure") or {}).get("anim") or {})
