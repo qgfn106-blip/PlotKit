@@ -51,7 +51,14 @@
       <div id="plot" class="plot">
         <img id="plotImg" alt="" draggable="false">
         <canvas id="plot3d" hidden></canvas>
+        <canvas id="plot3d-deco" hidden></canvas>
         <div id="plot3d-hud" class="plot-hover" hidden></div>
+        <div id="plot3d-region" class="plot-hover" hidden></div>
+        <div id="plot3d-timeline" hidden>
+          <button id="btn-3d-play" type="button" title="播放 / 暂停">▶</button>
+          <input id="plot3d-slider" type="range" min="0" max="0" value="0" step="1" aria-label="时间轴">
+          <span id="plot3d-time">0</span>
+        </div>
         <div id="plotHover" class="plot-hover" hidden></div>
       </div>
       <div id="inset-overlay" class="inset-overlay" hidden></div>

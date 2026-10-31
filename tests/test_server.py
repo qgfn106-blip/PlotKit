@@ -135,6 +135,115 @@ def test_sink_detection_fallback(monkeypatch):
     assert sink.detect_sink() == "browser"
 
 
+def test_timeline_resamples_to_frame_budget():
+    """/api/timeline：把 (x,y,z,t) 重采样成固定帧数，供前端拖动时间轴。"""
+    from fastapi.testclient import TestClient
+
+    n = 500
+    t = np.linspace(0, 10, n)
+    figure = pk.figure()
+    for name, values in (("t", t), ("x", np.cos(t)), ("y", np.sin(t)), ("z", t / 10)):
+        figure.add_data(name, values)
+    figure.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})
+    client = TestClient(create_app(figure))
+
+    res = client.get("/api/timeline", params={
+        "x": "x", "y": "y", "z": "z", "t": "t", "frames": 100,
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body["t"]) == 100
+    assert body["total"] == n
+    assert body["t"][0] == pytest.approx(0.0)
+    assert body["t"][-1] == pytest.approx(10.0)
+    assert len(body["x"]) == len(body["t"]) == len(body["z"])
+
+
+def test_timeline_requires_two_points():
+    from fastapi.testclient import TestClient
+
+    figure = pk.figure()
+    figure.add_data("x", np.zeros(1))
+    figure.add_data("y", np.zeros(1))
+    figure.add_data("z", np.zeros(1))
+    figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
+    client = TestClient(create_app(figure))
+    assert client.get("/api/timeline", params={"x": "x", "y": "y", "z": "z"}).status_code == 400
+
+
+def test_region_returns_stats_for_selected_box():
+    """/api/region：把点乘 MVP 投到 NDC，落在框内的点参与统计（三维"拾取"的替代方案）。"""
+    from fastapi.testclient import TestClient
+
+    x = np.linspace(0, 10, 21)
+    y = np.zeros(21)
+    z = np.linspace(0, 1, 21)
+    figure = pk.figure()
+    figure.add_data("x", x)
+    figure.add_data("y", y)
+    figure.add_data("z", z)
+    figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
+    client = TestClient(create_app(figure))
+
+    identity = np.eye(4).ravel().tolist()   # 单位矩阵：NDC 就等于数据坐标
+    res = client.post("/api/region", json={
+        "x": "x", "y": "y", "z": "z", "mvp": identity, "rect": [0.0, 0.0, 0.5, 0.5],
+    })
+    assert res.status_code == 200
+    body = res.json()
+    assert body["total"] == 21
+    assert 1 <= body["count"] <= 21
+    assert body["stats"]["x"]["max"] <= 0.5 + 1e-9
+    assert body["stats"]["z"]["count"] == body["count"]
+
+
+def test_region_rejects_bad_payload():
+    from fastapi.testclient import TestClient
+
+    figure = pk.figure()
+    figure.add_data("x", np.arange(5.0))
+    figure.add_data("y", np.arange(5.0))
+    figure.add_data("z", np.arange(5.0))
+    figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
+    client = TestClient(create_app(figure))
+    assert client.post("/api/region", json={"x": "x", "y": "y", "z": "z"}).status_code == 400
+    assert client.post("/api/region", json={
+        "x": "nope", "y": "y", "z": "z", "mvp": list(np.eye(4).ravel()), "rect": [0, 0, 1, 1],
+    }).status_code == 404
+
+
+def test_mesh_accepts_grid_coordinates():
+    """/api/mesh 要同时吃"坐标向量"和"整张 meshgrid"两种存法（surface 常用后者）。"""
+    from fastapi.testclient import TestClient
+
+    x = np.linspace(-1, 1, 12)
+    y = np.linspace(-1, 1, 9)
+    X, Y = np.meshgrid(x, y)
+    Z = np.sin(np.hypot(X, Y))
+
+    grid_fig = pk.figure()
+    grid_fig.add("surface", {"x": X, "y": Y, "z": Z})
+    grid_client = TestClient(create_app(grid_fig))
+    d = grid_fig.spec["layers"][0]["data"]
+    grid_res = grid_client.get("/api/mesh", params={"x": d["x"], "y": d["y"], "z": d["z"]})
+    assert grid_res.status_code == 200
+
+    vec_fig = pk.figure()
+    vec_fig.add_data("xs", x)
+    vec_fig.add_data("ys", y)
+    vec_fig.add_data("zs", Z)
+    vec_fig.add("surface", {"x": "xs", "y": "ys", "z": "zs"})
+    vec_client = TestClient(create_app(vec_fig))
+    vec_res = vec_client.get("/api/mesh", params={"x": "xs", "y": "ys", "z": "zs"})
+    assert vec_res.status_code == 200
+    # 元数据里的名字不同（匿名 vs xs/ys/zs），所以比"二进制部分"而不是总长度
+    def payload(res):
+        meta_len = int.from_bytes(res.content[4:8], "little")
+        return res.content[16 + meta_len:]
+
+    assert payload(vec_res) == payload(grid_res)
+
+
 def test_xyz_binary_frame(client, fig):
     """/api/xyz：magic + meta_len + n + json + float32 (x,y,z)，供 WebGL 直接上传。"""
     fig.add_data("z", np.linspace(0, 1, 11))

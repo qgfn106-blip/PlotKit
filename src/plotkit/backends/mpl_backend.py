@@ -991,21 +991,6 @@ def _draw_text3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) ->
                 fontsize=float(style.get("fontsize", 10) or 10))
 
 
-def _spectral(layer, store, index: int, method: str, *, needs_pair: bool = False):
-    """信号族的公共前置：NFFT/Fs 归一化，并按需取第二个信号。"""
-    style = layer.get("style") or {}
-    data = layer.get("data") or {}
-    x = _flat(layer, store, "x")
-    nfft = min(int(style.get("nfft", 256) or 256), max(8, x.size))
-    kwargs = {"NFFT": nfft, "Fs": float(style.get("fs", 1.0) or 1.0),
-              "color": str(style.get("color") or color_for(index))}
-    if needs_pair:
-        if not data.get("y"):
-            raise ValueError(f"{layer.get('kind')} 需要第二个信号 y（数据集名字或数组）")
-        return getattr(ax_method_holder, "unused", None), (x, _flat(layer, store, "y")), kwargs
-    return None, (x,), kwargs
-
-
 def _draw_csd(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     style = layer.get("style") or {}
     data = layer.get("data") or {}

@@ -226,6 +226,23 @@ anim.save_gif("car.gif")                                      # 不依赖 ffmpeg
 
 ![三维动画](docs/anim3d_demo.gif)
 
+### 三维视图里的装饰、区域分析与时间轴
+
+浏览器里的 3D 视图不是"只能转的点云"，三件事都在前端做完了：
+
+- **装饰**：包围盒棱、三轴、1/2/5 刻度、轴名、标题、图例由 2D canvas 叠在 WebGL 上画
+  （`view3d.js` 的 `attachOverlay`），所以缩放窗口时文字始终清晰、不进显存。
+- **框选区域分析**：按住 Alt 拖一个框，前端把当前 MVP 矩阵发给 `POST /api/region`，
+  服务端把点投到 NDC 后筛选，返回选中点数与 x/y/z 的 min/max/mean/p05/p95
+  （100 万点约 5–10 ms）。
+- **时间轴**：图层带 `data.t` 时出现底部滑条，`GET /api/timeline` 把
+  `(x,y,z,t)` 重采样成 240 帧，拖动即时定位、▶ 以 20 fps 播放，marker 走、轨迹逐帧生长。
+
+```python
+fig.add_data("t", tt); fig.add_data("x", px); fig.add_data("y", py); fig.add_data("z", pz)
+fig.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})   # 带 t 才有时间轴
+```
+
 **要真矢量就别用 PyVista**：VTK 的 GL2PS 导出在本机（9.7.1 + OpenGL2）只剩位图，所以
 `fmt="svg"` 时调度层一律回退 matplotlib（surface 600×420 → 161 KB、890 个 `<path>`）。
 

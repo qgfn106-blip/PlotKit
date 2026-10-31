@@ -281,11 +281,14 @@
 | P15-06 | 三维并发：`pyvista_pool.render_many` 进程池批量出图 | ✅ 完成：40 帧 17.4 s → 8.9 s（4 worker，1.95×），逐字节一致；8 帧反而更慢（worker 启动 ~2 s） |
 | P15-07 | 三维混合矢量出图（`hybrid3d`）：PyVista 位图 + mpl 矢量轴/刻度/色标/标题 | ✅ 完成：`PLOTKIT_3D_SVG=hybrid`（默认）/`mpl`（纯矢量回退）；800×600 SVG 249 KB，1 张位图 + 138 path + 24 text；新增 2 条测试，全库 **313 passed**；见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §11 |
 | P15-08 | 三维动画 API：`figure.anim3d()` 复用同一个离屏 Plotter，逐帧只改 actor 位姿/相机 | ✅ 完成：`anim3d.py` 提供 `add_box/add_points/add_trail/set_pose/orbit/frames_png/save_gif/save_mp4`；60 帧 560×380 **2.33 s（38.8 ms/帧）**，GIF 1.4 MB；新增 `tests/test_anim3d.py` 8 条，全库 **321 passed** |
+| P15-09 | 三维视图自绘装饰：包围盒棱、三轴、刻度、轴名、标题、图例（2D canvas 叠在 WebGL 上） | ✅ 完成：`view3d.js` 的 `attachOverlay`/`_drawDecor`；相机默认距离 3.2r→4.4r（包围盒对角半径 √3·r 才装得下）；顺带修 `/api/mesh` 不接受 meshgrid 二维坐标的 bug（三维曲面之前静默退回点云） |
+| P15-10 | 三维框选区域分析：Alt+拖 出框 → 服务端投影筛选 → 统计 min/max/mean/p05/p95 | ✅ 完成：`POST /api/region`（点乘 MVP 投到 NDC 再按矩形掩码，100 万点 5–10 ms）；面板 `#plot3d-region`；实测 3600 点选 2681 点（74.5%） |
+| P15-11 | 三维时间轴：`(x,y,z,t)` 重采样成固定帧数，前端拖动/播放驱动 marker 与生长轨迹 | ✅ 完成：`GET /api/timeline?frames=240`；`setMarker`/`setTrail`（DYNAMIC_DRAW）；播放 50 ms/帧≈20fps；顺带修 `native.add()` 丢掉数据键 `t` 的 bug |
 | P14-00 | 多后端框架（D38）：`builders` 表 + `dispatch` + PyVista 三维后端 + `/api/render?backend=` | ✅ 完成：`tests/test_multibackend.py` 20 项，全库 **314 passed**；11 种三维 kind 全部可出图；`tools/bench_3d.py`（mpl vs pyvista）：surface 100² **714→173ms**、scatter3d 10 万 **1375→218ms**、voxels 25³ **5966→164ms**；详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md) §10 |
 
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 
-**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **321 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
+**测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **325 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
 
 **性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms。
 

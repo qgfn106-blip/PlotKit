@@ -244,7 +244,7 @@ class Figure:
         # 所以先看该 kind 的 REQUIRED_DATA，再按"值不是标量"兜底。
         required = set(REQUIRED_DATA.get(kind, {}))
         optional = ("z", "u", "v", "w", "error_x", "error_y", "header", "cells", "image",
-                    "values", "scalar")
+                    "values", "scalar", "t", "time")
         data = {}
         for key in list(payload):
             if key in required:

@@ -475,4 +475,26 @@ body.embed .toolbar { padding: 4px 8px; gap: 8px; }
 /* 3D 视图：canvas 与静态图共用一块舞台，切换时互相隐藏 */
 #plot3d { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 #plot3d[hidden] { display: none; }
+/* 装饰层：轴/刻度/色标/标题由 2D 画布画在 WebGL 上面，不拦截鼠标 */
+#plot3d-deco { position: absolute; inset: 0; width: 100%; height: 100%; display: block; pointer-events: none; }
+#plot3d-deco[hidden] { display: none; }
+#plot3d-region { position: absolute; right: 12px; top: 12px; max-width: 280px;
+  white-space: pre; line-height: 1.55; font-variant-numeric: tabular-nums; }
 .plot.mode-3d #plotImg { visibility: hidden; }
+
+/* 三维时间轴：拖动只改前端标记点，不请求服务端 */
+#plot3d-timeline {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 6px 12px;
+  background: rgba(12, 16, 22, 0.86); border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px; backdrop-filter: blur(6px); z-index: 4;
+}
+#plot3d-timeline[hidden] { display: none; }
+#plot3d-timeline input[type="range"] { width: 320px; accent-color: #60a5fa; }
+#plot3d-timeline button {
+  width: 26px; height: 26px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(148, 163, 184, 0.35); background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0; font-size: 12px; line-height: 1;
+}
+#plot3d-timeline button:hover { background: rgba(51, 65, 85, 0.95); }
+#plot3d-time { font-variant-numeric: tabular-nums; color: #94a3b8; font-size: 12px; min-width: 74px; }

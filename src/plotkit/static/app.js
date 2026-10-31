@@ -1329,6 +1329,7 @@ const view3d = { view: null, on: false };
 async function load3dLayers() {
   const out = [];
   let colorIndex = 0;
+  let seen = 0;
   for (const layer of state.spec.layers || []) {
     const data = layer.data || {};
     if (!data.x || !data.y || !data.z) continue;   // 只有带 z 的图层能进三维
@@ -1341,7 +1342,7 @@ async function load3dLayers() {
         if (res.ok) {
           const m = PK3D.parseMesh(await res.arrayBuffer());
           out.push({
-            name: layer.id,
+            name: `${layer.kind} ${++seen}`,
             mode: "mesh",
             positions: m.positions,
             normals: m.normals,
@@ -1362,7 +1363,7 @@ async function load3dLayers() {
       const frame = PK3D.parseFrame(await res.arrayBuffer());
       const lineLike = ["line3d", "stream3d", "line", "step"].includes(layer.kind);
       out.push({
-        name: layer.id,
+        name: `${layer.kind} ${++seen}`,
         mode: lineLike ? "lines" : "points",
         positions: frame.positions,
         color: PK3D.hexToRgba(PK3D.PALETTE[colorIndex++ % PK3D.PALETTE.length]),
@@ -1381,7 +1382,11 @@ async function toggle3d(force) {
   const plot = $("plot");
   if (!want) {
     view3d.on = false;
+    stopPlay3d();
+    $("plot3d-timeline").hidden = true;
+    $("plot3d-region").hidden = true;
     canvas.hidden = true;
+    $("plot3d-deco").hidden = true;
     hud.hidden = true;
     plot.classList.remove("mode-3d");
     $("btn-3d").classList.remove("on");
@@ -1390,10 +1395,41 @@ async function toggle3d(force) {
   if (!view3d.view) {
     try {
       view3d.view = new PK3D.View3D(canvas);
+      view3d.view.attachOverlay($("plot3d-deco"));
     } catch (err) {
       setStatus(`3D 视图不可用：${err.message}`, "bad");
       return;
     }
+    view3d.view.onSelect = async ({ rect, mvp }) => {
+      const layer = (state.spec.layers || []).find((l) => l.data && l.data.x && l.data.y && l.data.z);
+      const panel = $("plot3d-region");
+      if (!layer || !mvp) return;
+      panel.hidden = false;
+      panel.textContent = "区域统计中…";
+      try {
+        const res = await fetch("api/region", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ x: layer.data.x, y: layer.data.y, z: layer.data.z, mvp, rect }),
+        });
+        if (!res.ok) {
+          const detail = await res.json().catch(() => ({}));
+          throw new Error(detail.detail || `HTTP ${res.status}`);
+        }
+        const body = await res.json();
+        const f = (v) => (Math.abs(v) >= 1e4 || (Math.abs(v) < 0.01 && v !== 0) ? v.toExponential(2) : v.toFixed(3));
+        const z = body.stats && body.stats.z;
+        panel.textContent = (z && z.count)
+          ? `选中 ${body.count}/${body.total} 点（${(body.ratio * 100).toFixed(1)}%）
+` +
+            `z  min ${f(z.min)}   max ${f(z.max)}
+` +
+            `   mean ${f(z.mean)}  p05 ${f(z.p05)}  p95 ${f(z.p95)}`
+          : "框内没有点（试试更大的框）";
+      } catch (err) {
+        panel.textContent = `区域统计失败：${err.message}`;
+      }
+    };
     view3d.view.onStats = ({ fps, points }) => {
       hud.hidden = false;
       hud.textContent = `${fps.toFixed(0)} fps · ${(points / 1000).toFixed(0)}k 点`;
@@ -1407,12 +1443,95 @@ async function toggle3d(force) {
     return;
   }
   const total = view3d.view.setLayers(layers);
+  const first = layers[0] || {};
+  const meta = first.meta || {};
+  view3d.view.axisNames = [meta.x || "x", meta.y || "y", meta.z || "z"];
+  view3d.view.title = (state.spec.figure && state.spec.figure.title) || state.spec.title || "";
   view3d.on = true;
   canvas.hidden = false;
+  $("plot3d-deco").hidden = false;
   plot.classList.add("mode-3d");
   $("btn-3d").classList.add("on");
+  loadTimeline3d().catch(() => {});
   setStatus(`3D 视图 · ${layers.length} 图层 / ${(total / 1000).toFixed(0)}k 点（拖动旋转，滚轮缩放，Shift 平移）`, "good");
 }
+
+/* ---------------- 三维时间轴（位姿表驱动，拖动不请求服务端） ---------------- */
+
+const timeline3d = { data: null, index: 0, playing: false, timer: 0 };
+
+async function loadTimeline3d() {
+  const bar = $("plot3d-timeline");
+  const layer = (state.spec.layers || []).find(
+    (l) => l.data && l.data.x && l.data.y && l.data.z && l.data.t
+  );
+  if (!layer) {
+    bar.hidden = true;
+    timeline3d.data = null;
+    return;
+  }
+  const d = layer.data;
+  const url = `api/timeline?x=${encodeURIComponent(d.x)}&y=${encodeURIComponent(d.y)}` +
+              `&z=${encodeURIComponent(d.z)}&t=${encodeURIComponent(d.t)}&frames=240`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    timeline3d.data = data;
+    timeline3d.index = 0;
+    $("plot3d-slider").max = String(Math.max(0, data.t.length - 1));
+    $("plot3d-slider").value = "0";
+    bar.hidden = false;
+    applyFrame3d(0);
+  } catch (err) {
+    bar.hidden = true;
+    timeline3d.data = null;
+    setStatus(`时间轴不可用：${err.message}`, "warn");
+  }
+}
+
+function applyFrame3d(i) {
+  const data = timeline3d.data;
+  if (!data || !view3d.view) return;
+  const n = data.t.length;
+  const idx = Math.max(0, Math.min(n - 1, i));
+  timeline3d.index = idx;
+  const pts = new Float32Array((idx + 1) * 3);
+  for (let k = 0; k <= idx; k++) {
+    pts[k * 3] = data.x[k];
+    pts[k * 3 + 1] = data.y[k];
+    pts[k * 3 + 2] = data.z[k];
+  }
+  view3d.view.setTrail(pts);
+  view3d.view.setMarker([data.x[idx], data.y[idx], data.z[idx]]);
+  $("plot3d-slider").value = String(idx);
+  $("plot3d-time").textContent = `${data.t[idx].toFixed(2)} · ${idx + 1}/${n}`;
+}
+
+function stopPlay3d() {
+  timeline3d.playing = false;
+  if (timeline3d.timer) clearInterval(timeline3d.timer);
+  timeline3d.timer = 0;
+  $("btn-3d-play").textContent = "▶";
+}
+
+function togglePlay3d() {
+  if (timeline3d.playing) { stopPlay3d(); return; }
+  if (!timeline3d.data) return;
+  timeline3d.playing = true;
+  $("btn-3d-play").textContent = "⏸";
+  timeline3d.timer = setInterval(() => {
+    const n = timeline3d.data.t.length;
+    const next = timeline3d.index + 1 >= n ? 0 : timeline3d.index + 1;
+    applyFrame3d(next);
+  }, 50);
+}
+
+$("btn-3d-play").addEventListener("click", togglePlay3d);
+$("plot3d-slider").addEventListener("input", (ev) => {
+  stopPlay3d();
+  applyFrame3d(Number(ev.target.value));
+});
 
 $("btn-3d").addEventListener("click", () => { toggle3d().catch((err) => setStatus(err.message, "bad")); });
 

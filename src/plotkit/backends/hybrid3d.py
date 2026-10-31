@@ -113,9 +113,6 @@ def _scalar_info(spec: Mapping[str, Any], store):
 
 def _compose(spec: Mapping[str, Any], store, image: np.ndarray, info: Mapping[str, Any],
              *, width: int, height: int, dpi: int, fmt: str) -> bytes:
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
-    from matplotlib.figure import Figure
-    from matplotlib.patches import FancyArrowPatch
 
     figure_cfg = spec.get("figure") or {}
     face = str(figure_cfg.get("facecolor") or "white")

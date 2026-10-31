@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import numpy as np
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -258,11 +258,20 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         `z` 按 `np.meshgrid(x, y)` 的约定解释（行 = y，列 = x）。
         """
         try:
-            xv = np.asarray(figure.store.values(x)).ravel().astype(float)
-            yv = np.asarray(figure.store.values(y)).ravel().astype(float)
+            xr = np.asarray(figure.store.values(x), dtype=float)
+            yr = np.asarray(figure.store.values(y), dtype=float)
             zv = np.asarray(figure.store.values(z), dtype=float)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
+        # 两种存法都接受：坐标向量（1D）或整张网格（meshgrid 的 2D 结果）
+        if xr.ndim == 2:
+            xv = xr[0, :].ravel()
+        else:
+            xv = xr.ravel()
+        if yr.ndim == 2:
+            yv = yr[:, 0].ravel()
+        else:
+            yv = yr.ravel()
         if zv.ndim == 1:  # 允许传已经摊平的一维场
             if xv.size * yv.size != zv.size:
                 raise HTTPException(400, "z 的尺寸与 x×y 不匹配")
@@ -305,6 +314,103 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         body = verts.tobytes(order="C") + normals.tobytes(order="C") + tris.tobytes(order="C")
         return Response(content=header + meta_bytes + body,
                         media_type="application/octet-stream")
+
+    @app.get("/api/timeline")
+    def timeline(x: str, y: str, z: str, t: str | None = None, frames: int = 240) -> Any:
+        """三维时间轴：把 (x, y, z[, t]) 重采样成固定帧数，前端拖动/播放只改标记点与轨迹。"""
+        frames = _clamp(frames, 2, 4000)
+        try:
+            xs = np.asarray(figure.store.values(x), dtype=float).ravel()
+            ys = np.asarray(figure.store.values(y), dtype=float).ravel()
+            zs = np.asarray(figure.store.values(z), dtype=float).ravel()
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        n = min(xs.size, ys.size, zs.size)
+        if n < 2:
+            raise HTTPException(400, "轨迹至少需要 2 个点")
+        xs, ys, zs = xs[:n], ys[:n], zs[:n]
+        if t:
+            try:
+                ts = np.asarray(figure.store.values(t), dtype=float).ravel()[:n]
+            except KeyError as exc:
+                raise HTTPException(404, str(exc)) from exc
+            order = np.argsort(ts, kind="stable")
+            ts, xs, ys, zs = ts[order], xs[order], ys[order], zs[order]
+        else:
+            ts = np.arange(n, dtype=float)
+        if n > frames:
+            idx = np.unique(np.linspace(0, n - 1, frames).round().astype(int))
+            ts, xs, ys, zs = ts[idx], xs[idx], ys[idx], zs[idx]
+        return {
+            "t": [float(v) for v in ts],
+            "x": [float(v) for v in xs],
+            "y": [float(v) for v in ys],
+            "z": [float(v) for v in zs],
+            "total": int(n),
+        }
+
+    @app.post("/api/region")
+    def region(payload: dict = Body(...)) -> Any:
+        """三维框选后的精确统计：把点乘 MVP 投到 NDC，落在矩形内且深度有效的点参与统计。
+
+        前端只做粗筛高亮（快），松手后调这里拿全量数据的精确数值（准）。
+        """
+        try:
+            xs = np.asarray(figure.store.values(payload["x"]), dtype=float).ravel()
+            ys = np.asarray(figure.store.values(payload["y"]), dtype=float).ravel()
+            zs = np.asarray(figure.store.values(payload["z"]), dtype=float).ravel()
+        except KeyError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(400, f"请求缺少 x/y/z：{exc}") from exc
+        n = min(xs.size, ys.size, zs.size)
+        if n == 0:
+            raise HTTPException(400, "数据集为空")
+        xs, ys, zs = xs[:n], ys[:n], zs[:n]
+
+        try:
+            mvp = np.asarray(payload["mvp"], dtype=float).reshape(4, 4).T  # JS 给的是列主序
+            x0, y0, x1, y1 = [float(v) for v in payload["rect"]]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise HTTPException(400, f"mvp/rect 不合法：{exc}") from exc
+
+        pts = np.empty((n, 4), dtype=float)
+        pts[:, 0] = xs
+        pts[:, 1] = ys
+        pts[:, 2] = zs
+        pts[:, 3] = 1.0
+        clip = pts @ mvp.T
+        w = clip[:, 3]
+        ok = w > 1e-9
+        ndc = np.zeros((n, 3), dtype=float)
+        ndc[ok] = clip[ok, :3] / w[ok, None]
+        lo_x, hi_x = min(x0, x1), max(x0, x1)
+        lo_y, hi_y = min(y0, y1), max(y0, y1)
+        mask = (ok & (ndc[:, 0] >= lo_x) & (ndc[:, 0] <= hi_x)
+                & (ndc[:, 1] >= lo_y) & (ndc[:, 1] <= hi_y)
+                & (ndc[:, 2] >= -1.0) & (ndc[:, 2] <= 1.0))
+
+        stats: dict[str, dict[str, float]] = {}
+        for name, arr in (("x", xs), ("y", ys), ("z", zs)):
+            picked = arr[mask]
+            if picked.size == 0:
+                stats[name] = {"count": 0}
+                continue
+            stats[name] = {
+                "count": int(picked.size),
+                "min": float(np.min(picked)),
+                "max": float(np.max(picked)),
+                "mean": float(np.mean(picked)),
+                "p05": float(np.percentile(picked, 5)),
+                "p95": float(np.percentile(picked, 95)),
+                "sum": float(np.sum(picked)),
+            }
+        return {
+            "count": int(mask.sum()),
+            "total": int(n),
+            "ratio": float(mask.sum()) / float(n),
+            "stats": stats,
+        }
 
     @app.get("/api/pick")
     def pick(x: float, y: float, sx: float = 1.0, sy: float = 1.0,
