@@ -145,18 +145,30 @@ const NS = (() => {
   in float aT;
   uniform mat4 uVP;
   uniform float uHead;
+  uniform float uRMax;
   out float vA;
+  out float vR;
   void main() {
     gl_Position = uVP * vec4(aPos, 1.0);
-    vA = clamp((uHead - aT) * 6.0, 0.0, 1.0) * 0.55;
+    vR = length(aPos.xy) / max(uRMax, 1e-6);
+    // 头部随 uHead 生长，尾部淡出：否则每条线都是一整根、堆在心核糊成一团
+    float head = clamp((uHead - aT) * 6.0, 0.0, 1.0);
+    float tail = smoothstep(0.0, 0.18, aT);
+    vA = head * tail * 0.26;
   }`;
 
   const FRAG_LN = `#version 300 es
   precision highp float;
   in float vA;
-  uniform vec3 uColor;
+  in float vR;
+  uniform vec3 uColor;      // 兼容旧调用：uColor 作内圈色
   out vec4 fragColor;
-  void main() { fragColor = vec4(uColor, vA); }`;
+  void main() {
+    // 内圈暖色、外圈蓝紫，和体积/粒子的调色板一致，避免一根突兀的米色乱线
+    vec3 outer = vec3(0.62, 0.50, 1.00);
+    vec3 c = mix(uColor, outer, clamp((vR - 0.18) / 0.5, 0.0, 1.0));
+    fragColor = vec4(c, vA);
+  }`;
 
   const mat4 = {
     mul(a, b) {
@@ -262,7 +274,7 @@ const NS = (() => {
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: true,
+      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false,
                         streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
@@ -604,6 +616,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.vertexAttribPointer(lt, 1, gl.FLOAT, false, 0, 0);
         gl.uniformMatrix4fv(gl.getUniformLocation(this.lines, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.lines, "uHead"), T.head);
+        gl.uniform1f(gl.getUniformLocation(this.lines, "uRMax"), this.extent ? this.extent.x : 0.5);
         gl.uniform3f(gl.getUniformLocation(this.lines, "uColor"), 1.0, 0.55, 0.18);
         gl.drawArrays(gl.LINES, 0, T.steps * T.seeds);
       }

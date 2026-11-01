@@ -144,7 +144,7 @@ async function loadVelocity() {
 
 async function loadTrails() {
   const t1 = Math.max(0.02, S.t);
-  const { meta, data } = await getFrame(`/api/ns/pathlines?t0=0&t1=${t1.toFixed(5)}&seeds=180&steps=180&${params()}`);
+  const { meta, data } = await getFrame(`/api/ns/pathlines?t0=0&t1=${t1.toFixed(5)}&seeds=96&steps=150&${params()}`);
   view.setTrails(meta, data);
   if (view.trails) view.trails.head = 1.0;
 }
