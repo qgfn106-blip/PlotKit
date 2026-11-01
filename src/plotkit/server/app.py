@@ -452,7 +452,8 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
             jobs.append((spec, store, {"width": width, "height": height,
                                        "dpi": dpi, "fmt": "png"}))
 
-        from ..backends import mpl_backend, pyvista_pool
+        from ..backends import mpl_backend, pyvista_backend, pyvista_pool
+        from ..backends.pyvista_pool import workers_default
 
         three_d = {"volume", "particles", "segments", "surface", "trisurf", "scatter3d",
                    "line3d", "quiver3d", "bar3d", "hist3d", "voxels", "stream3d",
@@ -477,11 +478,30 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
                     spec, store, kwargs = job
                     out = mpl_backend.render_bytes(spec, store, **kwargs)
                     payloads[i] = out if isinstance(out, bytes) else out[0]
+            # 进程池要给每个 worker 重新 import VTK（约 2–3 s），所以**先量一帧**再决定：
+            # 单帧 < 250 ms 或剩余帧太少 → 全部进程内串行（实测 48 帧 500×360 曲面：
+            # 进程内 1.9 s vs 4 worker 10.3 s）；反之才值得开池。
+            import time as _time
+
             if pool_jobs:
-                rendered = pyvista_pool.render_many([job for _, job in pool_jobs],
-                                                    workers=int(workers) if workers else None)
-                for (i, _), data in zip(pool_jobs, rendered):
-                    payloads[i] = data
+                head_i, head_job = pool_jobs[0]
+                t0 = _time.perf_counter()
+                result = pyvista_backend.render_result(*head_job[:2], **head_job[2])
+                payloads[head_i] = result.payload if hasattr(result, "payload") else result
+                per_frame = _time.perf_counter() - t0
+                rest = pool_jobs[1:]
+                if workers is not None:
+                    effective = int(workers)
+                else:
+                    effective = workers_default() if (per_frame >= 0.25 and len(rest) >= 4) else 1
+                if rest and effective > 1:
+                    rendered = pyvista_pool.render_many([job for _, job in rest], workers=effective)
+                    for (i, _), data in zip(rest, rendered):
+                        payloads[i] = data
+                else:
+                    for i, (spec, store, kwargs) in rest:
+                        out2 = pyvista_backend.render_result(spec, store, **kwargs)
+                        payloads[i] = out2.payload if hasattr(out2, "payload") else out2
         except Exception as exc:  # noqa: BLE001 - 整批失败才报 500
             raise HTTPException(500, f"批量渲染失败：{type(exc).__name__}: {exc}") from exc
 

@@ -89,7 +89,7 @@ labels: [ready-for-agent, plotkit, three-d]
   每帧可携带完整 spec（服务端不保存会话状态）；`frames` 上限 600，`workers` 默认 `min(4, cpu-1)`，上限 8。
 - 响应：`application/zip`，内含 `frame_0001.png` …（零填充、按请求顺序）；响应头带 `X-PlotKit-Frames`、`X-PlotKit-Workers`、`X-PlotKit-Elapsed-Ms`。
 - 失败语义（实现后修订）：**任何一帧失败 → 整批 500**，错误消息带异常类型；不做"部分成功"的 zip——动画缺帧比整批失败更难查。
-- 池实现复用 `pyvista_pool.render_many(jobs, workers=...)`；worker 首帧要 import VTK（约 2 s），因此**帧数 < 8 时自动退化为串行**（实测交叉点 15–20 帧，取 8 作保守阈值）。
+- 池实现复用 `pyvista_pool.render_many(jobs, workers=...)`。**实现后实测推翻了原先"帧数 ≥8 就该并发"的假设**（见下），改为**自适应**：先量一帧，单帧 < 250 ms 或剩余帧 < 4 时全部进程内串行；否则才开池。显式传 `workers` 时完全按调用方要求。
 - 单帧端点 `/api/render` 不变；批量端点内部对每帧复用同一套 `Figure` 构建与校验路径，不另写一份。
 
 ### 前端与脚本
@@ -145,4 +145,16 @@ labels: [ready-for-agent, plotkit, three-d]
 | 测试 | ✅ `test_field3d.py`(8) + `test_render3d_batch.py`(5) + `test_cli_render3d.py`(4)；全量 **421 passed** |
 
 接缝与规格一致：场景接缝（`field3d.scene`）、HTTP 接缝（`/api/render3d/batch`）、CLI 接缝（`post_batch` + `_cmd_render3d`）。
+
+### 实测（2026-11-02，本机，`tools/bench_batch3d.py`）
+
+| 场景 | 进程内 | 4 worker | 结论 |
+| --- | --- | --- | --- |
+| 48 帧 × 500×360 曲面 | **1.9 s** | 10.3 s | 进程池慢 5× |
+| 12 帧 × 500×360 体积+粒子 | **1.6 s** | 4.4 s | 进程池慢 2.7× |
+| 24 帧 × 1200×900 体积+粒子 | **2.8 s** | 8.6 s | 进程池慢 3× |
+
+原因：单帧渲染只要 40–135 ms，而每个 worker 要重新 `import vtk`（约 2–3 s），且每帧要把 spec + 数据（NS 场 32³ float32 ≈ 400 KB/帧）pickle 过进程边界。**数据大 + 渲染便宜时，进程池必然亏**。
+
+所以本机的默认策略是"进程内串行"，`workers` 只作为显式逃生门（换机器、或单帧成本 ≥1 s 的场景，例如混合矢量 SVG 导出）。这条结论写进 `docs/NS_VORTEX.md` 与 README，避免以后有人再"优化"成默认并发。
 
