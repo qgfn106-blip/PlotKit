@@ -405,7 +405,10 @@ const NS = (() => {
       const v = this.vel, P = this.particles;
       if (!v || !P) return;
       const n = v.n, ext = v.extent, zext = v.zExtent, D = v.data;
-      const step = 0.012 * Math.max(dt, 0.4);
+      // 自相似时间修正：场速 ~ τ^(-1/2-h)，τ→0 时若还按固定步长积分，粒子会被弹飞出去
+      // （看着像"发散"）。位移必须随 τ 一起缩，粒子的螺旋形态才守得住。
+      const tauScale = Math.max(0.10, Math.min(1.0, Math.pow(Math.max(this.tau, 1e-3), 0.55) * 3.2));
+      const step = 0.012 * Math.max(dt, 0.4) * tauScale;
       const sample = (x, y, z, out) => {
         const fx = (x / ext * 0.5 + 0.5) * (n - 1);
         const fy = (y / ext * 0.5 + 0.5) * (n - 1);

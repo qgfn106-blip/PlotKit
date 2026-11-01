@@ -97,7 +97,7 @@
 const Q = new URLSearchParams(location.search);
 const qnum = (key, dflt) => (Q.has(key) ? Number(Q.get(key)) : dflt);
 const S = {
-  t: Math.min(0.985, Math.max(0, qnum("t", 0.0))),
+  t: Math.min(0.999, Math.max(0, qnum("t", 0.0))),
   playing: Q.get("play") === "1",
   rate: qnum("rate", 1.0),
   h: qnum("h", 0.005), x0: qnum("x0", 0.6), eta0: qnum("eta0", 1.0),
@@ -174,16 +174,22 @@ function updateClock() {
 }
 
 let refreshTimer = null;
-function scheduleRefresh(full) {
+let refreshQueued = null;
+// mode: true/"all" = 场+速度+诊断(+轨迹)；"field" = 只换纹理（播放时用）；"slow" = 速度+诊断
+function scheduleRefresh(mode) {
+  refreshQueued = refreshQueued === "all" ? "all" : (mode === true ? "all" : mode);
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(async () => {
+    const m = refreshQueued; refreshQueued = null;
+    if (S.busy) { scheduleRefresh(m); return; }   // 上一批还没回来，别叠加请求
+    S.busy = true;
     try {
       await loadField();
-      await loadVelocity();
-      await loadDiag();
-      if (full) await loadTrails();
+      if (m !== "field") { await loadVelocity(); await loadDiag(); }
+      if (m === "all") await loadTrails();
     } catch (e) { console.error(e); }
-  }, full ? 40 : 90);
+    finally { S.busy = false; }
+  }, mode === "field" ? 60 : 90);
 }
 
 function bind() {
@@ -209,7 +215,7 @@ function bind() {
 
   $("scrub").oninput = () => {
     if (S.playing) { S.playing = false; $("play").textContent = "▶"; }
-    S.t = Math.min(0.985, +$("scrub").value / 1000) * (S.tBlow || 1);
+    S.t = Math.min(0.999, +$("scrub").value / 1000) * (S.tBlow || 1);
     updateClock(); scheduleRefresh(true);      // true: 轨迹也跟着走，画面与时钟才对齐
   };
   $("play").onclick = () => {
@@ -221,9 +227,12 @@ function bind() {
 function tick(now) {
   if (S.playing) {
     S.t += (now - (S._prev || now)) / 1000 * 0.02 * S.rate * (S.tBlow || 1);
-    if (S.t > 0.985 * (S.tBlow || 1)) S.t = 0.0;
+    if (S.t >= 0.999 * (S.tBlow || 1)) S.t = 0.0;
     updateClock();
-    if (now - S.lastVel > 120) { S.lastVel = now; scheduleRefresh(false); }
+    // 播放时只刷"场纹理"，速度场/诊断放慢到 900ms —— 否则每 120ms 串三个请求会把
+    // requestAnimationFrame 饿死，看起来就是"时间轴不动、画面卡住"。
+    if (now - S.lastVel > 180) { S.lastVel = now; scheduleRefresh("field"); }
+    if (now - S.lastSlow > 900) { S.lastSlow = now; scheduleRefresh("slow"); }
   }
   S._prev = now;
   requestAnimationFrame(tick);
