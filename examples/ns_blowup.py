@@ -1,5 +1,16 @@
 """纳维–斯托克斯方程的有限时间爆破：非定常 Burgers 涡管的三维矢量动画。
 
+## 运行方式（重要）
+
+这是一个**离线出片脚本**：跑完只写文件，**不会弹出任何窗口**。
+
+    python examples/ns_blowup.py            # -> docs/ns_blowup/{02_ns_blowup_3d.gif, 01_blowup_law.png, ...}
+
+想开交互窗口（可拖动、可调参、带时间轴）请用可视化应用：
+
+    python -m plotkit.ns.app                # 需要图形界面（Windows 本机 / 带 WSLg 的 WSL）
+    python -m plotkit.ns.app --shot a.png --seconds 8   # 无显示环境：离屏截图
+
 ## 这是一个真解，不是"画个爆炸"
 
 取轴对称速度场
@@ -157,10 +168,10 @@ def charts_timeseries(times: np.ndarray) -> dict:
                                     for t in times])[order], role="series")
     fig.add_plot("line", x="gap", y="wmax",
                  style={"color": "#f97316", "width": 2.2, "marker": {"symbol": None}},
-                 label="ω_max ∝ (T-t)⁻¹")
+                 label=r"$\omega_{max} \propto (T-t)^{-1}$")  # 用 mathtext，避免字体缺 U+207B 上标负号
     fig.add_plot("line", x="gap", y="delta",
                  style={"color": "#38bdf8", "width": 2.2, "marker": {"symbol": None}},
-                 label="δ ∝ (T-t)^(1/2)")
+                 label=r"$\delta \propto (T-t)^{1/2}$")
     fig.set_view(0, xscale="log", yscale="log", xlabel="T - t  (s)",
                  ylabel="ω_max (1/s)  /  δ (m)", grid=True, legend=True)
     path = OUT_DIR / "01_blowup_law.png"
