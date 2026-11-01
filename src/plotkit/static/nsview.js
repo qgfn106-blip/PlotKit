@@ -23,7 +23,8 @@ const NS = (() => {
   uniform float uTau;
   uniform float uStreak;
   uniform float uSpin;
-  uniform float uEnvelope;   // 0=柱, 1=薄盘（显示包络，非物理）
+  uniform float uEnvelope;
+  uniform float uZoomScale;   // 0=柱, 1=薄盘（显示包络，非物理）
   uniform vec3 uCore, uMid, uOuter;
   out vec4 fragColor;
 
@@ -98,14 +99,16 @@ const NS = (() => {
         float flare = mix(0.0, 0.55, uEnvelope) * exp(-pow(abs(p.z) / (uExtent.y * lz * 1.9), 2.0));
         radial *= (1.0 + flare);
         // 收成盘时光程变短、亮度会集中，按包络强度压一下曝光免得糊成白饼
-        float a = clamp(dens * dt * 2.2 * mix(1.0, 0.55, uEnvelope), 0.0, 0.35) * radial * axial;
+        // 采样盒缩小后一条光线穿过的世界距离也变短，按 1/scale 补曝光（上限 8×）
+        float zoomComp = clamp(1.0 / max(uZoomScale, 1e-3), 1.0, 3.0);
+        float a = clamp(dens * dt * 2.2 * mix(1.0, 0.55, uEnvelope) * zoomComp, 0.0, 0.12) * radial * axial;
         acc += (1.0 - alpha) * a * col;
         alpha += (1.0 - alpha) * a;
         if (alpha > 0.985) break;
       }
     }
     // 轻微辉光：把亮度做一次软压缩
-    acc = acc / (1.0 + 0.35 * acc);
+    acc = acc / (1.0 + 0.85 * acc);   // Reinhard 型压缩，防止核心糊成纯白
     fragColor = vec4(acc, alpha);
   }`;
 
@@ -294,7 +297,7 @@ const NS = (() => {
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false, showArrows: true, arrowLen: 0.14, arrowAlpha: 0.90,
+      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false, showArrows: false, arrowLen: 0.14, arrowAlpha: 0.90,
                         streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
@@ -341,6 +344,15 @@ const NS = (() => {
       for (let i = 0; i < nz * nr; i++) { packed[i * 2] = scalar[i]; packed[i * 2 + 1] = speed[i]; }
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, nr, nz, 0, gl.RG, gl.FLOAT, packed);
+      // 相似坐标：采样盒随 τ 收缩，已有粒子要按比例换算到新单位，否则会被判越界重撒
+      const prevR = this.extent ? this.extent[0] : meta.r_max;
+      if (this.particles && Math.abs(prevR - meta.r_max) > 1e-9) {
+        const k = meta.r_max / prevR;
+        const pos = this.particles.pos;
+        for (let i = 0; i < pos.length; i++) pos[i] *= k;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.particles.vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
+      }
       this.extent = [meta.r_max, meta.z_max];
       this.fieldMeta = meta;
       this.vmin = meta.vmin; this.vmax = meta.vmax; this.omegaAxis = meta.omega_p995;
@@ -441,6 +453,7 @@ const NS = (() => {
       gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
       gl.bufferData(gl.ARRAY_BUFFER, col, gl.STATIC_DRAW);
       this.arrows = { vbo, cbo, count: n * 2, uMax: umax };
+      this.arrowsRaw = f; this.arrowsN = n;   // 点选探针用：原始 pos+vel
     }
 
     setTrails(meta, data) {
@@ -604,6 +617,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
     }
 
     _loop() {
+      // 探针需要把世界点投到屏幕，这里缓存每帧的 VP 矩阵
       const now = performance.now();
       const dt = Math.min(0.05, (now - (this._last || now)) / 1000);
       this._last = now;
@@ -636,6 +650,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
       const proj = mat4.perspective(0.8, w / h, 0.05, 100);
       const view = mat4.lookAt(eye, this.cam.target, [0, 0, 1]);
       const vp = mat4.mul(proj, view);
+      this._vp = vp;
       const inv = mat4.invert(vp);
 
       // 1) 体积
@@ -657,6 +672,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
       gl.uniform1f(gl.getUniformLocation(this.quad, "uStreak"), this.settings.streaks);
       gl.uniform1f(gl.getUniformLocation(this.quad, "uSpin"), this.settings.spin);
       gl.uniform1f(gl.getUniformLocation(this.quad, "uEnvelope"), this.settings.envelope);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uZoomScale"), this.zoomScale || 1.0);
       gl.uniform2f(gl.getUniformLocation(this.quad, "uExtent"), this.extent?.[0] ?? 0.5, this.extent?.[1] ?? 1.2);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uCore"), 1.0, 0.72, 0.25);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uMid"), 0.16, 0.72, 0.66);
