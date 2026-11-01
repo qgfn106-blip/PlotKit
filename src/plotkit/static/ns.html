@@ -70,6 +70,8 @@
   <input id="ks" type="range" min="0" max="1" step="0.05" value="0.8">
   <label>螺旋缠绕 <span class="val" id="vw">2.0</span></label>
   <input id="kw" type="range" min="0" max="6" step="0.25" value="2.0">
+  <label>辉光强度 <span class="val" id="vb">0.45</span></label>
+  <input id="kb" type="range" min="0" max="2.5" step="0.05" value="0.45">
   <label>粒子数 <span class="val" id="vp">200000</span></label>
   <input id="kp" type="range" min="20000" max="300000" step="20000" value="200000">
   <div style="margin-top:8px; display:flex; gap:6px">
@@ -122,6 +124,7 @@ async function loadMeta() {
 async function loadField() {
   const { meta, data } = await getFrame(`/api/ns/slice?t=${S.t.toFixed(5)}&n_r=256&n_z=384&r_max=0.5&z_max=1.2&${params()}`);
   view.setField(meta, data);
+  view.buildRings();
   S.fieldMeta = meta;
 }
 
@@ -176,13 +179,14 @@ function scheduleRefresh(full) {
 
 function bind() {
   const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
-        ks = $("ks"), kw = $("kw");
+        ks = $("ks"), kw = $("kw"), kb = $("kb");
   kh.oninput = () => { S.h = +kh.value; $("vh").textContent = S.h.toFixed(3); scheduleRefresh(true); };
   kx.oninput = () => { S.x0 = +kx.value; $("vx").textContent = S.x0.toFixed(2); scheduleRefresh(true); };
   ke.oninput = () => { S.eta0 = +ke.value; $("ve").textContent = S.eta0.toFixed(2); scheduleRefresh(true); };
   kd.oninput = () => { view.settings.density = +kd.value; $("vd").textContent = (+kd.value).toFixed(1); };
   ks.oninput = () => { view.settings.streaks = +ks.value; $("vs").textContent = (+ks.value).toFixed(2); };
   kw.oninput = () => { view.settings.spin = +kw.value; $("vw").textContent = (+kw.value).toFixed(1); };
+  kb.oninput = () => { view.settings.bloom = +kb.value; $("vb").textContent = (+kb.value).toFixed(2); };
   kp.oninput = () => {
     S.particles = +kp.value; $("vp").textContent = S.particles;
     view.seedParticles(S.particles);

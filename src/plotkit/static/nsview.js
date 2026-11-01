@@ -243,12 +243,12 @@ const NS = (() => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-      this.cam = { yaw: -0.6, pitch: 0.42, dist: 3.6, target: [0, 0, 0] };
+      this.cam = { yaw: -0.6, pitch: 0.62, dist: 3.1, target: [0, 0, 0] };
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
       this.settings = { density: 1.0, pointSize: 3.2, showParticles: true, showTrails: true,
-                        streaks: 0.8, spin: 2.0 };
+                        streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
       this.stats = { fps: 0 };
@@ -311,19 +311,20 @@ const NS = (() => {
       const rMax = (this.extent && this.extent[0]) || 0.5;
       const zMax = (this.extent && this.extent[1]) || 1.2;
       for (let i = 0; i < count; i++) {
-        const th = rng() * Math.PI * 2;
+        // 黄金角分层：角度上均匀铺开，避免随机撒点造成的颗粒感
+        const th = (i * 2.399963229728653) % (Math.PI * 2);
         // 七成铺在赤道盘上（看得见同心环），三成铺在轴柱里（形成上下锥）
-        const disk = rng() < 0.85;
+        const disk = rng() < 0.78;
         // 离散同心壳：粒子撒在 N 个半径上，才看得出参考图那种环
-        const SHELLS = 26;
+        const SHELLS = 40;
         const shell = Math.floor(rng() * SHELLS);
         const rr = disk
-          ? rMax * (shell + 0.5) / SHELLS * (0.985 + 0.03 * rng())
-          : 0.02 + 0.12 * rMax * Math.sqrt(rng());
+          ? rMax * (shell + 0.5) / SHELLS * (0.997 + 0.006 * rng())
+          : 0.02 + 0.16 * rMax * Math.sqrt(rng());
         const zz = disk
           ? (rng() * 2 - 1) * 0.035 * zMax
-          : (rng() * 2 - 1) * zMax;
-        const taper = disk ? 1.0 : 1.0 - 0.78 * Math.pow(Math.abs(zz) / zMax, 1.1);
+          : (rng() * 2 - 1) * 0.92 * zMax;
+        const taper = disk ? 1.0 : 1.0 - 0.86 * Math.pow(Math.abs(zz) / zMax, 1.1);
         pos[i * 3] = rr * taper * Math.cos(th);
         pos[i * 3 + 1] = rr * taper * Math.sin(th);
         pos[i * 3 + 2] = zz;
@@ -334,10 +335,12 @@ const NS = (() => {
           if (t < 0.25) { const k = t / 0.25; return [1.0, 0.95 + (0.60 - 0.95) * k, 0.80 + (0.15 - 0.80) * k]; }
           if (t < 0.55) { const k = (t - 0.25) / 0.30; return [1.0 + (0.20 - 1.0) * k, 0.60 + (0.82 - 0.60) * k, 0.15 + (0.72 - 0.15) * k]; }
           const k = (t - 0.55) / 0.45;
-          return [0.20 + (0.35 - 0.20) * k, 0.82 + (0.32 - 0.82) * k, 0.72 + (0.95 - 0.72) * k];
+          return [0.28 + (0.45 - 0.28) * k, 0.86 + (0.40 - 0.86) * k, 0.78 + (1.00 - 0.78) * k];
         };
         const c0 = pal(rn);
-        col[i * 3] = c0[0]; col[i * 3 + 1] = c0[1]; col[i * 3 + 2] = c0[2];
+        // 轴柱里的粒子压暗一点，让赤道盘更突出（颗粒喷射靠 bloom 提亮）
+        const dim = disk ? 1.0 : 0.72;
+        col[i * 3] = c0[0] * dim; col[i * 3 + 1] = c0[1] * dim; col[i * 3 + 2] = c0[2] * dim;
       }
       const gl = this.gl;
       const vbo = gl.createBuffer();
@@ -409,7 +412,7 @@ const NS = (() => {
         if (!isFinite(x) || rr > ext * 1.6 || Math.abs(z) > zext * 1.15
             || rr < ext * 0.05 || age[i] > 0.85) {
           const disk = Math.random() < 0.85;
-          const SHELLS = 26;
+          const SHELLS = 40;
           const shell = Math.floor(Math.random() * SHELLS);
           const rad = disk
             ? ext * (shell + 0.5) / SHELLS * (0.985 + 0.03 * Math.random())
@@ -446,6 +449,50 @@ const NS = (() => {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, age);
     }
 
+    // ---------- 环层：几何圆环（比粒子撒点更细更匀，直接反映等半径壳） ----------
+    buildRings(shells = 40, seg = 160) {
+      const gl = this.gl;
+      const rMax = (this.extent && this.extent[0]) || 0.5;
+      const vert = [], col = [];
+      const pal = (x) => {
+        if (x < 0.22) return [1.0, 0.96, 0.86];
+        if (x < 0.45) { const k = (x - 0.22) / 0.23; return [1.0, 0.96 + (0.72 - 0.96) * k, 0.86 + (0.18 - 0.86) * k]; }
+        if (x < 0.68) { const k = (x - 0.45) / 0.23; return [1.0 + (0.42 - 1.0) * k, 0.72 + (0.60 - 0.72) * k, 0.18 + (0.35 - 0.18) * k]; }
+        const k = (x - 0.68) / 0.32;
+        return [0.42 + (0.52 - 0.42) * k, 0.60 + (0.46 - 0.60) * k, 0.35 + (1.00 - 0.35) * k];
+      };
+      for (let s = 0; s < shells; s++) {
+        const r = rMax * (s + 3) / (shells + 3);
+        const c = pal(r / rMax);
+        for (let j = 0; j < seg; j++) {
+          const a0 = j / seg * Math.PI * 2, a1 = (j + 1) / seg * Math.PI * 2;
+          vert.push(r * Math.cos(a0), r * Math.sin(a0), 0, r * Math.cos(a1), r * Math.sin(a1), 0);
+          col.push(c[0], c[1], c[2], c[0], c[1], c[2]);
+        }
+      }
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vert), gl.STATIC_DRAW);
+      const cbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(col), gl.STATIC_DRAW);
+      if (!this.ringProg) {
+        const VS = `#version 300 es
+in vec3 aPos; in vec3 aCol; uniform mat4 uVP; out vec3 vCol;
+void main(){ vCol = aCol; gl_Position = uVP * vec4(aPos, 1.0); }`;
+        const FS = `#version 300 es
+precision highp float; in vec3 vCol; out vec4 o; uniform float uAlpha;
+void main(){ o = vec4(vCol * uAlpha, 1.0); }`;
+        const mk = (ty, src) => { const sh = gl.createShader(ty); gl.shaderSource(sh, src); gl.compileShader(sh); return sh; };
+        const p = gl.createProgram();
+        gl.attachShader(p, mk(gl.VERTEX_SHADER, VS));
+        gl.attachShader(p, mk(gl.FRAGMENT_SHADER, FS));
+        gl.linkProgram(p);
+        this.ringProg = p;
+      }
+      this.rings = { vbo, cbo, count: vert.length / 3 };
+    }
+
     _loop() {
       const now = performance.now();
       const dt = Math.min(0.05, (now - (this._last || now)) / 1000);
@@ -464,6 +511,9 @@ const NS = (() => {
     _draw() {
       const gl = this.gl;
       const w = this.canvas.width, h = this.canvas.height;
+      this._ensureFBOs();
+      // 场景先渲到离屏纹理，辉光与合成在 _postProcess 里做
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO);
       gl.viewport(0, 0, w, h);
       gl.clearColor(0.016, 0.02, 0.03, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -526,6 +576,24 @@ const NS = (() => {
         gl.drawArrays(gl.LINES, 0, T.steps * T.seeds);
       }
 
+      // 2.5) 几何环层（等半径壳，锐利且均匀）
+      if (this.settings.showRings !== false && this.rings) {
+        gl.useProgram(this.ringProg);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rings.vbo);
+        const ra = gl.getAttribLocation(this.ringProg, "aPos");
+        gl.enableVertexAttribArray(ra);
+        gl.vertexAttribPointer(ra, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rings.cbo);
+        const rc = gl.getAttribLocation(this.ringProg, "aCol");
+        gl.enableVertexAttribArray(rc);
+        gl.vertexAttribPointer(rc, 3, gl.FLOAT, false, 0, 0);
+        gl.uniformMatrix4fv(gl.getUniformLocation(this.ringProg, "uVP"), false, vp);
+        gl.uniform1f(gl.getUniformLocation(this.ringProg, "uAlpha"), this.settings.ringAlpha);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+        gl.drawArrays(gl.LINES, 0, this.rings.count);
+      }
+
       // 3) 粒子（加法混合）
       if (this.settings.showParticles && this.particles) {
         const P = this.particles;
@@ -554,6 +622,140 @@ const NS = (() => {
       }
       gl.disable(gl.BLEND);
       this._lastVP = vp;
+      this._postProcess(w, h);
+    }
+
+    // ---------- 辉光（bloom）：亮部提取 → 分离高斯模糊 → 加法合成 ----------
+    _initPost() {
+      if (this.post) return;
+      const gl = this.gl;
+      const VS = `#version 300 es
+in vec2 aPos; out vec2 vUv;
+void main(){ vUv = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }`;
+      const mk = (fs) => {
+        const v = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(v, VS); gl.compileShader(v);
+        const f = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(f, fs); gl.compileShader(f);
+        if (!gl.getShaderParameter(f, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(f));
+        const p = gl.createProgram();
+        gl.attachShader(p, v); gl.attachShader(p, f); gl.linkProgram(p);
+        if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+        return p;
+      };
+      const bright = mk(`#version 300 es
+precision highp float; in vec2 vUv; out vec4 o;
+uniform sampler2D uTex; uniform float uThresh; uniform float uKnee;
+void main() {
+  vec3 c = texture(uTex, vUv).rgb;
+  float l = max(c.r, max(c.g, c.b));
+  float k = clamp((l - uThresh) / max(uKnee, 1e-4), 0.0, 1.0);
+  o = vec4(c * k * k, 1.0);
+}`);
+      const blur = mk(`#version 300 es
+precision highp float; in vec2 vUv; out vec4 o;
+uniform sampler2D uTex; uniform vec2 uDir;
+void main() {
+  float w0 = 0.227027, w1 = 0.1945946, w2 = 0.1216216, w3 = 0.054054, w4 = 0.016216;
+  vec3 s = texture(uTex, vUv).rgb * w0;
+  s += texture(uTex, vUv + uDir * 1.0).rgb * w1;
+  s += texture(uTex, vUv - uDir * 1.0).rgb * w1;
+  s += texture(uTex, vUv + uDir * 2.0).rgb * w2;
+  s += texture(uTex, vUv - uDir * 2.0).rgb * w2;
+  s += texture(uTex, vUv + uDir * 3.0).rgb * w3;
+  s += texture(uTex, vUv - uDir * 3.0).rgb * w3;
+  s += texture(uTex, vUv + uDir * 4.0).rgb * w4;
+  s += texture(uTex, vUv - uDir * 4.0).rgb * w4;
+  o = vec4(s, 1.0);
+}`);
+      const comp = mk(`#version 300 es
+precision highp float; in vec2 vUv; out vec4 o;
+uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uStrength;
+void main() {
+  vec3 s = texture(uScene, vUv).rgb;
+  vec3 b = texture(uBloom, vUv).rgb;
+  o = vec4(s + b * uStrength, 1.0);
+}`);
+      const buf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+      this.post = { bright, blur, comp, buf };
+    }
+
+    _ensureFBOs() {
+      const gl = this.gl, w = this.canvas.width, h = this.canvas.height;
+      this._initPost();
+      if (this.sceneFBO && this._fbW === w && this._fbH === h) return;
+      const mkRT = (tw, th) => {
+        const t = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, tw, th, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const f = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, f);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, t, 0);
+        return { tex: t, fbo: f };
+      };
+      if (this.sceneFBO) {
+        gl.deleteFramebuffer(this.sceneFBO); gl.deleteTexture(this.sceneTex);
+        gl.deleteFramebuffer(this.bloomFBO[0]); gl.deleteFramebuffer(this.bloomFBO[1]);
+        gl.deleteTexture(this.bloomTex[0]); gl.deleteTexture(this.bloomTex[1]);
+      }
+      const scene = mkRT(w, h);
+      this.sceneTex = scene.tex; this.sceneFBO = scene.fbo;
+      this._bW = Math.max(1, Math.floor(w / 2)); this._bH = Math.max(1, Math.floor(h / 2));
+      const a = mkRT(this._bW, this._bH), b = mkRT(this._bW, this._bH);
+      this.bloomTex = [a.tex, b.tex]; this.bloomFBO = [a.fbo, b.fbo];
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      this._fbW = w; this._fbH = h;
+    }
+
+    _postProcess(w, h) {
+      const gl = this.gl, P = this.post;
+      const bw = this._bW, bh = this._bH;
+      gl.disable(gl.BLEND);
+      const bindQuad = (prog) => {
+        gl.useProgram(prog);
+        gl.bindBuffer(gl.ARRAY_BUFFER, P.buf);
+        const a = gl.getAttribLocation(prog, "aPos");
+        gl.enableVertexAttribArray(a);
+        gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+      };
+      // 1) 亮部提取：scene -> bloomA
+      bindQuad(P.bright);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomFBO[0]);
+      gl.viewport(0, 0, bw, bh);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
+      gl.uniform1i(gl.getUniformLocation(P.bright, "uTex"), 0);
+      gl.uniform1f(gl.getUniformLocation(P.bright, "uThresh"), this.settings.bloomThresh);
+      gl.uniform1f(gl.getUniformLocation(P.bright, "uKnee"), 0.35);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      // 2) 分离高斯：A->B（横）再 B->A（纵）
+      bindQuad(P.blur);
+      gl.uniform1i(gl.getUniformLocation(P.blur, "uTex"), 0);
+      for (let i = 0; i < 2; i++) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomFBO[(i + 1) % 2]);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, this.bloomTex[i]);
+        const dx = (i === 0 ? 1.6 / bw : 0.0), dy = (i === 0 ? 0.0 : 1.6 / bh);
+        gl.uniform2f(gl.getUniformLocation(P.blur, "uDir"), dx, dy);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+      // 3) 合成到画布
+      bindQuad(P.comp);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, w, h);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.sceneTex);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.bloomTex[0]);
+      gl.uniform1i(gl.getUniformLocation(P.comp, "uScene"), 0);
+      gl.uniform1i(gl.getUniformLocation(P.comp, "uBloom"), 1);
+      gl.uniform1f(gl.getUniformLocation(P.comp, "uStrength"), this.settings.bloom);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.activeTexture(gl.TEXTURE0);
     }
   }
 
