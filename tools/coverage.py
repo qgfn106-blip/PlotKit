@@ -9,6 +9,20 @@ from __future__ import annotations
 import argparse
 import sys
 
+
+def _encodable(text: str) -> bool:
+    """Windows 控制台常见 GBK：emoji 编不出来会直接 UnicodeEncodeError，这里提前降级。"""
+    enc = getattr(sys.stdout, "encoding", "") or "utf-8"
+    try:
+        text.encode(enc)
+    except Exception:
+        return False
+    return True
+
+
+OK = "✅" if _encodable("✅") else "[OK]"
+DASH = "—" if _encodable("—") else "-"
+
 from plotkit.backends import registry as reg
 from plotkit.backends.mpl_backend import DRAWERS
 from plotkit.presets import KIND_PRESETS
@@ -33,9 +47,9 @@ def rows() -> list[tuple[str, int, str, str, str, str]]:
         out.append((
             kind,
             spec.dimension,
-            "✅" if kind in DRAWERS else "—",
+            OK if kind in DRAWERS else DASH,
             ", ".join(REQUIRED_DATA.get(kind, {})) or "—",
-            "✅" if kind in KIND_PRESETS else "—",
+            OK if kind in KIND_PRESETS else DASH,
             spec.description or "",
         ))
     return out
@@ -54,7 +68,7 @@ def main() -> int:
 
     covered = {k for k, *_ in data}
     missing = [k for k in MATRIX_18 if k not in covered]
-    no_drawer = [k for k, _, drawer, *_ in data if drawer != "✅"]
+    no_drawer = [k for k, _, drawer, *_ in data if drawer != OK]
     print()
     print(f"- registry 共 **{len(data)}** 种；18 种矩阵覆盖 **{len(MATRIX_18) - len(missing)}/18**")
     print(f"- 缺绘制器：{', '.join(no_drawer) or '无'}")

@@ -1342,7 +1342,7 @@ async function load3dLayers() {
         if (res.ok && view3d.view) {
           const m = PK3D.parseMesh(await res.arrayBuffer());
           out.push({ mode: "mesh", positions: m.positions, normals: m.normals,
-                     indices: m.indices, color: [0.62, 0.80, 1.00, 0.55], opacity: 0.55,
+                     indices: m.indices, color: [0.58, 0.66, 1.00, 0.42], opacity: 0.42,
                      meta: m.meta, label: "volume" });
           setStatus(`等值面 ${m.meta.nvert} 顶点 / ${m.meta.ntri} 三角`, "ok");
         } else {
@@ -1350,6 +1350,26 @@ async function load3dLayers() {
         }
       } catch (err) {
         setStatus(`体积场加载失败：${err.message}`, "warn");
+      }
+      continue;
+    }
+    // 多段折线（流线束 / 轨迹束）：端点点对，浏览器用 gl.LINES 画
+    if (layer.kind === "segments" && data.x && data.y && data.z) {
+      try {
+        const res = await fetch(`api/segments?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
+                                `&z=${encodeURIComponent(data.z)}&stride=1`);
+        if (res.ok) {
+          const sg = PK3D.parseParticles(await res.arrayBuffer());
+          const col = (layer.style && layer.style.color) || [0.55, 0.75, 1.0];
+          out.push({ mode: "segments", positions: sg.xyz,
+                     color: [col[0], col[1], col[2], 1.0], opacity: 1.0,
+                     meta: sg.meta, label: "segments" });
+          setStatus(`流线段 ${Math.round(sg.xyz.length / 6)} 段`, "ok");
+        } else {
+          setStatus("流线加载失败", "warn");
+        }
+      } catch (err) {
+        setStatus(`流线加载失败：${err.message}`, "warn");
       }
       continue;
     }

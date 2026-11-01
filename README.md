@@ -211,6 +211,16 @@ from plotkit.server.app import create_app
 app = create_app(figure, with_ns=True)     # 多出 /api/ns/*
 ```
 
+### 多段折线（`segments`）
+
+流线束、轨迹束这类"很多段短线"用 `segments`：`x/y/z` 是**端点点对**（第 2i、2i+1 连成一段），
+主查看器用 `gl.LINES` 画，服务端 `/api/segments` 走与 `/api/particles` 相同的 `PK01` 二进制帧。
+
+```python
+fig.add_data("sx", xs); fig.add_data("sy", ys); fig.add_data("sz", sz)
+fig.add("segments", {"x": "sx", "y": "sy", "z": "sz"}, style={"width": 1.0, "color": "#73dbff"})
+```
+
 ## 三维视图（点云/曲面/体积/粒子，见 [docs/WEB3D_LAYERS.md](docs/WEB3D_LAYERS.md)）
 
 页面右上角「3D」按钮：把带 `z` 的图层（`scatter3d` / `line3d` / `stream3d`）交给 WebGL2 直接画，

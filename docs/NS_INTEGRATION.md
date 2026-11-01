@@ -83,3 +83,53 @@ NS 私有页面仍保留，作为"逐帧调参 + 双轨诊断"的专用工作台
 - **页面回归重演**：上次一带 `phys` 就 0 粒子。对策：默认路径不拼 `phys`；先跑 A3-3 再开 A3-4。
 - **等值面为空**：`level` 落在数据范围外会 400。对策：scene 里按 `vmin + 0.25*(vmax-vmin)` 给默认值，并允许 `level=` 覆盖。
 - **采样成本**：48³ 场 + 2 万粒子在浏览器侧 30 fps 左右。若低于 20 fps，降 `n`/粒子数而不是改渲染。
+
+---
+
+# 阶段 4：补齐 #9 与 #5（2026-11-02）
+
+## 11. 需求
+
+| 编号 | 需求 | 说明 |
+| --- | --- | --- |
+| R4-1 | `tools/coverage.py` 在 GBK 控制台可用 | 不再因 emoji 抛 `UnicodeEncodeError`；`--check` 退出码语义不变 |
+| R4-2 | 新增 `segments` 图层（三维多段折线） | 数据键 `x/y/z` 为**端点点对**（第 2i、2i+1 连成一段）；三个出口都要支持 |
+| R4-3 | NS 流线以 `segments` 图层进入主查看器 | `pk.ns.scene.figure()` 默认带流线；`--figure` 打开即可见 |
+| R4-4 | 主查看器路径完整 | 程序调用即"数据接入 + 窗口绘制"：spec → `/api/segments` → WebGL `gl.LINES`；pyvista 也能出图 |
+
+## 12. 规范
+
+- 新图层的字段名沿用既有约定（`x/y/z` + `style.width/color`），不新造键。
+- 服务端二进制沿用 `PK01 + meta_len + n + meta + float32`，与 `/api/particles` 同构。
+- 前端只改 `view3d.js` 的绘制分支与 `app.js` 的 `load3dLayers`，不新增渲染器。
+- 每个新图层必须同时具备：mpl drawer、pyvista builder、浏览器绘制、`REQUIRED_DATA` 登记。
+
+## 13. 约束
+
+- 不得改动既有 415 条测试的语义；`pk.kinds()` 只增不减（53 → 54）。
+- 流线积分必须在数据包围盒内收敛：单步位移超过域长 2% 时自动缩步长。
+- 默认路径（`scene.figure()` 不传参）必须仍然能在 3 秒内构建完成（48³ 场 + 流线）。
+
+## 14. 验收
+
+| 编号 | 判据 | 验证方式 |
+| --- | --- | --- |
+| A4-1 | `python tools/coverage.py --check` 在 GBK 下退出 0 | 直接跑 |
+| A4-2 | `segments` 在 `pk.kinds()` 中，且 mpl/pyvista/浏览器三处都能画 | `tests/test_ns_scene.py` + 截图 |
+| A4-3 | `scene.figure()` 的 spec 含 `volume`/`particles`/`segments` 三层 | 单测断言 |
+| A4-4 | `--figure --shot` 截图中能看到流线，`window.__err` 为空 | 验收脚本 |
+| A4-5 | 全量 pytest 绿 + 提交推送 | `pytest -q` / `git status` |
+
+## 15. 验收结果（阶段 4，2026-11-02）
+
+| 编号 | 结果 | 证据 |
+| --- | --- | --- |
+| A4-1 | ✅ | `python tools/coverage.py --check` → 退出 0（emoji 自动降级成 `[OK]`/`-`） |
+| A4-2 | ✅ | `pk.kinds()` = 54；mpl `Line3DCollection`、pyvista `PolyData lines`、浏览器 `gl.LINES` 三处都能画 |
+| A4-3 | ✅ | `tests/test_ns_scene.py::test_scene_has_segments_layer`（layers = volume/particles/segments） |
+| A4-4 | ✅ | `python -m plotkit.ns.app --figure --shot docs/ns_scene.png --seconds 14` → 120 fps、`err:null`，画面见流线束 |
+| A4-5 | ✅ | 全量 `pytest` → **405 passed**；提交见 git log |
+
+> 备注：`segments` 的 `x/y/z` 是**端点点对**（第 2i、2i+1 连成一段），与 `line3d` 的连续折线不同；
+> 服务端 `/api/segments` 与 `/api/particles` 共用 `PK01` 帧格式，前端复用 `parseParticles`。
+

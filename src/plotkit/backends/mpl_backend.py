@@ -573,6 +573,24 @@ def _draw_line3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) ->
             label=layer.get("label") or layer.get("data", {}).get("z"))
 
 
+def _draw_segments(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
+    """多段折线：x/y/z 是**成对**的端点（第 2i、2i+1 个点连成一段）。"""
+    from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+    style = layer.get("style") or {}
+    x, y, z = _xyz_arrays(layer, store)
+    xs, ys, zs = np.ravel(x), np.ravel(y), np.ravel(z)
+    n = (xs.size // 2) * 2
+    if n < 2:
+        return
+    pts = np.stack([xs[:n], ys[:n], zs[:n]], axis=1).reshape(-1, 2, 3)
+    coll = Line3DCollection(pts,
+                            colors=str(style.get("color") or color_for(index)),
+                            linewidths=float(style.get("width", 1.2) or 1.2))
+    ax.add_collection3d(coll)
+    ax.auto_scale_xyz(xs[:n], ys[:n], zs[:n])
+
+
 def _draw_scatter3d(ax, layer, store, index: int, *, pixels=None, per_pixel=2.0) -> None:
     style = layer.get("style") or {}
     x, y, z = _xyz_arrays(layer, store)
@@ -1497,6 +1515,8 @@ reg.register("line", 2, None, defaults={"mode": "lines", "width": 1.6},
 reg.register("marker", 2, None, defaults={"mode": "markers"},
              aliases=("scatter", "points"), description="散点")
 reg.register("bar", 2, None, defaults={"mode": "bars"}, description="柱状图")
+reg.register("segments", 3, None, defaults={"width": 1.2},
+             description="多段折线（流线束 / 轨迹束，端点点对）")
 reg.register("lic", 2, None, defaults={"steps": 24, "contrast": 1.0},
              description="线积分卷积（稠密矢量场纹理）")
 reg.register("volume", 3, None, defaults={"cmap": "magma"},

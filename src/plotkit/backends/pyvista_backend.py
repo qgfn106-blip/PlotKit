@@ -192,6 +192,7 @@ SUPPORTED_KINDS = (
     "stem3d",
     "text3d",
     "particles",
+    "segments",
 )
 
 
@@ -285,6 +286,36 @@ def build_trisurf(layer, store) -> list[_Item]:
     style = _style(layer)
     return [_Item(mesh=poly, scalars="value", cmap=str(style.get("cmap") or "viridis"),
                   opacity=float(style.get("opacity", 1.0)))]
+
+
+def build_segments(layer, store) -> list[_Item]:
+    """多段折线 → PolyData lines（每两行点构成一段）。"""
+    import pyvista as pv
+
+    data = layer.get("data") or {}
+    x = _values(layer, store, "x")
+    y = _values(layer, store, "y")
+    z = _values(layer, store, "z")
+    pts = np.column_stack([np.ravel(x), np.ravel(y), np.ravel(z)]).astype(float)
+    n = (pts.shape[0] // 2) * 2
+    if n < 2:
+        return []
+    pts = pts[:n]
+    nseg = n // 2
+    lines = np.empty((nseg, 3), dtype=np.int64)
+    lines[:, 0] = 2
+    lines[:, 1] = np.arange(0, n, 2)
+    lines[:, 2] = np.arange(1, n, 2)
+    poly = pv.PolyData(pts, lines=lines.ravel())
+    style = layer.get("style") or {}
+    color = style.get("color")
+    rgb = None
+    if isinstance(color, str) and color.startswith("#") and len(color) >= 7:
+        rgb = tuple(int(color[i:i + 2], 16) / 255.0 for i in (1, 3, 5))
+    elif color:
+        rgb = tuple(float(c) for c in color)
+    return [_Item(mesh=poly, color=rgb,
+                  line_width=float(style.get("width", 1.2) or 1.2), mode="lines")]
 
 
 def build_scatter3d(layer, store) -> list[_Item]:
@@ -494,6 +525,7 @@ _BUILDERS = {
     "stem3d": build_stem3d,
     "text3d": build_text3d,
     "particles": _build_particles,
+    "segments": build_segments,
 }
 
 

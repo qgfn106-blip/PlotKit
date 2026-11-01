@@ -407,6 +407,24 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         return Response(content=_binary_field(field, meta),
                         media_type="application/octet-stream")
 
+    @app.get("/api/segments")
+    def segments(x: str = Query(...), y: str = Query(...), z: str = Query(...),
+                 stride: int = Query(1, ge=1, le=16)) -> Response:
+        """多段折线的端点（第 2i、2i+1 个点连成一段），float32 平铺。"""
+        try:
+            xv = np.asarray(figure.store.values(x), dtype=np.float64).ravel()
+            yv = np.asarray(figure.store.values(y), dtype=np.float64).ravel()
+            zv = np.asarray(figure.store.values(z), dtype=np.float64).ravel()
+        except (KeyError, IndexError) as exc:
+            raise HTTPException(404, f"未知数据集：{exc}") from exc
+        n = min(xv.size, yv.size, zv.size)
+        step = max(1, int(stride))
+        pts = np.stack([xv[:n], yv[:n], zv[:n]], axis=1)[::step]
+        meta = {"x": x, "y": y, "z": z, "n": int(pts.shape[0]),
+                "bbox": [pts.min(axis=0).tolist(), pts.max(axis=0).tolist()]}
+        return Response(content=_binary_points(pts, None, meta),
+                        media_type="application/octet-stream")
+
     @app.get("/api/particles")
     def particles(x: str = Query(...), y: str = Query(...), z: str = Query(...),
                   c: str | None = Query(None), stride: int = Query(1, ge=1, le=16),

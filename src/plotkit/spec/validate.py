@@ -48,6 +48,8 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     "surface": {"z": ("field", "image", "auto")},
     "line3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
                "z": ("series", "field", "auto")},
+    "segments": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
+                 "z": ("series", "field", "auto")},
     "scatter3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
                   "z": ("series", "field", "auto")},
     "bar3d": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
@@ -123,6 +125,8 @@ KNOWN_STYLE_KEYS = {
     # P13-07：stairs / broken_barh / eventplot / bxp / psd / specgram
     "nfft", "fs", "orientation", "lineoffsets", "linelengths", "row", "height", "whis",
     "highlight", "fontsize3d",
+    # P16-06：体积 / 粒子（浏览器三维图层）
+    "level", "iso", "markersize", "pointsize", "density_scale",
     # PK-R13：透传白名单——kind 允许把后端专有 kwargs 原样存进 style["passthrough"]
     "passthrough",
 }

@@ -798,7 +798,10 @@
           continue;
         }
         gl.uniform1f(this.uLit, 0.0);
-        if (layer.mode === "lines") {
+        if (layer.mode === "segments") {
+          gl.uniform1f(this.uPointSize, 1);
+          gl.drawArrays(gl.LINES, 0, layer.count);
+        } else if (layer.mode === "lines") {
           gl.uniform1f(this.uPointSize, 1);
           gl.drawArrays(gl.LINE_STRIP, 0, layer.count);
         } else {
