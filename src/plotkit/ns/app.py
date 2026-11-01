@@ -62,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--source", choices=("analytic", "solver"), default="analytic",
                         help="analytic=解析场 A′；solver=数值解 B（首次约 15 s）")
     parser.add_argument("--particles", type=int, default=0, help="粒子数（0 = 用页面默认值）")
+    parser.add_argument("--gpu", action="store_true", help="启用 GPU 粒子推进（实验）")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=820)
     args = parser.parse_args(argv)
@@ -72,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
         query.append(f"t={args.t}")
     if args.particles:
         query.append(f"particles={args.particles}")
+    if args.gpu:
+        query.append("gpu=1")
     if args.source != "analytic":
         query.append(f"source={args.source}")
     url = f"http://127.0.0.1:{port}/" + (("?" + "&".join(query)) if query else "")
@@ -117,7 +120,7 @@ def main(argv: list[str] | None = None) -> int:
                 "   gl.bindFramebuffer(gl.FRAMEBUFFER, null); }"
                 " return JSON.stringify({particles: v.particles ? v.particles.count : 0,"
                 " vel: !!v.vel, tex: !!v.tex, center: Array.from(px.slice(0,8)),"
-                " gpu: !!v.gpu, floatFBO: !!ext, fb: fb, glErr: gl.getError(),"
+                " gpu: !!v.gpu, gpuErr: v.gpuError || '', floatFBO: !!ext, fb: fb, glErr: gl.getError(),"
                 " extent: v.extent, vmin: v.vmin, vmax: v.vmax}); })()"))
             result["overlay"] = json.loads(window.evaluate_js(
                 "JSON.stringify({tau: document.getElementById('tau').textContent,"

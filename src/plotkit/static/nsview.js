@@ -481,6 +481,8 @@ const NS = (() => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       this.particles = { pos, prev, age, col, vbo, pvo, abo, cbo, count,
                          hist, histTex, K, W, rows, slot: 0 };
+      // 粒子刚建好才谈得上建 GPU 状态（setField 时 particles 还不存在）
+      if (this.settings.gpuAdvect === true) this._initParticleGPU();
     }
 
     setTime(t, tBlow) {
@@ -540,6 +542,73 @@ const NS = (() => {
     }
 
 
+
+  _mkProgram(vsSrc, fsSrc) {
+    const gl = this.gl;
+    const sh = (type, src) => {
+      const o = gl.createShader(type);
+      gl.shaderSource(o, src);
+      gl.compileShader(o);
+      if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(o) || "shader compile failed");
+      }
+      return o;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, vsSrc));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fsSrc));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(prog) || "link failed");
+    }
+    return prog;
+  }
+
+  // GPU 路径专用的点精灵着色器：位置从纹理 texelFetch，不再走 VBO
+  _initPointsGpuProgram() {
+    const gl = this.gl;
+    const vs = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPos; uniform sampler2D uPrev;
+    uniform mat4 uVP; uniform float uPointSize; uniform float uLerp;
+    uniform float uAlphaScale; uniform float uExt; uniform int uW; uniform int uStride;
+    out float vAge; out vec3 vCol; out float vFade;
+    void main() {
+      int id = gl_VertexID * uStride;
+      ivec2 t = ivec2(id % uW, id / uW);
+      vec4 a = texelFetch(uPos, t, 0);
+      vec4 b = texelFetch(uPrev, t, 0);
+      vec3 pos = mix(a.xyz, b.xyz, uLerp);
+      vec4 c = uVP * vec4(pos, 1.0);
+      gl_Position = c;
+      gl_PointSize = uPointSize * (1.0 - 0.25 * a.w) * (1.0 - 0.55 * uLerp) * (3.0 / max(c.w, 0.2));
+      float rn = clamp(length(a.xy) / max(uExt, 1e-6), 0.0, 1.0);
+      vec3 col;
+      if (rn < 0.25) col = mix(vec3(1.0, 0.95, 0.80), vec3(1.0, 0.60, 0.15), rn / 0.25);
+      else if (rn < 0.55) col = mix(vec3(1.0, 0.60, 0.15), vec3(0.20, 0.82, 0.72), (rn - 0.25) / 0.30);
+      else col = mix(vec3(0.20, 0.82, 0.72), vec3(0.35, 0.32, 0.95), (rn - 0.55) / 0.45);
+      vAge = a.w; vCol = col;
+      vFade = (1.0 - 0.62 * uLerp) * uAlphaScale;
+    }`;
+    const fs = `#version 300 es
+    precision highp float;
+    in float vAge; in vec3 vCol; in float vFade; out vec4 o;
+    void main() {
+      float r = length(gl_PointCoord * 2.0 - 1.0);
+      if (r > 1.0) discard;
+      float core = exp(-r * r * 5.5);
+      float halo = smoothstep(1.0, 0.1, r) * 0.22;
+      float a = (core + halo) * (1.0 - 0.25 * vAge) * vFade * 0.055;
+      o = vec4(vCol * (0.75 + 0.55 * core) + vec3(0.20 * core), a);
+    }`;
+    try {
+      this.pointsGpu = this._mkProgram(vs, fs);
+    } catch (e) {
+      console.warn("GPU 点精灵 program 编译失败，回退 CPU 绘制", e);
+      this.pointsGpu = null;
+    }
+  }
+
   // ==================== GPU 粒子推进（位置纹理 ping-pong） ====================
   // 为什么：JS 侧 _advect 每帧每粒子做三线性采样 + RK2，100 万粒子要几百万次采样，
   // V8 扛不住。这里把状态存进 RGBA32F 纹理（xyz + age），全屏 pass 里做积分，
@@ -580,7 +649,7 @@ const NS = (() => {
       gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, rows, gl.RGBA, gl.FLOAT, buf);
       const hist = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, hist);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, W, rows * K, 0, gl.RGB, gl.FLOAT, null);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, W, rows * K, 0, gl.RGBA, gl.FLOAT, null);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -590,17 +659,19 @@ const NS = (() => {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, hist, 0);
       for (let k = 0; k < K; k++) {
         gl.bindTexture(gl.TEXTURE_2D, hist);
-        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, k * rows, W, rows, gl.RGB, gl.FLOAT, buf, 0);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, k * rows, W, rows, gl.RGBA, gl.FLOAT, buf, 0);
       }
       this.gpu = { W, rows, K, tex: [A.tex, B.tex], fbo: [A.fbo, B.fbo],
                    hist, histFBO, cur: 0, slot: 0, count: P.count, frame: 0 };
       this.particles.histTex = hist;
       this.particles.W = W; this.particles.rows = rows; this.particles.K = K;
       this._initAdvectProgram();
+      this._initPointsGpuProgram();
       this._uploadVelTex();
       return true;
     } catch (err) {
       console.warn("GPU 粒子推进不可用，回退 CPU：", err);
+      this.gpuError = String((err && err.message) || err).slice(0, 300);
       this.gpu = null;
       return false;
     }
@@ -614,8 +685,9 @@ const NS = (() => {
     void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
     const fs = `#version 300 es
     precision highp float;
+    precision highp sampler3D;   // GLSL ES 3.0 要求显式给 sampler3D 精度
     uniform sampler2D uPos;
-    uniform sampler3D uVel;
+    uniform highp sampler3D uVel;
     uniform float uStep, uExt, uZExt;
     uniform int uW, uCount, uSubCap, uFrame;
     out vec4 o;
@@ -746,6 +818,13 @@ const NS = (() => {
     gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
 
+    if (this.settings.gpuBlit === false) {   // 诊断开关：关掉历史帧拷贝，隔离 blit 报错
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      g.slot = (g.slot + 1) % g.K;
+      g.cur = dst;
+      gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+      return true;
+    }
     gl.bindFramebuffer(gl.READ_FRAMEBUFFER, g.fbo[dst]);
     gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, g.histFBO);
     gl.blitFramebuffer(0, 0, g.W, g.rows, 0, g.slot * g.rows, g.W, (g.slot + 1) * g.rows,
@@ -947,10 +1026,19 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         if (this.onStats) this.onStats(this.stats);
       }
       if (this.settings.showParticles) {
-        if (this.settings.gpuAdvect === true && this.gpu) this._advectGPU(dt);
-        else this._advect(dt);
+        // GPU 推进放在 draw 之后：它会把纹理单元 1 绑成 3D 速度场，
+        // 放在前面会把场景各 pass 预先绑好的 2D 纹理顶掉（实测体积整体变暗）
+        if (!(this.settings.gpuAdvect === true && this.gpu)) this._advect(dt);
       }
       this._draw();
+      if (this.settings.showParticles && this.settings.gpuAdvect === true && this.gpu) {
+        this._advectGPU(dt);
+        gl__restoreViewport: {
+          const gl2 = this.gl;
+          if (gl2) gl2.viewport(0, 0, this.canvas.width, this.canvas.height);
+          break gl__restoreViewport;
+        }
+      }
       requestAnimationFrame(() => this._loop());
     }
 
@@ -1102,20 +1190,23 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         // 能量守恒：3 层残影会把亮度顶到 3 倍，按 1/(1+0.9*trail) 归一
         const trailNorm = 1.0 / (1.0 + 0.9 * trail);
         [gl.getUniformLocation(this.points, "uAlphaScale")].fill(1.0);
-        if (false && G) {
+        if (G && this.pointsGpu) {
+          gl.useProgram(this.pointsGpu);
           gl.activeTexture(gl.TEXTURE2);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.points, "uPos"), 2);
+          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPos"), 2);
           gl.activeTexture(gl.TEXTURE3);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[1 - G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.points, "uPrev"), 3);
+          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPrev"), 3);
           gl.uniform1f(gl.getUniformLocation(this.points, "uExt"), this.vel.extent);
           gl.uniform1i(gl.getUniformLocation(this.points, "uW"), G.W);
           const strideP = Math.max(1, Math.ceil(G.count / 120000));
           gl.uniform1i(gl.getUniformLocation(this.points, "uStride"), strideP);
           for (let g = 0; g < ghosts; g++) {
-            gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
-            gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
+            gl.uniform1f(gl.getUniformLocation(this.pointsGpu, "uLerp"),
+                         ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+            gl.uniform1f(gl.getUniformLocation(this.pointsGpu, "uAlphaScale"),
+                         ghosts === 1 ? 1.0 : trailNorm);
             gl.drawArrays(gl.POINTS, 0, Math.ceil(G.count / strideP));
           }
           gl.activeTexture(gl.TEXTURE0);

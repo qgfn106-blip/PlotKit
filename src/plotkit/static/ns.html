@@ -146,7 +146,7 @@ const S = {
   rate: qnum("rate", 1.0),
   h: qnum("h", 0.005), x0: qnum("x0", 0.6), eta0: qnum("eta0", 1.0),
   source: qstr("source", "analytic"),
-  particles: qnum("particles", 120000), dirtyField: true, dirtyVel: true, lastVel: 0,
+  particles: qnum("particles", 120000), gpuAdvect: qstr("gpu", "0") === "1", dirtyField: true, dirtyVel: true, lastVel: 0,
 };
 const $ = (id) => document.getElementById(id);
 let view = null;
@@ -545,6 +545,7 @@ function probeAt(clientX, clientY) {
 (async function main() {
   view = new NS.NSView($("gl"));
   view.onStats = (s) => { S.fps = s.fps; };
+  view.settings.gpuAdvect = !!S.gpuAdvect;   // ?gpu=1 才启用实验性的 GPU 推进
   window.__ns = { view, S };
   bind();
   const guard = async (name, fn) => { try { await fn(); } catch (e) { (window.__nsErr = window.__nsErr || []).push(name + ": " + e); console.error(name, e); } };
