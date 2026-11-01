@@ -23,6 +23,7 @@ const NS = (() => {
   uniform float uTau;
   uniform float uStreak;
   uniform float uSpin;
+  uniform float uEnvelope;   // 0=柱, 1=薄盘（显示包络，非物理）
   uniform vec3 uCore, uMid, uOuter;
   out vec4 fragColor;
 
@@ -78,7 +79,9 @@ const NS = (() => {
       if (v > -20.0) {
         float omega = pow(10.0, v);
         float x = clamp(omega / max(uAxis, 1e-6), 0.0, 1.0);
-        float dens = pow(x, 8.0) * uDensity;
+        // 软传递：pow(x,8) 只会剩下"最强等值面"那一层细丝（该自相似场 Ω 沿 r 很平），
+        // 用 sqrt 型宽传递才能让整根涡柱发亮，宽→窄的收缩才看得出来。
+        float dens = (0.12 + 0.88 * pow(x, 1.5)) * uDensity;
         float theta = atan(p.y, p.x);
         float phi = theta - uSpin * omega * uTime;
         float zs = p.z * max(uTau, 1e-3);
@@ -87,8 +90,15 @@ const NS = (() => {
         float speedN = clamp(speed / 6.0, 0.0, 1.0);
         vec3 col = ramp(x) * (0.55 + 0.9 * speedN);
         float radial = exp(-5.2 * pow(length(p.xy) / uExtent.x, 2.0));
-        float axial = smoothstep(1.0, 0.85, abs(p.z) / uExtent.y);
-        float a = clamp(dens * dt * 2.2, 0.0, 0.35) * radial * axial;
+        // 轴向显示包络：该自相似场在 z 方向没有特征长度（物理上是长柱），
+        // 这里按 |z| 加一层高斯包络把"柱"收成"盘"，纯属显示加权，界面标注非物理。
+        float lz = mix(1.0, 0.16, uEnvelope);
+        float axial = exp(-pow(abs(p.z) / (uExtent.y * lz), 2.2));
+        // 盘边缘做一点外扩，形成"赤道盘 + 上下锥"的过渡
+        float flare = mix(0.0, 0.55, uEnvelope) * exp(-pow(abs(p.z) / (uExtent.y * lz * 1.9), 2.0));
+        radial *= (1.0 + flare);
+        // 收成盘时光程变短、亮度会集中，按包络强度压一下曝光免得糊成白饼
+        float a = clamp(dens * dt * 2.2 * mix(1.0, 0.55, uEnvelope), 0.0, 0.35) * radial * axial;
         acc += (1.0 - alpha) * a * col;
         alpha += (1.0 - alpha) * a;
         if (alpha > 0.985) break;
@@ -252,7 +262,7 @@ const NS = (() => {
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 3.2, showParticles: true, showTrails: true,
+      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: true,
                         streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
@@ -567,6 +577,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
       gl.uniform1f(gl.getUniformLocation(this.quad, "uTau"), this.tau);
       gl.uniform1f(gl.getUniformLocation(this.quad, "uStreak"), this.settings.streaks);
       gl.uniform1f(gl.getUniformLocation(this.quad, "uSpin"), this.settings.spin);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uEnvelope"), this.settings.envelope);
       gl.uniform2f(gl.getUniformLocation(this.quad, "uExtent"), this.extent?.[0] ?? 0.5, this.extent?.[1] ?? 1.2);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uCore"), 1.0, 0.72, 0.25);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uMid"), 0.16, 0.72, 0.66);

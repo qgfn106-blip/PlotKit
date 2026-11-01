@@ -70,6 +70,9 @@
   <input id="ks" type="range" min="0" max="1" step="0.05" value="0.8">
   <label>螺旋缠绕 <span class="val" id="vw">2.0</span></label>
   <input id="kw" type="range" min="0" max="6" step="0.25" value="2.0">
+  <label>轴向包络 <span class="val" id="vz">0.45</span></label>
+  <input id="kz" type="range" min="0" max="1" step="0.05" value="0.45">
+  <div class="note" style="margin:-4px 0 6px">显示包络（非物理）：0 = 直柱，1 = 薄盘</div>
   <label>辉光强度 <span class="val" id="vb">0.45</span></label>
   <input id="kb" type="range" min="0" max="2.5" step="0.05" value="0.45">
   <label>粒子数 <span class="val" id="vp">200000</span></label>
@@ -90,9 +93,15 @@
 
 <script src="/nsview.js"></script>
 <script>
+// 支持 ?t=0.6&h=0.005&x0=0.6&eta0=1.0&particles=120000 直接打开到某一时刻（验收/出图用）
+const Q = new URLSearchParams(location.search);
+const qnum = (key, dflt) => (Q.has(key) ? Number(Q.get(key)) : dflt);
 const S = {
-  t: 0.0, playing: false, rate: 1.0, h: 0.005, x0: 0.6, eta0: 1.0,
-  particles: 120000, dirtyField: true, dirtyVel: true, lastVel: 0,
+  t: Math.min(0.985, Math.max(0, qnum("t", 0.0))),
+  playing: Q.get("play") === "1",
+  rate: qnum("rate", 1.0),
+  h: qnum("h", 0.005), x0: qnum("x0", 0.6), eta0: qnum("eta0", 1.0),
+  particles: qnum("particles", 120000), dirtyField: true, dirtyVel: true, lastVel: 0,
 };
 const $ = (id) => document.getElementById(id);
 let view = null;
@@ -161,7 +170,7 @@ function updateClock() {
   $("tau").textContent = (S.tBlow - S.t).toFixed(3);
   $("tval").textContent = S.t.toFixed(3);
   $("tleft").textContent = (S.tBlow - S.t).toFixed(3);
-  $("scrub").value = Math.round(S.t * 1000);
+  $("scrub").value = Math.round((S.t / (S.tBlow || 1)) * 1000);
 }
 
 let refreshTimer = null;
@@ -187,6 +196,7 @@ function bind() {
   ks.oninput = () => { view.settings.streaks = +ks.value; $("vs").textContent = (+ks.value).toFixed(2); };
   kw.oninput = () => { view.settings.spin = +kw.value; $("vw").textContent = (+kw.value).toFixed(1); };
   kb.oninput = () => { view.settings.bloom = +kb.value; $("vb").textContent = (+kb.value).toFixed(2); };
+  $("kz").oninput = () => { view.settings.envelope = +$("kz").value; $("vz").textContent = (+$("kz").value).toFixed(2); };
   kp.oninput = () => {
     S.particles = +kp.value; $("vp").textContent = S.particles;
     view.seedParticles(S.particles);
@@ -198,8 +208,9 @@ function bind() {
   $("btn-reset").onclick = () => view.setPreset("home");
 
   $("scrub").oninput = () => {
-    S.t = Math.min(0.985, +$("scrub").value / 1000);
-    updateClock(); scheduleRefresh(false);
+    if (S.playing) { S.playing = false; $("play").textContent = "▶"; }
+    S.t = Math.min(0.985, +$("scrub").value / 1000) * (S.tBlow || 1);
+    updateClock(); scheduleRefresh(true);      // true: 轨迹也跟着走，画面与时钟才对齐
   };
   $("play").onclick = () => {
     S.playing = !S.playing;
@@ -209,10 +220,10 @@ function bind() {
 
 function tick(now) {
   if (S.playing) {
-    S.t += (now - (S._prev || now)) / 1000 * 0.02 * S.rate;
-    if (S.t > 0.985) S.t = 0.0;
+    S.t += (now - (S._prev || now)) / 1000 * 0.02 * S.rate * (S.tBlow || 1);
+    if (S.t > 0.985 * (S.tBlow || 1)) S.t = 0.0;
     updateClock();
-    if (now - S.lastVel > 260) { S.lastVel = now; scheduleRefresh(false); }
+    if (now - S.lastVel > 120) { S.lastVel = now; scheduleRefresh(false); }
   }
   S._prev = now;
   requestAnimationFrame(tick);
