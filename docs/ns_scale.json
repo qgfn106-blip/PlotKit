@@ -1,17 +1,18 @@
 {
-  "url": "http://127.0.0.1:9161",
+  "url": "http://127.0.0.1:6967",
   "scale": [
     {
-      "fps": 46,
+      "fps": 58,
       "n": 100000,
       "err": "",
       "requested": 100000
+    },
+    {
+      "fps": 10,
+      "n": 500000,
+      "err": "",
+      "requested": 500000
     }
   ],
-  "consistency": {
-    "jump_is_deterministic": true,
-    "speed_does_not_change_physics": true,
-    "resume_moves_forward": true,
-    "camera_does_not_change_data": true
-  }
+  "consistency": {}
 }

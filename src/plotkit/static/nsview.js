@@ -145,7 +145,7 @@ const NS = (() => {
     float r = length(gl_PointCoord * 2.0 - 1.0);
     if (r > 1.0) discard;
     float core = exp(-r * r * 5.5);
-    float halo = smoothstep(1.0, 0.1, r) * 0.22;
+    float halo = smoothstep(1.0, 0.1, r) * 0.14;
     float a = (core + halo) * (1.0 - 0.25 * vAge) * vFade * 0.038;
     vec3 col = vCol * (0.85 + 0.45 * core) + vec3(0.10 * core);
     fragColor = vec4(col, a);
@@ -162,9 +162,10 @@ const NS = (() => {
   uniform int uW;
   uniform int uRows;
   uniform float uAlpha;
+  uniform int uStride;
   out float vFade;
   void main() {
-    int id = gl_InstanceID;
+    int id = gl_InstanceID * uStride;   // LOD：粒子太多时按步长跳着画
     int k = (gl_VertexID + uHead) % uK;
     int x = id % uW;
     int y = k * uRows + id / uW;
@@ -561,6 +562,9 @@ const NS = (() => {
         return true;
       };
       const k1 = [0, 0, 0], k2 = [0, 0, 0];
+      // 粒子越多，每个粒子的子步预算越少（总量守恒，宁可精度降一点也不卡死）
+      const subCap = P.count > 400000 ? 1 : (P.count > 150000 ? 2 : 6);
+      const doColor = (this._colTick = ((this._colTick || 0) + 1) % 4) === 0;
       const pos = P.pos, age = P.age;
       const prev = P.prev;
       for (let i = 0; i < P.count; i++) {
@@ -569,16 +573,16 @@ const NS = (() => {
         prev[o] = x; prev[o + 1] = y; prev[o + 2] = z;   // 拖尾残影的起点
         // 子步：单步位移不许超过域的 2%，否则轨迹会"跳步"甚至越界被回收（约束守不住）
         sample(x, y, z, k1);
-        const vmag = Math.hypot(k1[0], k1[1], k1[2]);
+        const vmag = Math.sqrt(k1[0] * k1[0] + k1[1] * k1[1] + k1[2] * k1[2]);
         const maxMove = Math.max(0.004, 0.02 * ext);
-        const sub = vmag > 1e-9 ? Math.min(6, Math.max(1, Math.ceil(vmag * step / maxMove))) : 1;
+        const sub = vmag > 1e-9 ? Math.min(subCap, Math.max(1, Math.ceil(vmag * step / maxMove))) : 1;
         const hs = step / sub;
         for (let k = 0; k < sub; k++) {
           sample(x, y, z, k1);
           sample(x + 0.5 * hs * k1[0], y + 0.5 * hs * k1[1], z + 0.5 * hs * k1[2], k2);
           x += hs * k2[0]; y += hs * k2[1]; z += hs * k2[2];
         }
-        const rr = Math.hypot(x, y);
+        const rr = Math.sqrt(x * x + y * y);
         // 这个场是向轴收缩的：粒子迟早挤进核心里堆成一团白雾。
         // 所以按"示踪粒子注入"的办法回收——寿命到、飞出域、或落进核心就重新撒回离散壳上。
         if (!isFinite(x) || rr > ext * 1.6 || Math.abs(z) > zext * 1.15
@@ -602,8 +606,9 @@ const NS = (() => {
         }
         age[i] = Math.min(1.0, age[i] + 0.004);
         pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+        if (!doColor) continue;
         // 颜色跟着局部速度走：慢 → 蓝紫，中 → 青绿，快 → 橙黄
-        const rn = Math.min(1.0, Math.hypot(x, y) / (ext || 0.5));
+        const rn = Math.min(1.0, Math.sqrt(x * x + y * y) / (ext || 0.5));
         if (rn < 0.25) {
           const t = rn / 0.25;
           P.col[o] = 1.0; P.col[o + 1] = 0.95 + (0.60 - 0.95) * t; P.col[o + 2] = 0.80 + (0.15 - 0.80) * t;
@@ -859,11 +864,12 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.uniform1f(gl.getUniformLocation(this.points, "uPointSize"), this.settings.pointSize * (h / 900));
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);
         const uLerp = gl.getUniformLocation(this.points, "uLerp");
-        const trail = this.settings.trail === undefined ? 0.6 : this.settings.trail;
-        const ghosts = trail > 0.02 ? 3 : 1;
+        const trail = this.settings.trail === undefined ? 0.5 : this.settings.trail;
+        const ghosts = trail > 0.02 ? 2 : 1;
+        const strideP = Math.max(1, Math.ceil(P.count / 200000));
         for (let g = 0; g < ghosts; g++) {
           gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
-          gl.drawArrays(gl.POINTS, 0, P.count);
+          gl.drawArrays(gl.POINTS, 0, Math.ceil(P.count / strideP));
         }
         // 真·流线：历史位置连成 LINE_STRIP（头亮尾淡），和点精灵叠在一起才像流体
         if (trail > 0.02 && P.histTex) {
@@ -878,7 +884,11 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
           gl.uniform1i(gl.getUniformLocation(R, "uRows"), P.rows);
           gl.uniform1i(gl.getUniformLocation(R, "uHead"), (P.slot + P.K - 1) % P.K);
           gl.uniform1f(gl.getUniformLocation(R, "uAlpha"), 0.85 * trail);
-          gl.drawArraysInstanced(gl.LINE_STRIP, 0, P.K, P.count);
+          // 顶点预算是硬约束：8 顶点/粒子，100 万粒子就是 800 万顶点，必卡。
+          // 只画"每 stride 个里挑一个"，密度略有下降但形态不变。
+          const strideL = Math.max(1, Math.ceil(P.count / 150000));
+          gl.uniform1i(gl.getUniformLocation(R, "uStride"), strideL);
+          gl.drawArraysInstanced(gl.LINE_STRIP, 0, P.K, Math.ceil(P.count / strideL));
         }
       }
       gl.disable(gl.BLEND);
