@@ -569,7 +569,8 @@ const NS = (() => {
     const gl = this.gl;
     const vs = `#version 300 es
     precision highp float;
-    uniform sampler2D uPos; uniform sampler2D uPrev;
+    precision highp sampler2D;   // 顶点着色器里 sampler 默认 lowp，取不到 float32 纹理的真实值
+    uniform highp sampler2D uPos; uniform highp sampler2D uPrev;
     uniform mat4 uVP; uniform float uPointSize; uniform float uLerp;
     uniform float uAlphaScale; uniform float uExt; uniform int uW; uniform int uStride;
     out float vAge; out vec3 vCol; out float vFade;
@@ -603,6 +604,8 @@ const NS = (() => {
     }`;
     try {
       this.pointsGpu = this._mkProgram(vs, fs);
+      this.pointsGpuOk = gl.getProgramParameter(this.pointsGpu, gl.LINK_STATUS);
+      this.pointsGpuLog = gl.getProgramInfoLog(this.pointsGpu) || "";
     } catch (e) {
       console.warn("GPU 点精灵 program 编译失败，回退 CPU 绘制", e);
       this.pointsGpu = null;
@@ -1192,12 +1195,12 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         [gl.getUniformLocation(this.points, "uAlphaScale")].fill(1.0);
         if (G && this.pointsGpu) {
           gl.useProgram(this.pointsGpu);
-          gl.activeTexture(gl.TEXTURE2);
+          gl.activeTexture(gl.TEXTURE4);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPos"), 2);
-          gl.activeTexture(gl.TEXTURE3);
+          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPos"), 4);
+          gl.activeTexture(gl.TEXTURE5);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[1 - G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPrev"), 3);
+          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPrev"), 5);
           gl.uniform1f(gl.getUniformLocation(this.points, "uExt"), this.vel.extent);
           gl.uniform1i(gl.getUniformLocation(this.points, "uW"), G.W);
           const strideP = Math.max(1, Math.ceil(G.count / 120000));
@@ -1208,6 +1211,17 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
             gl.uniform1f(gl.getUniformLocation(this.pointsGpu, "uAlphaScale"),
                          ghosts === 1 ? 1.0 : trailNorm);
             gl.drawArrays(gl.POINTS, 0, Math.ceil(G.count / strideP));
+            if (!this._ptChecked) {
+              this._ptChecked = true;
+              this._ptErr = gl.getError();
+              this._ptDrawn = Math.ceil(G.count / strideP);
+              this._ptLoc = {
+                uPos: gl.getUniformLocation(this.pointsGpu, "uPos") ? 1 : 0,
+                uVP: gl.getUniformLocation(this.pointsGpu, "uVP") ? 1 : 0,
+                uSize: gl.getUniformLocation(this.pointsGpu, "uPointSize") ? 1 : 0,
+                uStride: gl.getUniformLocation(this.pointsGpu, "uStride") ? 1 : 0,
+              };
+            }
           }
           gl.activeTexture(gl.TEXTURE0);
         } else {
