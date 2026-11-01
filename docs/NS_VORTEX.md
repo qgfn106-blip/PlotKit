@@ -311,3 +311,25 @@ API 用法：`/api/ns/slice?...&phys=4.26,0.6,0.775`（五个端点都接受）�
 ## 23. 已知未完成
 
 前端 `ns.html` 的三个物理量滑条**还没接上**：试过两版（替换旧滑条 / 旧滑条旁边新增），只要请求里带 `phys=` 就会出现"画面极暗、粒子数 0"；而同一组 `phys` 参数直接打 5 个 API 全部 200、数据正确。结论是页面 JS 侧的回归（`seedParticles` 前后某处抛出未被捕获的异常），尚未定位。当前仓库里的 `ns.html` 已回退到可用版本，物理量旋钮暂时只能通过 `--phys` / `?phys=` 使用。
+
+## 21. 场景化：NS 场 → 普通 Figure（2026-11-02）
+
+`pk.ns.scene.figure(t=..., n=48, particles=12000)` 把当前时刻的涡旋场写成一份**普通 spec**：
+一个 `volume` 图层（速度模长等值面，服务端 marching cubes）+ 一个 `particles` 图层（离散壳上的示踪点）。
+
+```python
+import plotkit as pk
+fig = pk.ns.scene.figure(t=0.1, n=48, particles=12000)
+fig.render(width=1100, height=800, backend="pyvista")     # 服务端出图
+# 或：python -m plotkit.ns.app --figure --shot out.png --seconds 14
+```
+
+为什么这么做：NS 页面里的体积/粒子是**私有画法**，主查看器、桌面壳、导出脚本都看不到。
+场景化之后三者共用同一份 spec，`volume`/`particles` 是 D39 的通用图层（见 `docs/WEB3D_LAYERS.md`）。
+
+**实测**（1100×800 窗口）：主查看器里 120 fps、`window.__err` 为空、等值面呈"沙漏"（速度在赤道最强）。
+
+**物理量旋钮**：页面右侧新增 Γ / a / r_core 三个滑条，映射到 `PhysicalParams.to_similarity()`
+（`x0=r_core²`、`alpha=a`、`c_inf=Γ/Γ_unit`）。验收：Γ 2→8 时 `u_max` 0.1848→0.7393，比值 4.00。
+只有真的拖过滑条才在请求里带 `phys=`，默认路径与旧版逐字节一致（这条是上次回归的教训）。
+

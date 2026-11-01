@@ -1356,7 +1356,8 @@ async function load3dLayers() {
     // 时空点云：柔光点精灵，c 作为逐点标量着色
     if (layer.kind === "particles" && data.x && data.y && data.z) {
       try {
-        const cq = data.c ? `&c=${encodeURIComponent(data.c)}` : "";
+        const cname = data.scalar || data.c;
+        const cq = cname ? `&c=${encodeURIComponent(cname)}` : "";
         const res = await fetch(`api/particles?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
                                 `&z=${encodeURIComponent(data.z)}${cq}&stride=1`);
         if (res.ok && view3d.view) {

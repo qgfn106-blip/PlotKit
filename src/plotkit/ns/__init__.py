@@ -33,3 +33,5 @@ __all__ = [
     "profile_table",
     "velocity_at",
 ]
+
+from . import scene  # noqa: E402,F401

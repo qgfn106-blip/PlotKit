@@ -39,10 +39,10 @@ def create_app() -> FastAPI:
     return app
 
 
-def _serve(port: int) -> tuple[object, threading.Thread, int]:
+def _serve(port: int, app=None) -> tuple[object, threading.Thread, int]:
     import uvicorn
 
-    app = create_app()
+    app = app if app is not None else create_app()
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
@@ -51,6 +51,43 @@ def _serve(port: int) -> tuple[object, threading.Thread, int]:
     while time.time() < deadline and not server.started:
         time.sleep(0.05)
     return server, thread, config.port
+
+
+def _shoot_figure(url: str, args) -> int:
+    """主查看器截图：点「3D」→ 等渲染 → 抓 #plot3d。"""
+    import base64
+
+    import webview
+
+    win = webview.create_window("NS vortex (figure)", url, width=args.width,
+                                height=args.height, background_color="#0f1216")
+    result: dict = {}
+
+    def work() -> None:
+        time.sleep(max(2.0, args.seconds * 0.4))
+        try:
+            win.evaluate_js("document.getElementById('btn-3d').click()")
+        except Exception as exc:  # noqa: BLE001
+            result["click_error"] = str(exc)[:120]
+        time.sleep(max(2.0, args.seconds * 0.6))
+        try:
+            data = win.evaluate_js("document.getElementById('plot3d').toDataURL('image/png')")
+            if data and "," in data:
+                blob = base64.b64decode(data.split(",", 1)[1])
+                Path(args.shot).write_bytes(blob)
+                result["bytes"] = len(blob)
+            result["err"] = win.evaluate_js("window.__err || null")
+            result["hud"] = win.evaluate_js(
+                "(document.getElementById('plot3d-hud')||{}).textContent || ''")
+        except Exception as exc:  # noqa: BLE001
+            result["error"] = str(exc)[:200]
+        win.destroy()
+
+    threading.Thread(target=work, daemon=True).start()
+    webview.start(gui="edgechromium", private_mode=True,
+                  storage_path=str(Path.home() / f".pk-nsfig-{int(time.time())}"))
+    print(json.dumps(result, ensure_ascii=True), flush=True)
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,9 +102,36 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--gpu", action="store_true", help="启用 GPU 粒子推进（实验）")
     parser.add_argument("--phys", type=str, default="", help="物理量旋钮 Γ,a,r_core")
     parser.add_argument("--gf", action="store_true", help="冻结 GPU advect（只渲染初始位置，诊断用）")
+    parser.add_argument("--figure", action="store_true",
+                        help="用主查看器打开（Figure/spec 路径，三维图层直绘）")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=820)
     args = parser.parse_args(argv)
+
+    if args.figure:
+        from ..server.app import create_app as main_app
+
+        from . import scene
+
+        physical = None
+        if args.phys:
+            from .field import PhysicalParams
+
+            g, a, rc = (float(v) for v in args.phys.split(","))
+            physical = PhysicalParams(gamma=g, a=a, r_core=rc)
+        fig = scene.figure(t=(args.t if args.t is not None else 0.05),
+                           physical=physical, particles=args.particles or 12000)
+        server, _, port = _serve(args.port, main_app(fig, title="NS vortex · PlotKit"))
+        url = f"http://127.0.0.1:{port}/"
+        print(f"[ns] figure mode serving {url}", flush=True)
+        if not args.shot:
+            try:
+                while True:
+                    time.sleep(1.0)
+            except KeyboardInterrupt:
+                pass
+            return 0
+        return _shoot_figure(url, args)
 
     server, _, port = _serve(args.port)
     query = []

@@ -79,7 +79,19 @@
   </select>
   <div class="note" id="srcnote" style="margin:0 0 6px"></div>
   <label>h <span class="val" id="vh">0.005</span></label>
-  <input id="kh" type="range" min="0" max="0.30" step="0.001" value="0.005">
+  <div class="row phys">
+      <span>Γ</span><input id="kgam" type="range" min="1" max="12" step="0.05" value="4.26">
+      <b id="vkgam">4.26</b>
+    </div>
+    <div class="row phys">
+      <span>a</span><input id="ka" type="range" min="0.2" max="1.5" step="0.01" value="0.6">
+      <b id="vka">0.60</b>
+    </div>
+    <div class="row phys">
+      <span>r<sub>c</sub></span><input id="krc" type="range" min="0.2" max="1.2" step="0.005" value="0.775">
+      <b id="vkrc">0.775</b>
+    </div>
+    <input id="kh" type="range" min="0" max="0.30" step="0.001" value="0.005">
   <label>X₀ <span class="val" id="vx">0.60</span></label>
   <input id="kx" type="range" min="0.1" max="3.0" step="0.05" value="0.6">
   <label>η₀ <span class="val" id="ve">1.00</span></label>
@@ -137,6 +149,7 @@
 const Q = new URLSearchParams(location.search);
 const qnum = (key, dflt) => (Q.has(key) ? Number(Q.get(key)) : dflt);
 const S = {
+  usePhys: false, gamma: 4.26, alpha: 0.6, rcore: 0.775,
   t: Math.min(0.999, Math.max(0, qnum("t", 0.0))),
   gifN: Math.max(4, Math.min(60, qnum("gifn", 24))),
   xi: qnum("xi", 0) !== 0,          // 相似坐标：默认开（不然 τ→0 时粒子会挤出视野）
@@ -165,8 +178,10 @@ async function getFrame(url) {
 }
 
 function params() {
-  // 数值解（模式 B）不吃 h/X₀/η₀，多传也无害；source 决定服务端取哪个场
-  return `h=${S.h}&x0=${S.x0}&eta0=${S.eta0}&source=${S.source}`;
+  // 数值解（模式 B）不吃 h/X₀/η₀，多传也无害；source 决定服务端取哪个场。
+  // 只有真的动过物理量滑条才带 phys —— 默认路径必须与旧版逐字节一致（见 docs/NS_INTEGRATION.md R3-3）。
+  const phys = S.usePhys ? `phys=${S.gamma},${S.alpha},${S.rcore}&` : "";
+  return `${phys}h=${S.h}&x0=${S.x0}&eta0=${S.eta0}&source=${S.source}`;
 }
 
 function qstr(key, fallback) {
@@ -304,7 +319,22 @@ function scheduleRefresh(mode) {
   }, mode === "field" ? 60 : 90);
 }
 
+function setPhys() {
+  S.usePhys = true;
+  S.gamma = +$("kgam").value;
+  S.alpha = +$("ka").value;
+  S.rcore = +$("krc").value;
+  $("vkgam").textContent = S.gamma.toFixed(2);
+  $("vka").textContent = S.alpha.toFixed(2);
+  $("vkrc").textContent = S.rcore.toFixed(3);
+  scheduleRefresh("all");
+}
+
 function bind() {
+  ["kgam", "ka", "krc"].forEach((id) => {
+    const el = $(id);
+    if (el) el.addEventListener("input", setPhys);
+  });
   const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
         ks = $("ks"), kw = $("kw"), kb = $("kb"), kexp = $("kexp");
   const kcore = $("kcore"), kwhite = $("kwhite");

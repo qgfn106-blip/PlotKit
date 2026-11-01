@@ -46,3 +46,14 @@ PYTHONPATH=src python tools/verify_volume3d.py      # 40³ 高斯场 + 2 万点�
 ```
 
 脚本自己起 uvicorn + pywebview，点 `#btn-3d`、等 8 s、抓 canvas、回读 `window.__err`，并在控制台打印一份 JSON 体检结果。
+
+## NS 涡旋：现成的三维场景
+
+```python
+import plotkit as pk
+fig = pk.ns.scene.figure(t=0.1, n=48, particles=12000)   # volume + particles 两个图层
+```
+
+`python -m plotkit.ns.app --figure` 用主查看器打开它（`--shot out.png` 可自动截图）。
+这就是"数据 + 窗口自定义绘制"的完整样例：服务端只管给数，画由浏览器做。
+

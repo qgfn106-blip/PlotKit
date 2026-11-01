@@ -22,6 +22,7 @@ from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Sequence
 
 from . import presets as _presets
+from . import ns  # noqa: F401  (三维涡旋场景)
 from .api.native import Figure, default_store, figure, set_default_store, subplots
 from .backends import dispatch as _dispatch
 from .backends import registry as _reg

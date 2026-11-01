@@ -121,3 +121,25 @@ def test_streamlines_returns_polylines(with_fake_solver):
     r = c.get("/api/ns/streamlines", params={"t": 0.5, "seeds": 8, "steps": 40})
     assert r.status_code == 200
     assert len(r.content) > 100
+
+
+def test_slice_umax_scales_with_gamma():
+    """Γ 翻 4 倍，同一时刻/同一网格上的 |u|max 也应翻 4 倍（A3-4）。"""
+    import json
+    import struct
+
+    from fastapi.testclient import TestClient
+
+    from plotkit.ns.app import create_app
+
+    client = TestClient(create_app())
+
+    def umax(phys: str) -> float:
+        res = client.get("/api/ns/slice", params={
+            "t": 0.3, "n_r": 32, "n_z": 32, "r_max": 0.5, "z_max": 1.1, "phys": phys,
+        })
+        assert res.status_code == 200
+        mlen = struct.unpack("<I", res.content[4:8])[0]
+        return float(json.loads(res.content[8:8 + mlen])["u_max"])
+
+    assert umax("8,0.6,0.775") / umax("2,0.6,0.775") == pytest.approx(4.0, rel=0.05)

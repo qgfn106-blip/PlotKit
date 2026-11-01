@@ -191,6 +191,7 @@ SUPPORTED_KINDS = (
     "stream3d",
     "stem3d",
     "text3d",
+    "particles",
 )
 
 
@@ -468,6 +469,17 @@ def build_text3d(layer, store) -> list[_Item]:
                   color=str(_style(layer).get("color") or "#111827"))]
 
 
+def _build_particles(layer, store) -> list[_Item]:
+    """浏览器里粒子是点精灵；服务端出图复用 scatter3d（点云 + 标量着色）。"""
+    data = dict(layer.get("data") or {})
+    if data.get("scalar") is None and data.get("c"):
+        data["scalar"] = data["c"]
+    clone = dict(layer)
+    clone["data"] = data
+    clone["kind"] = "scatter3d"
+    return build_scatter3d(clone, store)
+
+
 _BUILDERS = {
     "surface": build_surface,
     "trisurf": build_trisurf,
@@ -481,6 +493,7 @@ _BUILDERS = {
     "stream3d": build_stream3d,
     "stem3d": build_stem3d,
     "text3d": build_text3d,
+    "particles": _build_particles,
 }
 
 
