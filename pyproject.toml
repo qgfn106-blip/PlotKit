@@ -1,23 +1,60 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "plotkit"
-version = "0.1.0"
-description = "一套 spec：matplotlib 静态出图（离线、零 CDN），可选 PyVista 三维后端"
+version = "0.2.0"
+description = "一套 spec，matplotlib 静态出图（离线、零 CDN），可选 PyVista 三维后端与浏览器交互"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "PlotKit" }]
-dependencies = ["numpy>=1.21"]
+keywords = ["plotting", "matplotlib", "scientific-visualization", "3d", "pyvista", "time-series"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Visualization",
+  "Operating System :: OS Independent",
+]
+# 运行时真正跑不掉的三个：画图（matplotlib）、算（numpy）、编码 PNG（Pillow）
+dependencies = [
+  "numpy>=1.23",
+  "matplotlib>=3.6",
+  "pillow>=9.0",
+]
 
 [project.optional-dependencies]
-server = ["fastapi>=0.110", "uvicorn>=0.27"]
-mpl = ["matplotlib>=3.5"]
+# 浏览器/HTTP 呈现
+web = ["fastapi>=0.110", "uvicorn>=0.27"]
+# 桌面壳（WebView2 / GTK / WKWebView）
 desktop = ["pywebview>=5.0"]
-all = ["fastapi>=0.110", "uvicorn>=0.27", "matplotlib>=3.5"]
-dev = ["pytest>=7", "httpx>=0.24"]
+# 三维后端（PyVista 自带 vtk 约束，不要单独 pin vtk）
+three = ["pyvista>=0.44"]
+# 进程池/内存诊断需要
+metrics = ["psutil>=5.9"]
+dev = ["pytest>=7", "httpx>=0.24", "ruff>=0.4"]
+all = [
+  "fastapi>=0.110", "uvicorn>=0.27", "pywebview>=5.0",
+  "pyvista>=0.44", "psutil>=5.9",
+]
+# 兼容旧名字（历史文档里写过 pip install plotkit[server] / [mpl]）
+server = ["fastapi>=0.110", "uvicorn>=0.27"]
+mpl = ["matplotlib>=3.6"]
+
+[project.urls]
+Homepage = "https://github.com/weijiewang/plotkit"
+Documentation = "https://github.com/weijiewang/plotkit/blob/main/docs/INSTALL.md"
+Issues = "https://github.com/weijiewang/plotkit/issues"
+
+[project.scripts]
+plotkit = "plotkit.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

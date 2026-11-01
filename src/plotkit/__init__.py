@@ -34,7 +34,7 @@ from .backends.dispatch import (
 from .store.reclaim import Reclaimer
 from .store.registry import DataStore
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 class _DataProxy:

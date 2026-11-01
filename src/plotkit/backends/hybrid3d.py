@@ -185,12 +185,12 @@ def _compose_figure(spec, store, image, info, *, width, height, dpi, fmt, face,
 
     scalar = _scalar_info(spec, store)
     if scalar is not None:
-        from matplotlib import cm as _cm
+        from matplotlib.collections import PolyCollection
         from matplotlib.patches import Rectangle
 
-        from matplotlib.collections import PolyCollection
+        from .._compat import get_cmap
 
-        cmap = _cm.get_cmap(scalar["cmap"])
+        cmap = get_cmap(scalar["cmap"])
         lo, hi = scalar["clim"]
         x0, w = width * 0.905, width * 0.022
         y0, hgt = height * 0.16, height * 0.60

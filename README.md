@@ -16,9 +16,16 @@
 ## 安装
 
 ```bash
-cd ProjectPoint/PlotKit
-pip install -e ".[server,mpl,dev]"      # 桌面窗口再额外装 .[desktop]（PySide6）
+pip install plotkit                    # 最小：numpy + matplotlib + pillow
+pip install "plotkit[web,three]"       # 加浏览器界面与三维（PyVista/VTK）
+pip install "plotkit[all]"             # 全量
+
+plotkit doctor                         # 装完先体检：版本、可选功能、已知不兼容
 ```
+
+从源码开发：`pip install -e ".[all,dev]"`。
+
+更新 / 卸载 / 依赖版本兼容 / 离线安装 / WSL 与 Linux 注意事项，见 **[docs/INSTALL.md](docs/INSTALL.md)**。
 
 ## 三分钟上手
 
