@@ -837,6 +837,9 @@ const NS = (() => {
     g.cur = dst;
     this.particles.slot = g.slot;
     gl.activeTexture(gl.TEXTURE0);
+    // advect 是"算"不是"画"：它中途关了混合，必须还原，否则下一帧粒子在无混合状态下绘制
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
     return true;
   }
 

@@ -251,3 +251,12 @@ python -m plotkit.ns.app --source solver --t 0.6 --shot b.png --seconds 45
 
 结论：**上传带宽**是这条路的墙。要继续往上（任务书的 500 万）必须让位置留在显存里
 （GPU 推进 / transform feedback），仅靠 JS 侧减负到 100 万就到头了。
+
+
+## 19. GPU 粒子推进（实验性，`?gpu=1` / `--gpu`）
+
+位置状态放 RGBA32F 纹理做 ping-pong（宽 1024、`rows=ceil(count/1024)`），速度走 RGB32F 的 3D 纹理（NEAREST + 着色器内手写三线性 8 次 `texelFetch`）；全屏 pass 做 RK2 积分，历史帧用 `blitFramebuffer` 拷进 8 槽环形纹理，点精灵在顶点着色器里直接 `texelFetch` 位置。
+
+修掉的四个坑：①历史纹理与位置 FBO 必须同为 RGBA32F（否则 blit 非法）；②`_initParticleGPU` 必须在 `seedParticles()` 之后调（`setField` 时 `this.particles` 还不存在）；③3D sampler 必须显式 `precision highp sampler3D`；④CPU/GPU 不能共用点精灵程序，GPU 版必须单独建（顶点着色器里 sampler 还要 `precision highp sampler2D`）。⑤advect 是"算"不是"画"，它中途 `disable(BLEND)`，结束必须还原，否则下一帧粒子在无混合状态下绘制 → **画了但全透明**（这是"粒子不显示"的真正原因）。
+
+实测（2217×1372，体积+环+流线全开）：20 万粒子 **58–79 fps**（CPU 同条件 40–50），粒子可见；**100 万粒子 61 fps 但粒子不显示**（同一份代码，仅规模不同，仍未定位）。因此 GPU 路径标为实验性，默认仍走 CPU（50 万 29 fps、100 万 15 fps）。
