@@ -287,11 +287,15 @@ class ArrayField:
         self.w = np.asarray(data["w"], dtype=np.float32)
         # 两种形态：规则网格（x/y/z 是坐标轴，u 形状 (nz,ny,nx) 或 (nt,nz,ny,nx)）
         # 与散点/非结构（x/y/z 是点表，长度 N，u 形状 (N,) 或 (nt,N)）
-        self.scattered = bool(
-            self.x.ndim == 1 and self.x.size == self.y.size == self.z.size
-            and self.x.size > 8
-            and self.u.shape[-1] == self.x.size
-        )
+        hint = data.get("scattered") if hasattr(data, "get") else None
+        if hint is not None:
+            self.scattered = bool(hint)
+        else:
+            self.scattered = bool(
+                self.x.ndim == 1 and self.x.size == self.y.size == self.z.size
+                and self.x.size > 8
+                and self.u.shape[-1] == self.x.size
+            )
         self._cells: dict | None = None
 
     def time_bounds(self) -> tuple[float, float]:
@@ -332,17 +336,27 @@ class ArrayField:
         coords = np.stack([self.x, self.y, self.z], axis=1)
         out = np.zeros((pts.shape[0], 3), dtype=np.float64)
         keys = np.floor((pts - lo) / cell).astype(np.int64)
+        # 反距离加权（IDW，p=2）：最近点会让速度场出现块状跳变，
+        # 加权后至少在邻域内连续；权重只在 3×3×3 桶内取，成本与点数无关。
         for j, key in enumerate(map(tuple, keys)):
-            best, best_d = -1, np.inf
+            idx: list[int] = []
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
                     for dz in (-1, 0, 1):
-                        for cand in buckets.get((key[0] + dx, key[1] + dy, key[2] + dz), ()):
-                            d = float(np.sum((coords[cand] - pts[j]) ** 2))
-                            if d < best_d:
-                                best, best_d = cand, d
-            if best >= 0:
-                out[j] = (float(U[best]), float(V[best]), float(W[best]))
+                        idx.extend(buckets.get((key[0] + dx, key[1] + dy, key[2] + dz), ()))
+            if not idx:
+                continue
+            cand = np.asarray(idx, dtype=np.int64)
+            d2 = np.sum((coords[cand] - pts[j]) ** 2, axis=1)
+            if float(d2.min()) < 1e-18:
+                out[j] = (float(U[cand[int(np.argmin(d2))]]),
+                          float(V[cand[int(np.argmin(d2))]]),
+                          float(W[cand[int(np.argmin(d2))]]))
+                continue
+            w = 1.0 / (d2 + 1e-12)
+            w = w / w.sum()
+            out[j] = (float(np.dot(w, U[cand])), float(np.dot(w, V[cand])),
+                      float(np.dot(w, W[cand])))
         return out
 
     def _frame(self, t: float) -> np.ndarray:

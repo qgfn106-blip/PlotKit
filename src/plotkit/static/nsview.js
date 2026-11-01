@@ -1198,21 +1198,27 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         [gl.getUniformLocation(this.points, "uAlphaScale")].fill(1.0);
         if (G && this.pointsGpu) {
           gl.useProgram(this.pointsGpu);
+          // 注意：GPU 程序的 uniform 必须全设在 pointsGpu 上。设到 this.points（CPU 程序）
+          // 上会让 uW=0、uStride=0、uVP=单位阵 —— 表现为"一个点都看不见"。
+          const g2 = this.pointsGpu;
+          const loc = (name) => gl.getUniformLocation(g2, name);
+          gl.uniformMatrix4fv(loc("uVP"), false, vp);
+          gl.uniform1f(loc("uPointSize"), this.settings.pointSize * (h / 900));
+          gl.uniform1f(loc("uExt"), this.vel.extent);
+          gl.uniform1i(loc("uW"), G.W);
           gl.activeTexture(gl.TEXTURE4);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPos"), 4);
+          gl.uniform1i(loc("uPos"), 4);
           gl.activeTexture(gl.TEXTURE5);
           gl.bindTexture(gl.TEXTURE_2D, G.tex[1 - G.cur]);
-          gl.uniform1i(gl.getUniformLocation(this.pointsGpu, "uPrev"), 5);
-          gl.uniform1f(gl.getUniformLocation(this.points, "uExt"), this.vel.extent);
-          gl.uniform1i(gl.getUniformLocation(this.points, "uW"), G.W);
-          const strideP = Math.max(1, Math.ceil(G.count / 120000));
-          gl.uniform1i(gl.getUniformLocation(this.points, "uStride"), strideP);
+          gl.uniform1i(loc("uPrev"), 5);
+          const strideP = 1;   // GPU 路径不做顶点 LOD（纹理取点，抽稀只增加出错面）
+          gl.uniform1i(loc("uStride"), strideP);
+          // 粒子越多，单点越淡：否则 100 万粒子加法叠加会把整根柱冲成死白
+          const countFade = Math.min(1.0, Math.sqrt(120000 / Math.max(G.count, 1)));
           for (let g = 0; g < ghosts; g++) {
-            gl.uniform1f(gl.getUniformLocation(this.pointsGpu, "uLerp"),
-                         ghosts === 1 ? 0.0 : (g / ghosts) * trail);
-            gl.uniform1f(gl.getUniformLocation(this.pointsGpu, "uAlphaScale"),
-                         ghosts === 1 ? 1.0 : trailNorm);
+            gl.uniform1f(loc("uLerp"), ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+            gl.uniform1f(loc("uAlphaScale"), (ghosts === 1 ? 1.0 : trailNorm) * countFade);
             gl.drawArrays(gl.POINTS, 0, Math.ceil(G.count / strideP));
             if (!this._ptChecked) {
               this._ptChecked = true;

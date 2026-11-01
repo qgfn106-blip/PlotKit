@@ -145,3 +145,22 @@ def test_array_field_supports_scattered_points(tmp_path):
     assert vel.shape == (2, 3)
     assert np.allclose(vel, [[0.5, -0.25, 0.0], [0.5, -0.25, 0.0]])
 
+
+def test_scattered_velocity_uses_inverse_distance_weighting(tmp_path):
+    """两点场：查询点靠近谁，速度就更像谁（IDW 应给出中间值，而不是最近点的值）。"""
+    x = np.array([0.0, 1.0, 0.0, 0.0])
+    y = np.array([0.0, 0.0, 1.0, 0.0])
+    z = np.array([0.0, 0.0, 0.0, 1.0])
+    u = np.array([0.0, 1.0, 0.0, 0.0])
+    v = np.zeros(4)
+    w = np.zeros(4)
+    path = tmp_path / "idw.npz"
+    np.savez(path, t=np.array([0.0]), x=x, y=y, z=z, u=u, v=v, w=w,
+             scattered=np.array(True))
+    field = pk.ns.ArrayField(path)
+    near_x = field.velocity(np.array([[0.9, 0.0, 0.0]]), 0.0)[0, 0]
+    far_x = field.velocity(np.array([[0.2, 0.0, 0.0]]), 0.0)[0, 0]
+    assert 0.9 < near_x <= 1.0
+    assert 0.0 <= far_x < 0.5
+    assert far_x < near_x
+

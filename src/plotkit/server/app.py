@@ -449,8 +449,29 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         for frame in frames:
             spec = frame.get("spec") if isinstance(frame, dict) else None
             spec = spec or figure.spec
+            t_val = frame.get("t") if isinstance(frame, dict) else None
             jobs.append((spec, store, {"width": width, "height": height,
-                                       "dpi": dpi, "fmt": "png"}))
+                                       "dpi": dpi, "fmt": "png"},
+                         None if t_val is None else float(t_val)))
+
+        from ..backends.series import pop_trange, push_trange, time_bounds
+
+        def _with_time(job, render):
+            """逐帧 t：用 ContextVar 把 [t-window, t] 塞进渲染管线（与 /api/render?t= 同一套）。"""
+            spec, st, kwargs, t_val = job
+            if t_val is None:
+                return render(spec, st, **kwargs)
+            lo, hi = time_bounds(spec, st)
+            wnd = float((spec.get("figure") or {}).get("window") or 0.0)
+            if wnd > 0:
+                trange = (t_val - wnd, t_val)
+            else:
+                trange = (float(lo) if lo is not None else float("-inf"), t_val)
+            token = push_trange(trange)
+            try:
+                return render(spec, st, **kwargs)
+            finally:
+                pop_trange(token)
 
         from ..backends import mpl_backend, pyvista_backend, pyvista_pool
         from ..backends.pyvista_pool import workers_default
@@ -475,8 +496,7 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
                 if _is_3d(job[0]):
                     pool_jobs.append((i, job))
                 else:
-                    spec, store, kwargs = job
-                    out = mpl_backend.render_bytes(spec, store, **kwargs)
+                    out = _with_time(job, lambda spec, st, **kw: mpl_backend.render_bytes(spec, st, **kw))
                     payloads[i] = out if isinstance(out, bytes) else out[0]
             # 进程池要给每个 worker 重新 import VTK（约 2–3 s），所以**先量一帧**再决定：
             # 单帧 < 250 ms 或剩余帧太少 → 全部进程内串行（实测 48 帧 500×360 曲面：
@@ -486,12 +506,17 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
             if pool_jobs:
                 head_i, head_job = pool_jobs[0]
                 t0 = _time.perf_counter()
-                result = pyvista_backend.render_result(*head_job[:2], **head_job[2])
+                result = _with_time(head_job,
+                                    lambda spec, st, **kw: pyvista_backend.render_result(spec, st, **kw))
                 payloads[head_i] = result.payload if hasattr(result, "payload") else result
                 per_frame = _time.perf_counter() - t0
                 rest = pool_jobs[1:]
+                # 有逐帧 t 时必须留在进程内：trange 走 ContextVar，跨进程会丢
+                timed = any(job[3] is not None for _, job in pool_jobs)
                 if workers is not None:
                     effective = int(workers)
+                elif timed:
+                    effective = 1
                 else:
                     effective = workers_default() if (per_frame >= 0.25 and len(rest) >= 4) else 1
                 if rest and effective > 1:
@@ -499,8 +524,8 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
                     for (i, _), data in zip(rest, rendered):
                         payloads[i] = data
                 else:
-                    for i, (spec, store, kwargs) in rest:
-                        out2 = pyvista_backend.render_result(spec, store, **kwargs)
+                    for i, job in rest:
+                        out2 = _with_time(job, lambda spec, st, **kw: pyvista_backend.render_result(spec, st, **kw))
                         payloads[i] = out2.payload if hasattr(out2, "payload") else out2
         except Exception as exc:  # noqa: BLE001 - 整批失败才报 500
             raise HTTPException(500, f"批量渲染失败：{type(exc).__name__}: {exc}") from exc

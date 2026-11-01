@@ -28,6 +28,25 @@ import numpy as np
 __all__ = ["quick", "show"]
 
 
+def _as_series(args: Sequence[Any]) -> tuple[np.ndarray, list[np.ndarray]]:
+    """把 `quick(y)` / `quick(x, y)` / `quick(x, [y1, y2])` 拆成 (x, [y...])。"""
+    if len(args) == 1:
+        ys = args[0]
+        if isinstance(ys, (list, tuple)) and ys and np.ndim(ys[0]) >= 1:
+            series = [np.asarray(item, dtype=float).ravel() for item in ys]
+            x = np.arange(series[0].size, dtype=float)
+            return x, series
+        y = np.asarray(ys, dtype=float).ravel()
+        return np.arange(y.size, dtype=float), [y]
+    if len(args) == 2:
+        x = np.asarray(args[0], dtype=float).ravel()
+        ys = args[1]
+        if isinstance(ys, (list, tuple)) and ys and np.ndim(ys[0]) >= 1:
+            return x, [np.asarray(item, dtype=float).ravel() for item in ys]
+        return x, [np.asarray(ys, dtype=float).ravel()]
+    raise TypeError("quick() 接受 quick(y)、quick(x, y) 或 quick(x, [y1, y2, ...])")
+
+
 def _as_xy(args: Sequence[Any]) -> tuple[np.ndarray, np.ndarray]:
     if len(args) == 1:
         y = np.asarray(args[0], dtype=float)
@@ -46,6 +65,7 @@ def quick(*args: Any, kind: str = "line", title: str | None = None,
           path: str | os.PathLike[str] | None = None, width: int = 900,
           height: int = 520, dpi: int = 100, fmt: str = "png",
           show: bool = False, xlabel: str | None = None, ylabel: str | None = None,
+          labels: Sequence[str] | None = None,
           style: dict[str, Any] | None = None, **kwargs: Any) -> bytes | str:
     """把一维数组立刻画出来。
 
@@ -54,14 +74,23 @@ def quick(*args: Any, kind: str = "line", title: str | None = None,
     """
     import plotkit as pk
 
-    x, y = _as_xy(args)
+    x, series = _as_series(args)
+    for item in series:
+        if item.size != x.size:
+            raise ValueError(f"x/y 长度不一致：{x.size} vs {item.size}")
     fig = pk.figure(size=(width / max(dpi, 1), height / max(dpi, 1)), dpi=dpi,
                     title=title or "")
     fig.add_data("x", x, role="coord")
-    fig.add_data("y", y, role="series")
     merged = dict(style or {})
     merged.update(kwargs)
-    fig.add_plot(kind, x="x", y="y", style=merged or None)
+    for i, y in enumerate(series):
+        name = f"y{i}" if len(series) > 1 else "y"
+        fig.add_data(name, y, role="series")
+        layer_style = dict(merged) if merged else None
+        if len(series) > 1 and labels and i < len(labels):
+            fig.add_plot(kind, x="x", y=name, style=layer_style, label=str(labels[i]))
+        else:
+            fig.add_plot(kind, x="x", y=name, style=layer_style)
     if xlabel or ylabel:
         fig.set_view(0, xlabel=xlabel or "", ylabel=ylabel or "")
     payload = fig.render(width=width, height=height, dpi=dpi, fmt=fmt)
