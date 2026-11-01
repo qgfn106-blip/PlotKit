@@ -289,6 +289,8 @@ const NS = (() => {
         home: { yaw: -0.6, pitch: 0.62, dist: 3.1 },           // 默认 3/4 视角
       };
       this.cam = { yaw: -0.6, pitch: 0.62, dist: 3.1, target: [0, 0, 0] };
+      this.zoomScale = 1.0;   // 相似坐标视图：按涡核尺度整体缩放
+      this.setZoomScale = (k) => { this.zoomScale = Math.max(0.05, Math.min(20, k)); };
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
@@ -627,9 +629,9 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       const eye = [
-        this.cam.target[0] + this.cam.dist * Math.cos(this.cam.pitch) * Math.cos(this.cam.yaw),
-        this.cam.target[1] + this.cam.dist * Math.cos(this.cam.pitch) * Math.sin(this.cam.yaw),
-        this.cam.target[2] + this.cam.dist * Math.sin(this.cam.pitch),
+        this.cam.target[0] + this.cam.dist * this.zoomScale * Math.cos(this.cam.pitch) * Math.cos(this.cam.yaw),
+        this.cam.target[1] + this.cam.dist * this.zoomScale * Math.cos(this.cam.pitch) * Math.sin(this.cam.yaw),
+        this.cam.target[2] + this.cam.dist * this.zoomScale * Math.sin(this.cam.pitch),
       ];
       const proj = mat4.perspective(0.8, w / h, 0.05, 100);
       const view = mat4.lookAt(eye, this.cam.target, [0, 0, 1]);

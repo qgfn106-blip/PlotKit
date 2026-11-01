@@ -12,7 +12,7 @@ import struct
 from functools import lru_cache
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import Response
 
 from ..ns import SimilarityParams, analyze, convergence, profile_table, velocity_at
@@ -164,6 +164,55 @@ def velocity_grid(t: float = Query(0.5, ge=0.0), n: int = Query(48, ge=16, le=96
     meta = {"t": float(t), "n": n, "extent": float(extent), "z_extent": float(z_extent),
             "order": "x fastest, then y, then z; channels u,v,w"}
     return _frame(meta, np.concatenate([U.ravel(), V.ravel(), W.ravel()]))
+
+
+@router.post("/export")
+def export_animation(payload: dict = Body(...)):
+    """把前端逐帧抓下来的 canvas 合成 GIF/MP4（保持屏幕上的渲染观感）。
+
+    payload: {"frames": [dataURL...], "fps": 12, "fmt": "gif"|"mp4", "width": 900}
+    """
+    import base64
+    import io
+    import shutil
+    import subprocess
+    import tempfile
+
+    from PIL import Image
+
+    frames = payload.get("frames") or []
+    if not frames:
+        raise HTTPException(400, "frames 为空")
+    fps = int(payload.get("fps") or 12)
+    fmt = (payload.get("fmt") or "gif").lower()
+    width = int(payload.get("width") or 900)
+
+    images = []
+    for data in frames:
+        raw = data.split(",", 1)[-1]
+        img = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGB")
+        if img.width > width:
+            img = img.resize((width, round(img.height * width / img.width)), Image.LANCZOS)
+        images.append(img)
+    if not images:
+        raise HTTPException(400, "帧解码失败")
+
+    if fmt == "gif":
+        buf = io.BytesIO()
+        images[0].save(buf, format="GIF", save_all=True, append_images=images[1:],
+                       duration=max(20, int(1000 / fps)), loop=0, optimize=True)
+        return Response(content=buf.getvalue(), media_type="image/gif")
+    if fmt == "mp4":
+        if not shutil.which("ffmpeg"):
+            raise HTTPException(400, "未安装 ffmpeg，无法导出 MP4（可用 GIF）")
+        with tempfile.TemporaryDirectory() as tmp:
+            for i, img in enumerate(images):
+                img.save(f"{tmp}/f{i:04d}.png")
+            target = f"{tmp}/out.mp4"
+            subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps),
+                            "-i", f"{tmp}/f%04d.png", "-pix_fmt", "yuv420p", target], check=True)
+            return Response(content=open(target, "rb").read(), media_type="video/mp4")
+    raise HTTPException(400, f"不支持的格式 {fmt}")
 
 
 @router.get("/arrows")

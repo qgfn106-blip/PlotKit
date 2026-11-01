@@ -91,3 +91,27 @@ def test_arrows_returns_structured_glyphs(client):
 
 def test_arrows_rejects_singular_time(client):
     assert client.get("/api/ns/arrows", params={"t": 1.0}).status_code == 400
+
+
+def _jpeg_data_url(color=(12, 34, 56), size=(24, 16)) -> str:
+    import base64
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", size, color).save(buf, format="JPEG")
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def test_export_gif_roundtrip(client):
+    """前端抓的 canvas 帧 → 服务端合成 GIF。"""
+    frames = [_jpeg_data_url((10, 20, 30)), _jpeg_data_url((200, 120, 40))]
+    res = client.post("/api/ns/export", json={"frames": frames, "fps": 10, "fmt": "gif"})
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "image/gif"
+    assert res.content[:6] in (b"GIF89a", b"GIF87a")
+
+
+def test_export_rejects_empty(client):
+    assert client.post("/api/ns/export", json={"frames": [], "fmt": "gif"}).status_code == 400
