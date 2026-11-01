@@ -181,9 +181,29 @@ def streamline_segments(field: Any, t: float, *, seeds: int = 28, steps: int = 9
 DEFAULT_LAYERS = ("volume", "particles", "streamlines")
 
 
+def auto_n(field: Any, *, budget: int = 200_000, lo: int = 16, hi: int = 128) -> int:
+    """三维 LOD：按采样点预算挑分辨率（体积/粒子都是 n³ 级别的采样）。
+
+    有原生分辨率（`field.native_n` 或 ArrayField 的坐标轴长度）时不越界采样——
+    对着 32³ 的数值解硬采 96³ 只会把插值误差放大，不会多出信息。
+    """
+    n = int(round(budget ** (1.0 / 3.0)))
+    native = getattr(field, "native_n", None)
+    if native is None:
+        axes = [getattr(field, name, None) for name in ("x", "y", "z")]
+        if all(a is not None and getattr(a, "ndim", 0) == 1 for a in axes):
+            try:
+                native = int(min(len(a) for a in axes))
+            except TypeError:
+                native = None
+    if isinstance(native, (int, float)) and native > 1:
+        n = min(n, int(native))
+    return max(lo, min(hi, n))
+
+
 def scene(field: Any, *, t: float = 0.0, layers: Iterable[str] = DEFAULT_LAYERS,
           iso: bool | None = None,
-          n: int = 48, extent: float | None = None, z_extent: float | None = None,
+          n: int | str = 48, lod_budget: int = 200_000, extent: float | None = None, z_extent: float | None = None,
           particles: int = 12000, streamlines: int = 28, level: float = 0.80,
           seed: int = 7, title: str | None = None, size: tuple[float, float] = (7.2, 5.6),
           dpi: int = 110):
@@ -193,6 +213,10 @@ def scene(field: Any, *, t: float = 0.0, layers: Iterable[str] = DEFAULT_LAYERS,
     """
     import plotkit as pk
 
+    if isinstance(n, str):
+        if n != "auto":
+            raise ValueError(f"n 只能是整数或 'auto'，收到 {n!r}")
+        n = auto_n(field, budget=lod_budget)
     wanted = {str(name) for name in layers}
     # iso 开关：True 强制带等值面层，False 强制去掉，None 跟随 layers
     if iso is True:

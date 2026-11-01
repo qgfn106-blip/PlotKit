@@ -164,3 +164,36 @@ def test_scattered_velocity_uses_inverse_distance_weighting(tmp_path):
     assert 0.0 <= far_x < 0.5
     assert far_x < near_x
 
+
+def test_auto_n_respects_budget_and_native():
+    """三维 LOD：按预算选分辨率，且不超过场的原生分辨率。"""
+    assert 40 <= pk.field3d.auto_n(_Swirl(), budget=200_000) <= 70
+    assert pk.field3d.auto_n(_Swirl(), budget=27_000) <= 40
+    scene = pk.field3d.scene(_Swirl(), n="auto", particles=200, streamlines=2)
+    assert [layer["kind"] for layer in scene.spec["layers"]]
+
+
+def test_auto_n_rejects_unknown_string():
+    with pytest.raises(ValueError):
+        pk.field3d.scene(_Swirl(), n="huge", particles=100, streamlines=2)
+
+
+def test_array_field_reads_hdf5(tmp_path):
+    h5py = pytest.importorskip("h5py")
+    x = np.linspace(-1, 1, 9)
+    y = np.linspace(-1, 1, 7)
+    z = np.linspace(-1, 1, 5)
+    shape = (z.size, y.size, x.size)
+    path = tmp_path / "f.h5"
+    with h5py.File(path, "w") as fh:
+        fh["x"] = x
+        fh["y"] = y
+        fh["z"] = z
+        fh["u"] = np.full(shape, 0.5, np.float32)
+        fh["v"] = np.full(shape, -0.25, np.float32)
+        fh["w"] = np.zeros(shape, np.float32)
+        fh["t"] = np.array([0.0])
+    field = pk.ns.ArrayField(path)
+    assert field.u.shape == shape
+    assert np.allclose(field.velocity(np.zeros((1, 3)), 0.0), [[0.5, -0.25, 0.0]])
+

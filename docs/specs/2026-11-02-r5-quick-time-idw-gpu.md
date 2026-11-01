@@ -44,3 +44,27 @@ date: 2026-11-02
 - GPU 路径的顶点 LOD（放弃，理由见上）。
 - 数据时间轴的**导出**（批量端点已支持 `t`，前端按钮仍是转台）。
 - 散点的 Delaunay/RBF 插值。
+
+---
+
+# R6（同日追加）：HDF5 读取 + 三维 LOD + netlab 仓库卫生
+
+## 需求
+
+| 编号 | 需求 | 结果 |
+| --- | --- | --- |
+| R6-1 | `ArrayField` 直接读 `.h5/.hdf5` | ✅ 有 `h5py` 时按组找 `x/y/z/u/v/w`（可传 `group=`），否则 `ImportError` 带安装提示 |
+| R6-2 | 三维 LOD：按预算自动选采样分辨率 | ✅ `field3d.auto_n(field, budget=200_000)`；`scene(n="auto")` 生效，且不超过场的原生分辨率 |
+| R6-3 | netlab 测试与文档纳入版本库 | ✅ `.gitignore` 去掉 `netlab/tests/`、`netlab/docs/`（46 + 62 个文件入库），`MyProject/`、`library/*` 仍排除 |
+
+## 决策
+
+- HDF5 是**可选依赖**：不装也能用 npz，装了才多一条路径；错误信息里直接给 `pip install h5py`。
+- LOD 只做"分辨率选择"，不做多级金字塔缓存：三维体积按需重采（几十毫秒级），缓存收益远小于内存代价。
+- 原生分辨率优先：对 32³ 的数值解硬采 96³ 只是放大插值误差，不产生信息。
+
+## 验收
+
+- `tests/test_field3d.py::test_array_field_reads_hdf5`（`importorskip("h5py")`）、`::test_auto_n_respects_budget_and_native`、`::test_auto_n_rejects_unknown_string`
+- 全量 **436 passed**
+

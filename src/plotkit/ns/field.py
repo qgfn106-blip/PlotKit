@@ -273,11 +273,46 @@ class SimilarityField:
         return SimilarityField(self.params.with_(**kw))
 
 
-class ArrayField:
-    """从文件加载的场（.npz：t/x/y/z/u/v/w，可选 ω）。用于外部 DNS 数据。"""
+def _read_hdf5(path, group: str | None = None) -> dict[str, np.ndarray]:
+    """读 HDF5：优先 `group`，否则找第一个同时含 x/y/z/u/v/w 的组（含根）。"""
+    try:
+        import h5py  # type: ignore
+    except Exception as exc:  # pragma: no cover - 取决于环境
+        raise ImportError("读 .h5/.hdf5 需要 h5py：pip install h5py") from exc
 
-    def __init__(self, path: str):
-        data = np.load(path)
+    need = {"x", "y", "z", "u", "v", "w"}
+    with h5py.File(path, "r") as fh:
+        node = fh[group] if group else None
+        if node is None:
+            candidates = [fh]
+            fh.visit(lambda name: candidates.append(fh[name])
+                     if isinstance(fh[name], h5py.Group) else None)
+            for cand in candidates:
+                if need.issubset(set(cand.keys())):
+                    node = cand
+                    break
+        if node is None:
+            raise KeyError(f"{path} 里找不到同时包含 {sorted(need)} 的组")
+        data = {key: np.asarray(node[key][()]) for key in node.keys() if key in need | {"t", "scattered"}}
+    if "t" not in data:
+        data["t"] = np.array([0.0])
+    return data
+
+
+class ArrayField:
+    """从文件加载的场（.npz 或 .h5/.hdf5：t/x/y/z/u/v/w，可选 scattered）。
+
+    规则网格：x/y/z 是坐标轴，u 形状 (nz,ny,nx) 或 (nt,nz,ny,nx)。
+    散点/非结构：x/y/z 是点表（长度 N），u 形状 (N,) 或 (nt,N)；可用 `scattered=True` 显式声明。
+    HDF5 需要 h5py（可选依赖），组内键名与 npz 一致。
+    """
+
+    def __init__(self, path: str, *, group: str | None = None):
+        suffix = str(path).lower().rsplit(".", 1)[-1]
+        if suffix in ("h5", "hdf5"):
+            data = _read_hdf5(path, group)
+        else:
+            data = np.load(path)
         self.t = np.asarray(data["t"], dtype=np.float64)
         self.x = np.asarray(data["x"], dtype=np.float64)
         self.y = np.asarray(data["y"], dtype=np.float64)
