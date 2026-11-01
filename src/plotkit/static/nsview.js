@@ -108,7 +108,7 @@ const NS = (() => {
       }
     }
     // 轻微辉光：把亮度做一次软压缩
-    acc = acc / (1.0 + 0.85 * acc);   // Reinhard 型压缩，防止核心糊成纯白
+    acc = acc / (1.0 + 1.7 * acc);   // Reinhard 型压缩，防止核心糊成纯白
     fragColor = vec4(acc, alpha);
   }`;
 
@@ -120,6 +120,7 @@ const NS = (() => {
   uniform mat4 uVP;
   uniform float uPointSize;
   uniform float uLerp;    // 0 = 当前位置；越大越靠后（残影越淡越小）
+  uniform float uAlphaScale;
   out float vAge;
   out vec3 vCol;
   out float vFade;
@@ -130,7 +131,7 @@ const NS = (() => {
     gl_PointSize = uPointSize * (1.0 - 0.25 * aAge) * (1.0 - 0.55 * uLerp) * (3.0 / max(c.w, 0.2));
     vAge = aAge;
     vCol = aCol;
-    vFade = 1.0 - 0.62 * uLerp;
+    vFade = (1.0 - 0.62 * uLerp) * uAlphaScale;
   }`;
 
   const FRAG_PT = `#version 300 es
@@ -339,7 +340,7 @@ const NS = (() => {
       this.particles = null;
       this.trails = null;
       this.settings = { density: 1.0, pointSize: 5.4, trail: 0.6, envelope: 0.45, showParticles: true, showTrails: false, showArrows: false, arrowLen: 0.14, arrowAlpha: 0.90,
-                        streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
+                        streaks: 0.8, spin: 2.0, bloom: 0.28, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
       this.stats = { fps: 0 };
@@ -865,10 +866,13 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);
         const uLerp = gl.getUniformLocation(this.points, "uLerp");
         const trail = this.settings.trail === undefined ? 0.5 : this.settings.trail;
-        const ghosts = trail > 0.02 ? 2 : 1;
+        const ghosts = trail > 0.02 ? 3 : 1;
+        // 能量守恒：3 层残影会把亮度顶到 3 倍，按 1/(1+0.9*trail) 归一
+        const trailNorm = 1.0 / (1.0 + 0.9 * trail);
         const strideP = Math.max(1, Math.ceil(P.count / 200000));
         for (let g = 0; g < ghosts; g++) {
           gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+          gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
           gl.drawArrays(gl.POINTS, 0, Math.ceil(P.count / strideP));
         }
         // 真·流线：历史位置连成 LINE_STRIP（头亮尾淡），和点精灵叠在一起才像流体
@@ -941,11 +945,14 @@ void main() {
 }`);
       const comp = mk(`#version 300 es
 precision highp float; in vec2 vUv; out vec4 o;
-uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uStrength;
+uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uStrength; uniform float uExposure;
 void main() {
   vec3 s = texture(uScene, vUv).rgb;
   vec3 b = texture(uBloom, vUv).rgb;
-  o = vec4(s + b * uStrength, 1.0);
+  vec3 c = (s + b * uStrength) * uExposure;
+  // 软肩：高光滚降而不是直接截断（原来亮度一过 1 就是一片死白）
+  c = c / (1.0 + max(c - 0.85, 0.0));
+  o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`);
       const buf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -1025,6 +1032,8 @@ void main() {
       gl.uniform1i(gl.getUniformLocation(P.comp, "uScene"), 0);
       gl.uniform1i(gl.getUniformLocation(P.comp, "uBloom"), 1);
       gl.uniform1f(gl.getUniformLocation(P.comp, "uStrength"), this.settings.bloom);
+      gl.uniform1f(gl.getUniformLocation(P.comp, "uExposure"),
+                   this.settings.exposure === undefined ? 1.0 : this.settings.exposure);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.activeTexture(gl.TEXTURE0);
     }

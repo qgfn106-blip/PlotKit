@@ -22,7 +22,18 @@
   #diag td:last-child { text-align:right; color:#cfe0ff; }
   #diag .sec { color:var(--dim); font-size:11px; letter-spacing:.04em; text-transform:uppercase; }
   #diag .note { color:var(--dim); font-size:11px; margin-top:6px; line-height:1.4; }
-  #knobs { right:16px; top:96px; width:230px; }
+  #knobs { right:16px; top:96px; width:238px;
+           max-height:calc(100vh - 210px); overflow-y:auto; overscroll-behavior:contain; }
+  #knobs::-webkit-scrollbar { width:6px; }
+  #knobs::-webkit-scrollbar-thumb { background:rgba(120,140,170,0.35); border-radius:3px; }
+  #knobs .phead { display:flex; justify-content:space-between; align-items:center;
+                  cursor:move; user-select:none; color:#8b98ad; font-size:11.5px;
+                  letter-spacing:.08em; padding-bottom:6px; margin-bottom:4px;
+                  border-bottom:1px solid var(--line); position:sticky; top:0;
+                  background:rgba(12,16,24,0.92); z-index:2; }
+  #knobs .phead b { color:#cfe0ff; font-weight:600; }
+  #knobs .phead span { cursor:pointer; color:#ff9c3a; }
+  #knobs.collapsed .kbody { display:none; }
   #knobs label { display:block; margin:7px 0 2px; color:var(--dim); font-size:11.5px; }
   #knobs input[type=range] { width:100%; accent-color:#ff9c3a; }
   #knobs .val { float:right; color:#cfe0ff; }
@@ -58,6 +69,8 @@
 </div>
 
 <div id="knobs" class="panel">
+  <div class="phead" id="khead"><b>参数</b><span id="kcollapse">收起</span></div>
+  <div class="kbody">
   <label>数据源 <span class="val" id="vsrc">解析 A′</span></label>
   <select id="ksrc" style="width:100%;margin:2px 0 6px;background:#151a22;color:#dfe7f3;
           border:1px solid #2a3442;border-radius:6px;padding:4px">
@@ -80,6 +93,8 @@
   <label>轴向包络 <span class="val" id="vz">0.45</span></label>
   <input id="kz" type="range" min="0" max="1" step="0.05" value="0.45">
   <div class="note" style="margin:-4px 0 6px">显示包络（非物理）：0 = 直柱，1 = 薄盘</div>
+  <label>曝光 <span class="val" id="vexp">1.00</span></label>
+  <input id="kexp" type="range" min="0.2" max="2.0" step="0.05" value="1.0">
   <label>辉光强度 <span class="val" id="vb">0.45</span></label>
   <input id="kb" type="range" min="0" max="2.5" step="0.05" value="0.45">
   <label>箭头长度 <span class="val" id="val">0.10</span></label>
@@ -94,6 +109,7 @@
     <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-ar">矢量</button><button id="btn-xi">ξ 相似</button><button id="btn-snap">快照</button><button id="btn-gif">导出 GIF</button>
   <div style="margin-top:6px;color:#8b98ad">预设</div>
   <button id="btn-paper">论文档</button><button id="btn-demo">演示档</button><button id="btn-ext">极端档</button><button id="btn-top">俯视环盘</button><button id="btn-side">侧视</button><button id="btn-reset">默认视角</button>
+  </div>
   </div>
 </div>
 
@@ -286,7 +302,7 @@ function scheduleRefresh(mode) {
 
 function bind() {
   const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
-        ks = $("ks"), kw = $("kw"), kb = $("kb");
+        ks = $("ks"), kw = $("kw"), kb = $("kb"), kexp = $("kexp");
   const ksrc = $("ksrc");
   if (ksrc) {
     ksrc.value = S.source;
@@ -301,6 +317,34 @@ function bind() {
   ks.oninput = () => { view.settings.streaks = +ks.value; $("vs").textContent = (+ks.value).toFixed(2); };
   kw.oninput = () => { view.settings.spin = +kw.value; $("vw").textContent = (+kw.value).toFixed(1); };
   kb.oninput = () => { view.settings.bloom = +kb.value; $("vb").textContent = (+kb.value).toFixed(2); };
+  kexp.oninput = () => {
+    view.settings.exposure = +kexp.value;
+    $("vexp").textContent = (+kexp.value).toFixed(2);
+  };
+
+  // 面板：拖动标题栏可移动、点「收起」折叠（原来面板一长就顶出屏幕且动不了）
+  (() => {
+    const panel = $("knobs"), head = $("khead"), toggle = $("kcollapse");
+    toggle.onclick = (e) => {
+      e.stopPropagation();
+      panel.classList.toggle("collapsed");
+      toggle.textContent = panel.classList.contains("collapsed") ? "展开" : "收起";
+    };
+    let drag = null;
+    head.addEventListener("pointerdown", (e) => {
+      if (e.target === toggle) return;
+      const r = panel.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+      panel.style.right = "auto"; panel.style.left = r.left + "px"; panel.style.top = r.top + "px";
+      head.setPointerCapture(e.pointerId);
+    });
+    head.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      panel.style.left = Math.max(4, Math.min(window.innerWidth - 120, e.clientX - drag.dx)) + "px";
+      panel.style.top = Math.max(4, Math.min(window.innerHeight - 60, e.clientY - drag.dy)) + "px";
+    });
+    head.addEventListener("pointerup", (e) => { drag = null; head.releasePointerCapture(e.pointerId); });
+  })();
   $("kz").oninput = () => { view.settings.envelope = +$("kz").value; $("vz").textContent = (+$("kz").value).toFixed(2); };
   kp.oninput = () => {
     S.particles = +kp.value; $("vp").textContent = S.particles;
