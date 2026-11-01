@@ -1090,6 +1090,7 @@ DRAWERS = {
     "quiver": _draw_quiver, "streamplot": _draw_streamplot, "barbs": _draw_barbs,
     "lic": _draw_lic,
     "volume": _draw_volume,
+    "particles": _draw_volume,
     "surface": _draw_surface, "line3d": _draw_line3d, "scatter3d": _draw_scatter3d,
     "bar3d": _draw_bar3d, "hist3d": _draw_hist3d, "quiver3d": _draw_quiver3d,
     "stream3d": _draw_stream3d,
@@ -1499,7 +1500,10 @@ reg.register("bar", 2, None, defaults={"mode": "bars"}, description="柱状图")
 reg.register("lic", 2, None, defaults={"steps": 24, "contrast": 1.0},
              description="线积分卷积（稠密矢量场纹理）")
 reg.register("volume", 3, None, defaults={"cmap": "magma"},
-             description="三维标量场体渲染（仅 pyvista）")
+             description="三维标量场体渲染（pyvista 或浏览器 WebGL）")
+reg.register("particles", 3, None,
+             defaults={"size": 3.2, "alpha": 0.06, "cmap": "inferno"},
+             description="时空点云（浏览器 WebGL 点精灵；c 为逐点标量）")
 
 # ---------------- 注册 P13-01 的四种图层（渲染统一走 mpl，builder 留空） ----------------
 reg.register("hist", 2, None, defaults={"bins": 30}, description="直方图（服务端分箱）")

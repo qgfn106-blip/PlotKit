@@ -1332,7 +1332,48 @@ async function load3dLayers() {
   let seen = 0;
   for (const layer of state.spec.layers || []) {
     const data = layer.data || {};
-    if (!data.x || !data.y || !data.z) continue;   // 只有带 z 的图层能进三维
+    // 体渲染：三维标量场（values 形状 nz×ny×nx），浏览器里 raymarch
+    if (layer.kind === "volume" && data.values && data.x && data.y && data.z) {
+      try {
+        const lv = (layer.style && (layer.style.level || layer.style.iso)) || "";
+        const res = await fetch(`api/volume?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
+                                `&z=${encodeURIComponent(data.z)}&values=${encodeURIComponent(data.values)}` +
+                                `&stride=1&mode=surface${lv !== "" ? `&level=${lv}` : ""}`);
+        if (res.ok && view3d.view) {
+          const m = PK3D.parseMesh(await res.arrayBuffer());
+          out.push({ mode: "mesh", positions: m.positions, normals: m.normals,
+                     indices: m.indices, color: [0.62, 0.80, 1.00, 0.55], opacity: 0.55,
+                     meta: m.meta, label: "volume" });
+          setStatus(`等值面 ${m.meta.nvert} 顶点 / ${m.meta.ntri} 三角`, "ok");
+        } else {
+          setStatus("体积场加载失败", "warn");
+        }
+      } catch (err) {
+        setStatus(`体积场加载失败：${err.message}`, "warn");
+      }
+      continue;
+    }
+    // 时空点云：柔光点精灵，c 作为逐点标量着色
+    if (layer.kind === "particles" && data.x && data.y && data.z) {
+      try {
+        const cq = data.c ? `&c=${encodeURIComponent(data.c)}` : "";
+        const res = await fetch(`api/particles?x=${encodeURIComponent(data.x)}&y=${encodeURIComponent(data.y)}` +
+                                `&z=${encodeURIComponent(data.z)}${cq}&stride=1`);
+        if (res.ok && view3d.view) {
+          const pt = PK3D.parseParticles(await res.arrayBuffer());
+          if (layer.style && (layer.style.markersize || layer.style.size)) view3d.view.ptSize = layer.style.markersize || layer.style.size;
+          if (layer.style && (layer.style.opacity || layer.style.alpha)) view3d.view.ptAlpha = layer.style.opacity || layer.style.alpha;
+          view3d.view.setParticles(pt.meta, pt.xyz, pt.scalar);
+          setStatus(`点云 ${pt.meta.count} 点`, "ok");
+        } else {
+          setStatus("点云加载失败", "warn");
+        }
+      } catch (err) {
+        setStatus(`点云加载失败：${err.message}`, "warn");
+      }
+      continue;
+    }
+    if (!data.x || !data.y || !data.z) continue;   // 其余图层必须有 x/y/z
     const surfaceLike = ["surface", "trisurf", "voxels", "heatmap", "contourf"].includes(layer.kind);
     if (surfaceLike) {
       // 曲面走三角网格：服务端给顶点 + 法线 + 索引，前端只 drawElements
@@ -1438,7 +1479,8 @@ async function toggle3d(force) {
     };
   }
   const layers = await load3dLayers();
-  if (!layers.length) {
+  const hasVolumeOrPoints = !!(view3d.view && (view3d.view.vol || view3d.view.ptCount));
+  if (!layers.length && !hasVolumeOrPoints) {
     setStatus("当前没有带 z 的图层（scatter3d / line3d / stream3d 才有）", "bad");
     return;
   }

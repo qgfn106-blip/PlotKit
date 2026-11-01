@@ -39,6 +39,9 @@ REQUIRED_DATA: dict[str, dict[str, tuple[str, ...]]] = {
     # 体渲染（仅 pyvista）：x/y/z 一维坐标 + values 形状 (nz, ny, nx)
     "volume": {"x": ("coord", "series", "auto"), "y": ("coord", "series", "auto"),
                "z": ("coord", "series", "auto"), "values": ("field", "image", "auto")},
+    # 时空点云（浏览器 WebGL 点精灵）：x/y/z 逐点坐标 + 可选 c 标量
+    "particles": {"x": ("series", "coord", "auto"), "y": ("series", "coord", "auto"),
+                  "z": ("series", "coord", "auto")},
     # 线积分卷积：稠密矢量场纹理（u/v 必须是二维场）
     "lic": {"u": ("field", "auto"), "v": ("field", "auto")},
     # P13-04：3D 七种

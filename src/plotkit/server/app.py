@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 import numpy as np
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -49,6 +49,27 @@ def _binary_xyz(x: np.ndarray, y: np.ndarray, z: np.ndarray, meta: Mapping[str, 
     rows[:, 2] = z.astype(np.float32, copy=False)
     header = MAGIC + struct.pack("<II", len(meta_bytes), int(x.size))
     return header + meta_bytes + rows.tobytes(order="C")
+
+
+
+def _binary_field(values: np.ndarray, meta: Mapping[str, Any]) -> bytes:
+    """三维标量场帧：magic(4)+meta_len(4)+n(4)+meta+float32 原始数组（x 变化最快）。
+
+    JS 侧直接 `texImage3D(gl.R32F, w=nx, h=ny, d=nz)`，不需要解析。
+    """
+    meta_bytes = json.dumps(dict(meta), ensure_ascii=False).encode("utf-8")
+    array = np.ascontiguousarray(values, dtype="<f4")
+    header = MAGIC + struct.pack("<II", len(meta_bytes), int(array.size))
+    return header + meta_bytes + array.tobytes(order="C")
+
+
+def _binary_points(points: np.ndarray, scalars: np.ndarray, meta: Mapping[str, Any]) -> bytes:
+    """点云帧：magic+meta_len+n+meta + float32 xyz + float32 scalar。"""
+    meta_bytes = json.dumps(dict(meta), ensure_ascii=False).encode("utf-8")
+    xyz = np.ascontiguousarray(points, dtype="<f4")
+    scl = np.ascontiguousarray(scalars, dtype="<f4")
+    header = MAGIC + struct.pack("<II", len(meta_bytes), int(xyz.shape[0]))
+    return header + meta_bytes + xyz.tobytes(order="C") + scl.tobytes(order="C")
 
 
 def _binary_series(x: np.ndarray, y: np.ndarray, meta: Mapping[str, Any]) -> bytes:
@@ -318,6 +339,100 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
                                      int(tris.shape[0]))
         body = verts.tobytes(order="C") + normals.tobytes(order="C") + tris.tobytes(order="C")
         return Response(content=header + meta_bytes + body,
+                        media_type="application/octet-stream")
+
+
+    @app.get("/api/volume")
+    def volume(x: str = Query(...), y: str = Query(...), z: str = Query(...),
+               values: str = Query(...), stride: int = Query(1, ge=1, le=8),
+               t: float | None = Query(None), mode: str = Query("field"),
+               level: float | None = Query(None)) -> Response:
+        """三维标量场。values 形状 (nz, ny, nx)，x 变化最快。
+
+        mode="field"   原始 float32 场（浏览器自绘）；
+        mode="surface" 服务端 marching cubes 抽等值面，返回与 /api/mesh 完全相同的
+                       顶点/法线/索引二进制（前端复用已验证的 mesh 渲染路径）。
+        """
+        try:
+            xv = np.asarray(figure.store.values(x), dtype=np.float64).ravel()
+            yv = np.asarray(figure.store.values(y), dtype=np.float64).ravel()
+            zv = np.asarray(figure.store.values(z), dtype=np.float64).ravel()
+            field = np.asarray(figure.store.values(values), dtype=np.float64)
+        except (KeyError, IndexError) as exc:
+            raise HTTPException(404, f"未知数据集：{exc}") from exc
+        if field.ndim != 3:
+            raise HTTPException(400, "values 必须是三维数组 (nz, ny, nx)")
+        nz, ny, nx = field.shape
+        if stride > 1:
+            field = field[::stride, ::stride, ::stride]
+            nz, ny, nx = field.shape
+        finite = field[np.isfinite(field)]
+        vmin = float(finite.min()) if finite.size else 0.0
+        vmax = float(finite.max()) if finite.size else 1.0
+        if mode == "surface":
+            import pyvista as pv
+
+            grid = pv.ImageData(dimensions=(nx, ny, nz),
+                                spacing=(float(np.ptp(xv)) / max(nx - 1, 1),
+                                         float(np.ptp(yv)) / max(ny - 1, 1),
+                                         float(np.ptp(zv)) / max(nz - 1, 1)),
+                                origin=(float(xv.min()), float(yv.min()), float(zv.min())))
+            grid.point_data["value"] = field.ravel(order="C")
+            lv = float(level) if level is not None else float(vmin + 0.25 * (vmax - vmin))
+            surf = grid.contour([lv], scalars="value")
+            surf = surf.triangulate()
+            if surf.n_points == 0:
+                raise HTTPException(400, "该等值面在数据范围内没有交点，换一个 level")
+            surf.compute_normals(point_normals=True, cell_normals=False,
+                                 auto_orient_normals=True, inplace=True)
+            verts = np.asarray(surf.points, dtype="<f4")
+            faces = np.asarray(surf.faces, dtype=np.int64).reshape(-1, 4)[:, 1:]
+            tris = faces.astype("<u4")
+            nrm = np.asarray(surf.point_data.get("Normals"), dtype="<f4")
+            if nrm.shape != verts.shape:            # 兜底：法线缺失时按面法线平均
+                nrm = np.zeros_like(verts)
+            meta = {"x": x, "y": y, "z": z, "nx": int(nx), "ny": int(ny), "nz": int(nz),
+                    "nvert": int(verts.shape[0]), "ntri": int(tris.shape[0]),
+                    "level": lv, "vmin": vmin, "vmax": vmax}
+            mb = json.dumps(meta, ensure_ascii=False).encode("utf-8")
+            header = MAGIC + struct.pack("<III", len(mb), int(verts.shape[0]), int(tris.shape[0]))
+            body = verts.tobytes(order="C") + nrm.astype("<f4").tobytes(order="C") + tris.tobytes(order="C")
+            return Response(content=header + mb + body, media_type="application/octet-stream")
+
+        meta = {"nx": int(nx), "ny": int(ny), "nz": int(nz),
+                "x": [float(xv.min()), float(xv.max())],
+                "y": [float(yv.min()), float(yv.max())],
+                "z": [float(zv.min()), float(zv.max())],
+                "vmin": vmin, "vmax": vmax, "t": t}
+        return Response(content=_binary_field(field, meta),
+                        media_type="application/octet-stream")
+
+    @app.get("/api/particles")
+    def particles(x: str = Query(...), y: str = Query(...), z: str = Query(...),
+                  c: str | None = Query(None), stride: int = Query(1, ge=1, le=16),
+                  t: float | None = Query(None)) -> Response:
+        """时空点云（浏览器里用柔光点精灵画）：可选 c 作为每点标量着色。"""
+        try:
+            xv = np.asarray(figure.store.values(x), dtype=np.float64).ravel()
+            yv = np.asarray(figure.store.values(y), dtype=np.float64).ravel()
+            zv = np.asarray(figure.store.values(z), dtype=np.float64).ravel()
+            cv = (np.asarray(figure.store.values(c), dtype=np.float64).ravel()
+                  if c else np.zeros_like(xv))
+        except (KeyError, IndexError) as exc:
+            raise HTTPException(404, f"未知数据集：{exc}") from exc
+        if not (xv.size == yv.size == zv.size == cv.size):
+            raise HTTPException(400, "x / y / z / c 长度必须一致")
+        pts = np.stack([xv, yv, zv], axis=1)[::stride]
+        scl = cv[::stride]
+        finite = scl[np.isfinite(scl)]
+        meta = {"count": int(pts.shape[0]),
+                "x": [float(xv.min()), float(xv.max())],
+                "y": [float(yv.min()), float(yv.max())],
+                "z": [float(zv.min()), float(zv.max())],
+                "cmin": float(finite.min()) if finite.size else 0.0,
+                "cmax": float(finite.max()) if finite.size else 1.0,
+                "t": t}
+        return Response(content=_binary_points(pts, scl, meta),
                         media_type="application/octet-stream")
 
     @app.get("/api/timeline")

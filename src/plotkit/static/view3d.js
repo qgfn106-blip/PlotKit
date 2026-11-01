@@ -68,6 +68,41 @@
     ]);
   }
 
+
+  // 4x4 逆矩阵（列主序，与 mat4Mul 一致）——体渲染要从 NDC 反推世界坐标射线
+  function invert(m) {
+    const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
+    const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
+    const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
+    const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10;
+    const b02 = a00 * a13 - a03 * a10, b03 = a01 * a12 - a02 * a11;
+    const b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30;
+    const b08 = a20 * a33 - a23 * a30, b09 = a21 * a32 - a22 * a31;
+    const b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return null;
+    det = 1.0 / det;
+    return new Float32Array([
+      (a11 * b11 - a12 * b10 + a13 * b09) * det,
+      (a02 * b10 - a01 * b11 - a03 * b09) * det,
+      (a31 * b05 - a32 * b04 + a33 * b03) * det,
+      (a22 * b04 - a21 * b05 - a23 * b03) * det,
+      (a12 * b08 - a10 * b11 - a13 * b07) * det,
+      (a00 * b11 - a02 * b08 + a03 * b07) * det,
+      (a32 * b02 - a30 * b05 - a33 * b01) * det,
+      (a20 * b05 - a22 * b02 + a23 * b01) * det,
+      (a10 * b10 - a11 * b08 + a13 * b06) * det,
+      (a01 * b08 - a00 * b10 - a03 * b06) * det,
+      (a30 * b04 - a31 * b02 + a33 * b00) * det,
+      (a21 * b02 - a20 * b04 - a23 * b00) * det,
+      (a11 * b07 - a10 * b09 - a12 * b06) * det,
+      (a00 * b09 - a01 * b07 + a02 * b06) * det,
+      (a31 * b01 - a30 * b03 - a32 * b00) * det,
+      (a20 * b03 - a21 * b01 + a22 * b00) * det,
+    ]);
+  }
   const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
   const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   const cross = (a, b) => [
@@ -146,6 +181,27 @@
       this.uPointSize = gl.getUniformLocation(prog, "uPointSize");
       gl.enable(gl.DEPTH_TEST);
       gl.clearColor(0.043, 0.055, 0.075, 1);
+    }
+
+    _mkProgram(vsSrc, fsSrc) {
+      const gl = this.gl;
+      const compile = (type, src) => {
+        const sh = gl.createShader(type);
+        gl.shaderSource(sh, src);
+        gl.compileShader(sh);
+        if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+          throw new Error("shader: " + (gl.getShaderInfoLog(sh) || "编译失败"));
+        }
+        return sh;
+      };
+      const prog = gl.createProgram();
+      gl.attachShader(prog, compile(gl.VERTEX_SHADER, vsSrc));
+      gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fsSrc));
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        throw new Error("link: " + (gl.getProgramInfoLog(prog) || "链接失败"));
+      }
+      return prog;
     }
 
     _resize() {
@@ -250,6 +306,7 @@
     /** 用已经解好的 {name, color, mode, positions:Float32Array} 列表替换场景。 */
     setLayers(layers) {
       const gl = this.gl;
+      if (!layers.length && this.lo && isFinite(this.lo[0])) { this._fitCamera(); return 0; }
       for (const item of this.layers) {
         gl.deleteBuffer(item.buffer);
         if (item.normalBuffer) gl.deleteBuffer(item.normalBuffer);
@@ -495,6 +552,209 @@
       }
     }
 
+
+    // ---------- 体积渲染：沿 z 切片叠加（加法混合，顺序无关，不需要逆矩阵） ----------
+    _initVolume() {
+      const gl = this.gl;
+      if (this.volProg) return;
+      const vs = `#version 300 es
+      in vec2 aUv;
+      uniform mat4 uMVP;
+      uniform vec3 uLo, uHi;
+      uniform float uZ;
+      out vec3 vUvw;
+      void main() {
+        vec3 uvw = vec3(aUv, uZ);
+        vUvw = uvw;
+        gl_Position = uMVP * vec4(mix(uLo, uHi, uvw), 1.0);
+      }`;
+      const fs = `#version 300 es
+      precision highp float;
+      precision highp sampler3D;
+      in vec3 vUvw;
+      uniform sampler3D uField;
+      uniform float uVmin, uVmax, uGamma, uGain, uSteps;
+      out vec4 frag;
+      vec3 ramp(float t) {
+        vec3 c0 = vec3(0.03, 0.02, 0.10);
+        vec3 c1 = vec3(0.38, 0.08, 0.46);
+        vec3 c2 = vec3(0.97, 0.47, 0.12);
+        vec3 c3 = vec3(1.00, 0.97, 0.85);
+        if (t < 0.33) return mix(c0, c1, t / 0.33);
+        if (t < 0.70) return mix(c1, c2, (t - 0.33) / 0.37);
+        return mix(c2, c3, (t - 0.70) / 0.30);
+      }
+      void main() {
+        float raw = texture(uField, vUvw).r;
+        float x = clamp((raw - uVmin) / max(uVmax - uVmin, 1e-9), 0.0, 1.0);
+        float dens = pow(x, uGamma) * uGain;
+        if (dens < 0.002) discard;
+        float a = clamp(dens / max(uSteps, 1.0) * 1.6, 0.0, 0.35);
+        frag = vec4(ramp(x) * a, a);
+      }`;
+      this.volProg = this._mkProgram(vs, fs);
+      const quad = new Float32Array([0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 0, 1]);
+      this.volQuad = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.volQuad);
+      gl.bufferData(gl.ARRAY_BUFFER, quad, gl.STATIC_DRAW);
+    }
+
+    setVolume(meta, data) {
+      this._initVolume();
+      const gl = this.gl;
+      if (this.volTex) gl.deleteTexture(this.volTex);
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_3D, tex);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+      gl.texImage3D(gl.TEXTURE_3D, 0, gl.R32F, meta.nx, meta.ny, meta.nz, 0,
+                    gl.RED, gl.FLOAT, data);
+      // R32F 在 WebGL2 里不可线性过滤（需要 OES_texture_float_linear），只能 NEAREST
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+      this.volTex = tex;
+      this.vol = meta;
+      this._growBounds(meta.x[0], meta.y[0], meta.z[0]);
+      this._growBounds(meta.x[1], meta.y[1], meta.z[1]);
+      this._fitCamera();
+      return meta.nx * meta.ny * meta.nz;
+    }
+
+    _drawVolume(mvp) {
+      if (!this.vol || !this.volTex) return;
+      const gl = this.gl;
+      const steps = this.volSteps || 96;
+      gl.useProgram(this.volProg);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.volQuad);
+      const a = gl.getAttribLocation(this.volProg, "aUv");
+      gl.enableVertexAttribArray(a);
+      gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+      gl.activeTexture(gl.TEXTURE6);
+      gl.bindTexture(gl.TEXTURE_3D, this.volTex);
+      gl.uniform1i(gl.getUniformLocation(this.volProg, "uField"), 6);
+      gl.uniformMatrix4fv(gl.getUniformLocation(this.volProg, "uMVP"), false, mvp);
+      gl.uniform3f(gl.getUniformLocation(this.volProg, "uLo"), this.vol.x[0], this.vol.y[0], this.vol.z[0]);
+      gl.uniform3f(gl.getUniformLocation(this.volProg, "uHi"), this.vol.x[1], this.vol.y[1], this.vol.z[1]);
+      gl.uniform1f(gl.getUniformLocation(this.volProg, "uVmin"), this.vol.vmin);
+      gl.uniform1f(gl.getUniformLocation(this.volProg, "uVmax"), this.vol.vmax);
+      gl.uniform1f(gl.getUniformLocation(this.volProg, "uGamma"), this.volGamma || 1.4);
+      gl.uniform1f(gl.getUniformLocation(this.volProg, "uGain"), this.volGain || 2.4);
+      gl.uniform1f(gl.getUniformLocation(this.volProg, "uSteps"), steps);
+      const uZ = gl.getUniformLocation(this.volProg, "uZ");
+      for (let i = 0; i < steps; i++) {
+        gl.uniform1f(uZ, (i + 0.5) / steps);
+        gl.drawArrays(gl.TRIANGLES, 0, 6);
+      }
+      gl.enable(gl.DEPTH_TEST);
+      gl.disableVertexAttribArray(a);
+      gl.activeTexture(gl.TEXTURE0);
+    }
+
+    // ---------- 点云层：柔光点精灵（逐点标量着色） ----------
+    _initParticles() {
+      if (this.ptProg) return;
+      const vs = `#version 300 es
+      in vec3 aPos; in float aScalar;
+      uniform mat4 uMVP; uniform float uSize;
+      out float vS;
+      void main() {
+        vec4 c = uMVP * vec4(aPos, 1.0);
+        gl_Position = c;
+        gl_PointSize = uSize * (3.0 / max(c.w, 0.2));
+        vS = aScalar;
+      }`;
+      const fs = `#version 300 es
+      precision highp float;
+      in float vS;
+      uniform float uAlpha;
+      out vec4 frag;
+      vec3 ramp(float t) {
+        vec3 c0 = vec3(0.35, 0.10, 0.65);
+        vec3 c1 = vec3(0.15, 0.55, 0.85);
+        vec3 c2 = vec3(1.00, 0.62, 0.15);
+        vec3 c3 = vec3(1.00, 0.98, 0.85);
+        if (t < 0.33) return mix(c0, c1, t / 0.33);
+        if (t < 0.70) return mix(c1, c2, (t - 0.33) / 0.37);
+        return mix(c2, c3, (t - 0.70) / 0.30);
+      }
+      void main() {
+        float r = length(gl_PointCoord * 2.0 - 1.0);
+        if (r > 1.0) discard;
+        float core = exp(-r * r * 5.0);
+        float halo = smoothstep(1.0, 0.1, r) * 0.25;
+        frag = vec4(ramp(clamp(vS, 0.0, 1.0)) * (0.7 + 0.6 * core), (core + halo) * uAlpha);
+      }`;
+      this.ptProg = this._mkProgram(vs, fs);
+    }
+
+    setParticles(meta, xyz, scalar) {
+      this._initParticles();
+      const gl = this.gl;
+      if (this.ptPos) gl.deleteBuffer(this.ptPos);
+      if (this.ptScl) gl.deleteBuffer(this.ptScl);
+      this.ptPos = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.ptPos);
+      gl.bufferData(gl.ARRAY_BUFFER, xyz, gl.STATIC_DRAW);
+      this.ptScl = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.ptScl);
+      gl.bufferData(gl.ARRAY_BUFFER, scalar, gl.STATIC_DRAW);
+      this.ptCount = meta.count;
+      this.ptMeta = meta;
+      this._growBounds(meta.x[0], meta.y[0], meta.z[0]);
+      this._growBounds(meta.x[1], meta.y[1], meta.z[1]);
+      this._fitCamera();
+      return meta.count;
+    }
+
+    _drawParticles(mvp) {
+      if (!this.ptCount) return;
+      const gl = this.gl;
+      gl.useProgram(this.ptProg);
+      gl.disable(gl.DEPTH_TEST);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.ptPos);
+      const a = gl.getAttribLocation(this.ptProg, "aPos");
+      gl.enableVertexAttribArray(a);
+      gl.vertexAttribPointer(a, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.ptScl);
+      const sc = gl.getAttribLocation(this.ptProg, "aScalar");
+      gl.enableVertexAttribArray(sc);
+      gl.vertexAttribPointer(sc, 1, gl.FLOAT, false, 0, 0);
+      gl.uniformMatrix4fv(gl.getUniformLocation(this.ptProg, "uMVP"), false, mvp);
+      gl.uniform1f(gl.getUniformLocation(this.ptProg, "uSize"), (this.ptSize || 3.0) * (window.devicePixelRatio || 1));
+      gl.uniform1f(gl.getUniformLocation(this.ptProg, "uAlpha"), this.ptAlpha || 0.35);
+      gl.drawArrays(gl.POINTS, 0, this.ptCount);
+      gl.enable(gl.DEPTH_TEST);
+      gl.disableVertexAttribArray(a);
+      gl.disableVertexAttribArray(sc);
+    }
+
+    _growBounds(x, y, z) {
+      if (!this.lo) this.lo = [Infinity, Infinity, Infinity];
+      if (!this.hi) this.hi = [-Infinity, -Infinity, -Infinity];
+      this.lo = [Math.min(this.lo[0], x), Math.min(this.lo[1], y), Math.min(this.lo[2], z)];
+      this.hi = [Math.max(this.hi[0], x), Math.max(this.hi[1], y), Math.max(this.hi[2], z)];
+    }
+
+    _fitCamera() {
+      if (!this.lo || !this.hi) return;
+      if (!isFinite(this.lo[0]) || !isFinite(this.hi[0])) return;
+      this.center = [(this.lo[0] + this.hi[0]) / 2, (this.lo[1] + this.hi[1]) / 2,
+                     (this.lo[2] + this.hi[2]) / 2];
+      this.radius = Math.max(this.hi[0] - this.lo[0], this.hi[1] - this.lo[1],
+                             this.hi[2] - this.lo[2], 1e-6) / 2;
+      if (!this._userCamera) {
+        this.target = this.center.slice();
+        this.dist = this.radius * 4.4;
+      }
+    }
+
     _loop() {
       this._resize();
       const gl = this.gl;
@@ -515,6 +775,9 @@
       this._mvp = mvp;
       gl.uniformMatrix4fv(this.uMVP, false, mvp);
 
+      this._drawVolume(mvp);
+      gl.useProgram(this.prog);
+      gl.uniformMatrix4fv(this.uMVP, false, mvp);
       for (const layer of this.layers) {
         gl.bindBuffer(gl.ARRAY_BUFFER, layer.buffer);
         gl.enableVertexAttribArray(this.aPos);
@@ -544,6 +807,7 @@
         }
       }
 
+      this._drawParticles(mvp);
       this._drawDynamic(gl);
       this._drawDecor(mvp, w, h);
       this._frames += 1;
@@ -624,5 +888,28 @@
     return { meta, positions, normals, indices };
   }
 
-  window.PK3D = { View3D, hexToRgba, parseFrame, parseMesh, PALETTE };
+  /** 解析 /api/volume：magic+meta_len+n+meta+float32 标量场（x 变化最快）。 */
+  function parseVolume(buffer) {
+    const view = new DataView(buffer);
+    const metaLen = view.getUint32(4, true);
+    const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 12, metaLen)));
+    const offset = 12 + metaLen;
+    return { meta, field: new Float32Array(buffer.slice(offset)) };
+  }
+
+  /** 解析 /api/particles：magic+meta_len+n+meta+float32 xyz + float32 scalar。 */
+  function parseParticles(buffer) {
+    const view = new DataView(buffer);
+    const metaLen = view.getUint32(4, true);
+    const n = view.getUint32(8, true);
+    const meta = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 12, metaLen)));
+    const base = 12 + metaLen;
+    return {
+      meta,
+      xyz: new Float32Array(buffer.slice(base, base + n * 12)),
+      scalar: new Float32Array(buffer.slice(base + n * 12, base + n * 16)),
+    };
+  }
+
+  window.PK3D = { View3D, hexToRgba, parseFrame, parseMesh, parseVolume, parseParticles, PALETTE };
 })();

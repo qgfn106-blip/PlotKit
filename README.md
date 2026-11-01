@@ -211,7 +211,7 @@ from plotkit.server.app import create_app
 app = create_app(figure, with_ns=True)     # 多出 /api/ns/*
 ```
 
-## 三维视图
+## 三维视图（点云/曲面/体积/粒子，见 [docs/WEB3D_LAYERS.md](docs/WEB3D_LAYERS.md)）
 
 页面右上角「3D」按钮：把带 `z` 的图层（`scatter3d` / `line3d` / `stream3d`）交给 WebGL2 直接画，
 拖动只改 MVP 矩阵、不请求服务端（实测 25k 点 120 fps）。数据走 `GET /api/xyz` 的二进制帧
