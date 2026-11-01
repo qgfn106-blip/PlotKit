@@ -1203,13 +1203,18 @@ void main() {
 }`);
       const comp = mk(`#version 300 es
 precision highp float; in vec2 vUv; out vec4 o;
-uniform sampler2D uScene; uniform sampler2D uBloom; uniform float uStrength; uniform float uExposure;
+uniform sampler2D uScene; uniform sampler2D uBloom;
+uniform float uStrength; uniform float uExposure;
+uniform float uCoreGain;   // 只放大"涡体自身发光"，不动辉光、不动背景
+uniform float uWhite;      // 高光白点：越大越晚压缩（>1 时中低亮度完全不受影响）
 void main() {
-  vec3 s = texture(uScene, vUv).rgb;
+  vec3 s = texture(uScene, vUv).rgb * uCoreGain;
   vec3 b = texture(uBloom, vUv).rgb;
   vec3 c = (s + b * uStrength) * uExposure;
-  // 软肩：高光滚降而不是直接截断（原来亮度一过 1 就是一片死白）
-  c = c / (1.0 + max(c - 0.85, 0.0));
+  // Reinhard + 白点：只有接近 uWhite 的高光才被压，中低亮度线性不动
+  // （原来是 c/(1+max(c-0.85,0))，一旦调低曝光整体就发灰发暗）
+  float w2 = max(uWhite * uWhite, 1e-4);
+  c = c * (1.0 + c / w2) / (1.0 + c);
   o = vec4(clamp(c, 0.0, 1.0), 1.0);
 }`);
       const buf = gl.createBuffer();
@@ -1292,6 +1297,10 @@ void main() {
       gl.uniform1f(gl.getUniformLocation(P.comp, "uStrength"), this.settings.bloom);
       gl.uniform1f(gl.getUniformLocation(P.comp, "uExposure"),
                    this.settings.exposure === undefined ? 1.0 : this.settings.exposure);
+      gl.uniform1f(gl.getUniformLocation(P.comp, "uCoreGain"),
+                   this.settings.coreGain === undefined ? 1.0 : this.settings.coreGain);
+      gl.uniform1f(gl.getUniformLocation(P.comp, "uWhite"),
+                   this.settings.white === undefined ? 2.2 : this.settings.white);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       gl.activeTexture(gl.TEXTURE0);
     }

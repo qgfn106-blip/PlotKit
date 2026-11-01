@@ -93,7 +93,11 @@
   <label>轴向包络 <span class="val" id="vz">0.45</span></label>
   <input id="kz" type="range" min="0" max="1" step="0.05" value="0.45">
   <div class="note" style="margin:-4px 0 6px">显示包络（非物理）：0 = 直柱，1 = 薄盘</div>
-  <label>曝光 <span class="val" id="vexp">1.00</span></label>
+  <label>核心亮度 <span class="val" id="vcore">1.00</span></label>
+  <input id="kcore" type="range" min="0.3" max="3.0" step="0.05" value="1.0">
+  <label>辉光白点 <span class="val" id="vwhite">2.20</span></label>
+  <input id="kwhite" type="range" min="1.2" max="4.0" step="0.05" value="2.2">
+  <label>曝光（整体，慎调） <span class="val" id="vexp">1.00</span></label>
   <input id="kexp" type="range" min="0.2" max="2.0" step="0.05" value="1.0">
   <label>辉光强度 <span class="val" id="vb">0.45</span></label>
   <input id="kb" type="range" min="0" max="2.5" step="0.05" value="0.45">
@@ -303,6 +307,7 @@ function scheduleRefresh(mode) {
 function bind() {
   const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
         ks = $("ks"), kw = $("kw"), kb = $("kb"), kexp = $("kexp");
+  const kcore = $("kcore"), kwhite = $("kwhite");
   const ksrc = $("ksrc");
   if (ksrc) {
     ksrc.value = S.source;
@@ -317,6 +322,14 @@ function bind() {
   ks.oninput = () => { view.settings.streaks = +ks.value; $("vs").textContent = (+ks.value).toFixed(2); };
   kw.oninput = () => { view.settings.spin = +kw.value; $("vw").textContent = (+kw.value).toFixed(1); };
   kb.oninput = () => { view.settings.bloom = +kb.value; $("vb").textContent = (+kb.value).toFixed(2); };
+  kcore.oninput = () => {
+    view.settings.coreGain = +kcore.value;
+    $("vcore").textContent = (+kcore.value).toFixed(2);
+  };
+  kwhite.oninput = () => {
+    view.settings.white = +kwhite.value;
+    $("vwhite").textContent = (+kwhite.value).toFixed(2);
+  };
   kexp.oninput = () => {
     view.settings.exposure = +kexp.value;
     $("vexp").textContent = (+kexp.value).toFixed(2);
