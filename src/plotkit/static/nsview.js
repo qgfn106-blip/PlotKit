@@ -19,6 +19,10 @@ const NS = (() => {
   uniform float uDensity;
   uniform vec2 uRange;
   uniform float uAxis;
+  uniform float uTime;
+  uniform float uTau;
+  uniform float uStreak;
+  uniform float uSpin;
   uniform vec3 uCore, uMid, uOuter;
   out vec4 fragColor;
 
@@ -74,12 +78,17 @@ const NS = (() => {
       if (v > -20.0) {
         float omega = pow(10.0, v);
         float x = clamp(omega / max(uAxis, 1e-6), 0.0, 1.0);
-        float dens = pow(x, 5.0) * uDensity;
+        float dens = pow(x, 8.0) * uDensity;
+        float theta = atan(p.y, p.x);
+        float phi = theta - uSpin * omega * uTime;
+        float zs = p.z * max(uTau, 1e-3);
+        float streak = 0.5 + 0.5 * sin(6.0 * phi + 2.4 * sin(9.0 * zs + 1.7 * phi));
+        dens *= mix(1.0, 0.12 + 1.75 * streak, uStreak);
         float speedN = clamp(speed / 6.0, 0.0, 1.0);
         vec3 col = ramp(x) * (0.55 + 0.9 * speedN);
-        float radial = smoothstep(1.0, 0.72, length(p.xz) / uExtent.x);
-        float axial = smoothstep(1.0, 0.85, abs(p.y) / uExtent.y);
-        float a = clamp(dens * dt * 6.0, 0.0, 0.5) * radial * axial;
+        float radial = exp(-5.2 * pow(length(p.xy) / uExtent.x, 2.0));
+        float axial = smoothstep(1.0, 0.85, abs(p.z) / uExtent.y);
+        float a = clamp(dens * dt * 2.2, 0.0, 0.35) * radial * axial;
         acc += (1.0 - alpha) * a * col;
         alpha += (1.0 - alpha) * a;
         if (alpha > 0.985) break;
@@ -93,27 +102,32 @@ const NS = (() => {
   const VERT_PT = `#version 300 es
   in vec3 aPos;
   in float aAge;
+  in vec3 aCol;
   uniform mat4 uVP;
   uniform float uPointSize;
   out float vAge;
+  out vec3 vCol;
   void main() {
     vec4 c = uVP * vec4(aPos, 1.0);
     gl_Position = c;
-    gl_PointSize = uPointSize * (1.0 - 0.35 * aAge) * (3.0 / max(c.w, 0.2));
+    gl_PointSize = uPointSize * (1.0 - 0.25 * aAge) * (3.0 / max(c.w, 0.2));
     vAge = aAge;
+    vCol = aCol;
   }`;
 
   const FRAG_PT = `#version 300 es
   precision highp float;
   in float vAge;
+  in vec3 vCol;
   uniform vec3 uColor;
   out vec4 fragColor;
   void main() {
     vec2 q = gl_PointCoord * 2.0 - 1.0;
     float d = dot(q, q);
     if (d > 1.0) discard;
-    float a = (1.0 - d) * (1.0 - vAge) * 0.9;
-    fragColor = vec4(uColor * (1.0 - 0.3 * vAge), a);
+    float core = pow(1.0 - d, 1.8);
+    float a = core * (1.0 - 0.25 * vAge) * 0.05;
+    fragColor = vec4(vCol * (1.0 - 0.25 * vAge) + vec3(0.25 * core), a);
   }`;
 
   const VERT_LN = `#version 300 es
@@ -229,11 +243,14 @@ const NS = (() => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
-      this.cam = { yaw: -0.6, pitch: 0.12, dist: 2.9, target: [0, 0, 0] };
+      this.cam = { yaw: -0.6, pitch: 0.42, dist: 3.6, target: [0, 0, 0] };
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 6.0, showParticles: true, showTrails: true };
+      this.settings = { density: 1.0, pointSize: 3.2, showParticles: true, showTrails: true,
+                        streaks: 0.8, spin: 2.0 };
+      this.time = 0.0;
+      this.tau = 1.0;
       this.stats = { fps: 0 };
       this._frames = 0;
       this._t0 = performance.now();
@@ -286,17 +303,41 @@ const NS = (() => {
       this.vel = { n: meta.n, extent: meta.extent, zExtent: meta.z_extent, data };
     }
 
-    seedParticles(count = 24000) {
+    seedParticles(count = 120000) {
       const rng = mulberry32(12345);
       const pos = new Float32Array(count * 3);
       const age = new Float32Array(count);
+      const col = new Float32Array(count * 3);
+      const rMax = (this.extent && this.extent[0]) || 0.5;
+      const zMax = (this.extent && this.extent[1]) || 1.2;
       for (let i = 0; i < count; i++) {
         const th = rng() * Math.PI * 2;
-        const rr = 0.02 + 0.12 * Math.sqrt(rng());
-        pos[i * 3] = rr * Math.cos(th);
-        pos[i * 3 + 1] = rr * Math.sin(th);
-        pos[i * 3 + 2] = (rng() * 2 - 1) * 0.75;
+        // 七成铺在赤道盘上（看得见同心环），三成铺在轴柱里（形成上下锥）
+        const disk = rng() < 0.85;
+        // 离散同心壳：粒子撒在 N 个半径上，才看得出参考图那种环
+        const SHELLS = 26;
+        const shell = Math.floor(rng() * SHELLS);
+        const rr = disk
+          ? rMax * (shell + 0.5) / SHELLS * (0.985 + 0.03 * rng())
+          : 0.02 + 0.12 * rMax * Math.sqrt(rng());
+        const zz = disk
+          ? (rng() * 2 - 1) * 0.035 * zMax
+          : (rng() * 2 - 1) * zMax;
+        const taper = disk ? 1.0 : 1.0 - 0.78 * Math.pow(Math.abs(zz) / zMax, 1.1);
+        pos[i * 3] = rr * taper * Math.cos(th);
+        pos[i * 3 + 1] = rr * taper * Math.sin(th);
+        pos[i * 3 + 2] = zz;
         age[i] = rng();
+        // 按半径着色：核心白橙 → 中段橙 → 青绿 → 外圈蓝紫
+        const rn = Math.min(1.0, rr / rMax);
+        const pal = (t) => {
+          if (t < 0.25) { const k = t / 0.25; return [1.0, 0.95 + (0.60 - 0.95) * k, 0.80 + (0.15 - 0.80) * k]; }
+          if (t < 0.55) { const k = (t - 0.25) / 0.30; return [1.0 + (0.20 - 1.0) * k, 0.60 + (0.82 - 0.60) * k, 0.15 + (0.72 - 0.15) * k]; }
+          const k = (t - 0.55) / 0.45;
+          return [0.20 + (0.35 - 0.20) * k, 0.82 + (0.32 - 0.82) * k, 0.72 + (0.95 - 0.72) * k];
+        };
+        const c0 = pal(rn);
+        col[i * 3] = c0[0]; col[i * 3 + 1] = c0[1]; col[i * 3 + 2] = c0[2];
       }
       const gl = this.gl;
       const vbo = gl.createBuffer();
@@ -305,7 +346,15 @@ const NS = (() => {
       const abo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, abo);
       gl.bufferData(gl.ARRAY_BUFFER, age, gl.STATIC_DRAW);
-      this.particles = { pos, age, vbo, abo, count };
+      const cbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
+      gl.bufferData(gl.ARRAY_BUFFER, col, gl.DYNAMIC_DRAW);
+      this.particles = { pos, age, col, vbo, abo, cbo, count };
+    }
+
+    setTime(t, tBlow) {
+      this.time = t;
+      this.tau = Math.max(1e-3, tBlow - t);
     }
 
     setTrails(meta, data) {
@@ -355,13 +404,40 @@ const NS = (() => {
         sample(x + 0.5 * step * k1[0], y + 0.5 * step * k1[1], z + 0.5 * step * k1[2], k2);
         x += step * k2[0]; y += step * k2[1]; z += step * k2[2];
         const rr = Math.hypot(x, y);
-        if (!isFinite(x) || rr > ext * 1.6 || Math.abs(z) > zext * 1.15) {
-          const th = Math.random() * Math.PI * 2, rad = 0.02 + 0.12 * Math.sqrt(Math.random());
-          x = rad * Math.cos(th); y = rad * Math.sin(th); z = (Math.random() * 2 - 1) * 0.75;
-          age[i] = 1.0;
+        // 这个场是向轴收缩的：粒子迟早挤进核心里堆成一团白雾。
+        // 所以按"示踪粒子注入"的办法回收——寿命到、飞出域、或落进核心就重新撒回离散壳上。
+        if (!isFinite(x) || rr > ext * 1.6 || Math.abs(z) > zext * 1.15
+            || rr < ext * 0.05 || age[i] > 0.85) {
+          const disk = Math.random() < 0.85;
+          const SHELLS = 26;
+          const shell = Math.floor(Math.random() * SHELLS);
+          const rad = disk
+            ? ext * (shell + 0.5) / SHELLS * (0.985 + 0.03 * Math.random())
+            : 0.02 + 0.12 * ext * Math.sqrt(Math.random());
+          const th = Math.random() * Math.PI * 2;
+          const zz = disk
+            ? (Math.random() * 2 - 1) * 0.035 * zext
+            : (Math.random() * 2 - 1) * zext;
+          const taper = disk ? 1.0 : 1.0 - 0.78 * Math.pow(Math.abs(zz) / zext, 1.1);
+          x = rad * taper * Math.cos(th);
+          y = rad * taper * Math.sin(th);
+          z = zz;
+          age[i] = 0.0;
         }
         age[i] = Math.min(1.0, age[i] + 0.004);
         pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+        // 颜色跟着局部速度走：慢 → 蓝紫，中 → 青绿，快 → 橙黄
+        const rn = Math.min(1.0, Math.hypot(x, y) / (ext || 0.5));
+        if (rn < 0.25) {
+          const t = rn / 0.25;
+          P.col[o] = 1.0; P.col[o + 1] = 0.95 + (0.60 - 0.95) * t; P.col[o + 2] = 0.80 + (0.15 - 0.80) * t;
+        } else if (rn < 0.55) {
+          const t = (rn - 0.25) / 0.30;
+          P.col[o] = 1.0 + (0.20 - 1.0) * t; P.col[o + 1] = 0.60 + (0.82 - 0.60) * t; P.col[o + 2] = 0.15 + (0.72 - 0.15) * t;
+        } else {
+          const t = (rn - 0.55) / 0.45;
+          P.col[o] = 0.20 + (0.35 - 0.20) * t; P.col[o + 1] = 0.82 + (0.32 - 0.82) * t; P.col[o + 2] = 0.72 + (0.95 - 0.72) * t;
+        }
       }
       const gl = this.gl;
       gl.bindBuffer(gl.ARRAY_BUFFER, P.vbo);
@@ -416,6 +492,10 @@ const NS = (() => {
       gl.uniform1f(gl.getUniformLocation(this.quad, "uDensity"), this.settings.density);
       gl.uniform2f(gl.getUniformLocation(this.quad, "uRange"), this.vmin ?? -4.0, this.vmax ?? 0.0);
       gl.uniform1f(gl.getUniformLocation(this.quad, "uAxis"), this.omegaAxis ?? 1.0);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uTime"), this.time);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uTau"), this.tau);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uStreak"), this.settings.streaks);
+      gl.uniform1f(gl.getUniformLocation(this.quad, "uSpin"), this.settings.spin);
       gl.uniform2f(gl.getUniformLocation(this.quad, "uExtent"), this.extent?.[0] ?? 0.5, this.extent?.[1] ?? 1.2);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uCore"), 1.0, 0.72, 0.25);
       gl.uniform3f(gl.getUniformLocation(this.quad, "uMid"), 0.16, 0.72, 0.66);
@@ -451,7 +531,7 @@ const NS = (() => {
         const P = this.particles;
         gl.useProgram(this.points);
         gl.enable(gl.BLEND);
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
         gl.bindBuffer(gl.ARRAY_BUFFER, P.vbo);
         const pa = gl.getAttribLocation(this.points, "aPos");
         gl.enableVertexAttribArray(pa);
@@ -460,6 +540,13 @@ const NS = (() => {
         const pg = gl.getAttribLocation(this.points, "aAge");
         gl.enableVertexAttribArray(pg);
         gl.vertexAttribPointer(pg, 1, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, P.cbo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, P.col);
+        const pc = gl.getAttribLocation(this.points, "aCol");
+        if (pc >= 0) {
+          gl.enableVertexAttribArray(pc);
+          gl.vertexAttribPointer(pc, 3, gl.FLOAT, false, 0, 0);
+        }
         gl.uniformMatrix4fv(gl.getUniformLocation(this.points, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.points, "uPointSize"), this.settings.pointSize * (h / 900));
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);

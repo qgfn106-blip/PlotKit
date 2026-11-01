@@ -66,8 +66,12 @@
   <input id="ke" type="range" min="0.3" max="2.5" step="0.05" value="1.0">
   <label>体积密度 <span class="val" id="vd">1.0</span></label>
   <input id="kd" type="range" min="0.2" max="3.0" step="0.1" value="1.0">
-  <label>粒子数 <span class="val" id="vp">24000</span></label>
-  <input id="kp" type="range" min="2000" max="60000" step="2000" value="24000">
+  <label>光柱随流 <span class="val" id="vs">0.80</span></label>
+  <input id="ks" type="range" min="0" max="1" step="0.05" value="0.8">
+  <label>螺旋缠绕 <span class="val" id="vw">2.0</span></label>
+  <input id="kw" type="range" min="0" max="6" step="0.25" value="2.0">
+  <label>粒子数 <span class="val" id="vp">200000</span></label>
+  <input id="kp" type="range" min="20000" max="300000" step="20000" value="200000">
   <div style="margin-top:8px; display:flex; gap:6px">
     <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-reset">复位视角</button>
   </div>
@@ -86,7 +90,7 @@
 <script>
 const S = {
   t: 0.0, playing: false, rate: 1.0, h: 0.005, x0: 0.6, eta0: 1.0,
-  particles: 24000, dirtyField: true, dirtyVel: true, lastVel: 0,
+  particles: 120000, dirtyField: true, dirtyVel: true, lastVel: 0,
 };
 const $ = (id) => document.getElementById(id);
 let view = null;
@@ -150,6 +154,7 @@ async function loadDiag() {
 }
 
 function updateClock() {
+  if (view) view.setTime(S.t, S.tBlow);
   $("tau").textContent = (S.tBlow - S.t).toFixed(3);
   $("tval").textContent = S.t.toFixed(3);
   $("tleft").textContent = (S.tBlow - S.t).toFixed(3);
@@ -170,11 +175,14 @@ function scheduleRefresh(full) {
 }
 
 function bind() {
-  const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp");
+  const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
+        ks = $("ks"), kw = $("kw");
   kh.oninput = () => { S.h = +kh.value; $("vh").textContent = S.h.toFixed(3); scheduleRefresh(true); };
   kx.oninput = () => { S.x0 = +kx.value; $("vx").textContent = S.x0.toFixed(2); scheduleRefresh(true); };
   ke.oninput = () => { S.eta0 = +ke.value; $("ve").textContent = S.eta0.toFixed(2); scheduleRefresh(true); };
   kd.oninput = () => { view.settings.density = +kd.value; $("vd").textContent = (+kd.value).toFixed(1); };
+  ks.oninput = () => { view.settings.streaks = +ks.value; $("vs").textContent = (+ks.value).toFixed(2); };
+  kw.oninput = () => { view.settings.spin = +kw.value; $("vw").textContent = (+kw.value).toFixed(1); };
   kp.oninput = () => {
     S.particles = +kp.value; $("vp").textContent = S.particles;
     view.seedParticles(S.particles);
