@@ -151,6 +151,37 @@ const NS = (() => {
     fragColor = vec4(col, a);
   }`;
 
+  // 真·流线：每个粒子在纹理里存 K 个历史位置，画成 LINE_STRIP。
+  // 点精灵只能表达"在哪里"，拉不出"往哪走"；丝带要靠多帧历史，单帧位移只有 1~2 px。
+  const VERT_RIB = `#version 300 es
+  precision highp float;
+  uniform mat4 uVP;
+  uniform sampler2D uHist;
+  uniform int uK;
+  uniform int uHead;
+  uniform int uW;
+  uniform int uRows;
+  uniform float uAlpha;
+  out float vFade;
+  void main() {
+    int id = gl_InstanceID;
+    int k = (gl_VertexID + uHead) % uK;
+    int x = id % uW;
+    int y = k * uRows + id / uW;
+    vec3 p = texelFetch(uHist, ivec2(x, y), 0).xyz;
+    gl_Position = uVP * vec4(p, 1.0);
+    float age = float(gl_VertexID) / float(max(uK - 1, 1));
+    vFade = (1.0 - age) * (1.0 - age) * uAlpha;
+  }`;
+
+  const FRAG_RIB = `#version 300 es
+  precision highp float;
+  in float vFade;
+  out vec4 fragColor;
+  void main() {
+    fragColor = vec4(vec3(1.0, 0.66, 0.30) * vFade, vFade);
+  }`;
+
   const VERT_LN = `#version 300 es
   in vec3 aPos;
   in float aT;
@@ -280,6 +311,7 @@ const NS = (() => {
 
       this.quad = program(gl, VERT, FRAG_VOL);
       this.points = program(gl, VERT_PT, FRAG_PT);
+      this.ribbon = program(gl, VERT_RIB, FRAG_RIB);
       this.lines = program(gl, VERT_LN, FRAG_LN);
       this.arrowProg = program(gl, VERT_AR, FRAG_AR);
 
@@ -430,7 +462,19 @@ const NS = (() => {
       const pvo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, pvo);
       gl.bufferData(gl.ARRAY_BUFFER, prev, gl.DYNAMIC_DRAW);
-      this.particles = { pos, prev, age, col, vbo, pvo, abo, cbo, count };
+      // 历史位置纹理：[k][row][col] 三层平铺，宽 1024（纹理宽度上限 16384，粒子数会超）
+      const K = 8, W = 1024, rows = Math.ceil(count / W);
+      const hist = new Float32Array(K * rows * W * 3);
+      for (let k = 0; k < K; k++) hist.set(pos, k * rows * W * 3);
+      const histTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, histTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, W, rows * K, 0, gl.RGB, gl.FLOAT, hist);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      this.particles = { pos, prev, age, col, vbo, pvo, abo, cbo, count,
+                         hist, histTex, K, W, rows, slot: 0 };
     }
 
     setTime(t, tBlow) {
@@ -578,6 +622,19 @@ const NS = (() => {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, age);
       gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, prev);
+
+      // 历史位置：写进当前 slot 后整块上传（[slot][row][col] 连续，一次 texSubImage2D）
+      const K = P.K, W = P.W, rows = P.rows, slot = P.slot;
+      const base = slot * rows * W * 3;
+      const hist = P.hist;
+      for (let i = 0; i < P.count; i++) {
+        const o = i * 3;
+        const h = base + (((i / W) | 0) * W + (i % W)) * 3;
+        hist[h] = pos[o]; hist[h + 1] = pos[o + 1]; hist[h + 2] = pos[o + 2];
+      }
+      gl.bindTexture(gl.TEXTURE_2D, P.histTex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, slot * rows, W, rows, gl.RGB, gl.FLOAT, hist, base);
+      P.slot = (slot + 1) % K;
     }
 
     // ---------- 相机预设（俯视看同心环 / 侧视看轴向拉伸） ----------
@@ -807,6 +864,21 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         for (let g = 0; g < ghosts; g++) {
           gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
           gl.drawArrays(gl.POINTS, 0, P.count);
+        }
+        // 真·流线：历史位置连成 LINE_STRIP（头亮尾淡），和点精灵叠在一起才像流体
+        if (trail > 0.02 && P.histTex) {
+          gl.useProgram(this.ribbon);
+          gl.activeTexture(gl.TEXTURE0);
+          gl.bindTexture(gl.TEXTURE_2D, P.histTex);
+          const R = this.ribbon;
+          gl.uniformMatrix4fv(gl.getUniformLocation(R, "uVP"), false, vp);
+          gl.uniform1i(gl.getUniformLocation(R, "uHist"), 0);
+          gl.uniform1i(gl.getUniformLocation(R, "uK"), P.K);
+          gl.uniform1i(gl.getUniformLocation(R, "uW"), P.W);
+          gl.uniform1i(gl.getUniformLocation(R, "uRows"), P.rows);
+          gl.uniform1i(gl.getUniformLocation(R, "uHead"), (P.slot + P.K - 1) % P.K);
+          gl.uniform1f(gl.getUniformLocation(R, "uAlpha"), 0.85 * trail);
+          gl.drawArraysInstanced(gl.LINE_STRIP, 0, P.K, P.count);
         }
       }
       gl.disable(gl.BLEND);
