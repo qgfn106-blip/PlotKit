@@ -75,7 +75,7 @@
   <label>粒子数 <span class="val" id="vp">200000</span></label>
   <input id="kp" type="range" min="20000" max="300000" step="20000" value="200000">
   <div style="margin-top:8px; display:flex; gap:6px">
-    <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-reset">复位视角</button>
+    <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-top">俯视环盘</button><button id="btn-side">侧视</button><button id="btn-reset">默认视角</button>
   </div>
 </div>
 
@@ -193,7 +193,9 @@ function bind() {
   };
   $("btn-pt").onclick = () => { view.settings.showParticles = !view.settings.showParticles; };
   $("btn-tr").onclick = () => { view.settings.showTrails = !view.settings.showTrails; };
-  $("btn-reset").onclick = () => { view.cam.yaw = -0.6; view.cam.pitch = 0.25; view.cam.dist = 2.4; };
+  $("btn-top").onclick = () => view.setPreset("top");
+  $("btn-side").onclick = () => view.setPreset("side");
+  $("btn-reset").onclick = () => view.setPreset("home");
 
   $("scrub").oninput = () => {
     S.t = Math.min(0.985, +$("scrub").value / 1000);

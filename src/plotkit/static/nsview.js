@@ -243,6 +243,11 @@ const NS = (() => {
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
+      this.presets = {
+        top: { yaw: -Math.PI / 2, pitch: 1.33, dist: 2.55 },   // 近俯视：环盘接近正圆
+        side: { yaw: -0.6, pitch: 0.10, dist: 3.0 },           // 侧视：看轴向拉伸
+        home: { yaw: -0.6, pitch: 0.62, dist: 3.1 },           // 默认 3/4 视角
+      };
       this.cam = { yaw: -0.6, pitch: 0.62, dist: 3.1, target: [0, 0, 0] };
       this.extent = [0.35, 1.2];
       this.particles = null;
@@ -449,25 +454,38 @@ const NS = (() => {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, age);
     }
 
+    // ---------- 相机预设（俯视看同心环 / 侧视看轴向拉伸） ----------
+    setPreset(name) {
+      const p = this.presets && this.presets[name];
+      if (!p) return null;
+      this.cam.yaw = p.yaw;
+      this.cam.pitch = p.pitch;
+      this.cam.dist = p.dist;
+      return name;
+    }
+
     // ---------- 环层：几何圆环（比粒子撒点更细更匀，直接反映等半径壳） ----------
     buildRings(shells = 40, seg = 160) {
       const gl = this.gl;
       const rMax = (this.extent && this.extent[0]) || 0.5;
-      const vert = [], col = [];
+      const vert = [], col = [], alo = [];
       const pal = (x) => {
         if (x < 0.22) return [1.0, 0.96, 0.86];
         if (x < 0.45) { const k = (x - 0.22) / 0.23; return [1.0, 0.96 + (0.72 - 0.96) * k, 0.86 + (0.18 - 0.86) * k]; }
         if (x < 0.68) { const k = (x - 0.45) / 0.23; return [1.0 + (0.42 - 1.0) * k, 0.72 + (0.60 - 0.72) * k, 0.18 + (0.35 - 0.18) * k]; }
         const k = (x - 0.68) / 0.32;
-        return [0.42 + (0.52 - 0.42) * k, 0.60 + (0.46 - 0.60) * k, 0.35 + (1.00 - 0.35) * k];
+        return [0.52 + (0.62 - 0.52) * k, 0.58 + (0.50 - 0.58) * k, 0.62 + (1.00 - 0.62) * k];
       };
       for (let s = 0; s < shells; s++) {
         const r = rMax * (s + 3) / (shells + 3);
         const c = pal(r / rMax);
         for (let j = 0; j < seg; j++) {
           const a0 = j / seg * Math.PI * 2, a1 = (j + 1) / seg * Math.PI * 2;
+          // 外圈壳本身没有场强可依（r>0.35 时 Ω 已很低），所以按壳序号给亮度，保证蓝紫层次可见
+          const a = 0.55 + 0.95 * (r / rMax);
           vert.push(r * Math.cos(a0), r * Math.sin(a0), 0, r * Math.cos(a1), r * Math.sin(a1), 0);
           col.push(c[0], c[1], c[2], c[0], c[1], c[2]);
+          alo.push(a, a);
         }
       }
       const vbo = gl.createBuffer();
@@ -476,13 +494,16 @@ const NS = (() => {
       const cbo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
       gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(col), gl.STATIC_DRAW);
+      const abo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, abo);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(alo), gl.STATIC_DRAW);
       if (!this.ringProg) {
         const VS = `#version 300 es
-in vec3 aPos; in vec3 aCol; uniform mat4 uVP; out vec3 vCol;
-void main(){ vCol = aCol; gl_Position = uVP * vec4(aPos, 1.0); }`;
+in vec3 aPos; in vec3 aCol; in float aAlpha; uniform mat4 uVP; out vec3 vCol; out float vA;
+void main(){ vCol = aCol; vA = aAlpha; gl_Position = uVP * vec4(aPos, 1.0); }`;
         const FS = `#version 300 es
-precision highp float; in vec3 vCol; out vec4 o; uniform float uAlpha;
-void main(){ o = vec4(vCol * uAlpha, 1.0); }`;
+precision highp float; in vec3 vCol; in float vA; out vec4 o; uniform float uAlpha;
+void main(){ o = vec4(vCol, vA * uAlpha); }`;
         const mk = (ty, src) => { const sh = gl.createShader(ty); gl.shaderSource(sh, src); gl.compileShader(sh); return sh; };
         const p = gl.createProgram();
         gl.attachShader(p, mk(gl.VERTEX_SHADER, VS));
@@ -490,7 +511,7 @@ void main(){ o = vec4(vCol * uAlpha, 1.0); }`;
         gl.linkProgram(p);
         this.ringProg = p;
       }
-      this.rings = { vbo, cbo, count: vert.length / 3 };
+      this.rings = { vbo, cbo, abo, count: vert.length / 3 };
     }
 
     _loop() {
@@ -587,6 +608,10 @@ void main(){ o = vec4(vCol * uAlpha, 1.0); }`;
         const rc = gl.getAttribLocation(this.ringProg, "aCol");
         gl.enableVertexAttribArray(rc);
         gl.vertexAttribPointer(rc, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.rings.abo);
+        const ral = gl.getAttribLocation(this.ringProg, "aAlpha");
+        gl.enableVertexAttribArray(ral);
+        gl.vertexAttribPointer(ral, 1, gl.FLOAT, false, 0, 0);
         gl.uniformMatrix4fv(gl.getUniformLocation(this.ringProg, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.ringProg, "uAlpha"), this.settings.ringAlpha);
         gl.enable(gl.BLEND);
