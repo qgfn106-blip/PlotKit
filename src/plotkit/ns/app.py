@@ -122,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
                 " vel: !!v.vel, tex: !!v.tex, center: Array.from(px.slice(0,8)),"
                 " gpu: !!v.gpu, gpuErr: v.gpuError || '', floatFBO: !!ext, fb: fb, glErr: gl.getError(),"
                 " pt: {ok: v.pointsGpuOk === true, log: (v.pointsGpuLog||'').slice(0,120), err: v._ptErr, drawn: v._ptDrawn, loc: v._ptLoc},"
+                " g: v.gpu ? {count: v.gpu.count, rows: v.gpu.rows, W: v.gpu.W, K: v.gpu.K, pcount: v.particles ? v.particles.count : null, posLen: v.particles ? v.particles.pos.length : null, tail: v.particles ? Array.from(v.particles.pos.slice(-3)).map(x => +(+x).toFixed(3)) : null} : null,"
+                " tailPos: (function(){ if (!v.gpu) return null; const g = v.gpu; const a = new Float32Array(4); gl.readPixels(0, g.rows - 2, 1, 1, gl.RGBA, gl.FLOAT, a); return Array.from(a).map(x => (+x).toFixed(4)); })(),"
                 " firstPos: (function(){ if (!v.gpu) return null; const a = new Float32Array(4);"
                 "   gl.bindFramebuffer(gl.FRAMEBUFFER, v.gpu.fbo[v.gpu.cur]);"
                 "   gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.FLOAT, a);"
