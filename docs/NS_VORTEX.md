@@ -143,3 +143,46 @@ PYTHONPATH=src python -m plotkit.ns.app --shot out.png --seconds 10   # 自检�
 - **相似坐标缩放**：场域变化时旧代码用径向比例同时缩放粒子的 x/y/z；现在 z 使用 `z_max` 自己的比例，径向与轴向分别换算。
 - **网格诊断**：`grid_stats()` 的 `np.gradient` 原来对 x/y/z 统一用 `h`，但 API 的 z 域是 `z_extent`，z 导数被系统性放大；现在按 `(h,h,hz)` 求导，体元改为 `h*h*hz`，散度复用 `dW_dz`，涡核半径改为从轴心 `mid` 起算。
 - 验证：`PYTHONPATH=src python -m pytest tests/test_ns_field.py tests/test_ns_api.py -q` → 25 passed；`node --check src/plotkit/static/nsview.js` 通过；`--shot` 截图见 `docs/ns_after_fix.png`（t=0.95，41 fps，速度网格已加载）。
+
+## 17. 模式 B：真数值解（伪谱 NS 求解器）
+
+`src/plotkit/ns/solver.py` —— 参考 [cmccomb/navier-stokes-singularity-simulation](https://github.com/cmccomb/navier-stokes-singularity-simulation) 的实验设定，在本机用纯 NumPy 实现了一个**三维不可压 NS 伪谱求解器**，作为"数值解"数据源（模式 B）。
+
+### 17.1 数值方法
+
+| 环节 | 做法 |
+| --- | --- |
+| 空间 | 三维周期立方体 `[0,L)³`，`N³` 网格（默认 32³），伪谱（FFT） |
+| 非线性 | `(u·∇)u` 在物理空间中心差分 → 回谱空间，**2/3 去混叠** |
+| 时间 | Heun RK2 + 每步投影（`k·û = 0`） |
+| 外力 | 从静止起步，`tanh` 平滑开启的轴对称旋涡力：角向 `(-y,x,0)/r` + 轴向 `sign(z)|z|/σ_z`，三个高斯脉冲（中心 0.20/0.45/0.72，权重 1.0/1.6/2.4） |
+| 步长 | 自适应 `dt = min(dt₀, 0.35·dx/v_max, 0.4·dx²/ν)` |
+
+默认参数：`n=32, L=2.0, ν=4e-3, t_end=0.95, save_every=0.02`。
+
+### 17.2 实测
+
+| 规模 | 耗时 | 帧数 | 内存 |
+| --- | --- | --- | --- |
+| 24³ / t=0.6 | 2.8 s | 13 | 3 MB |
+| 32³ / t=0.95 | **13.8 s** | 48 | 18.9 MB |
+
+峰值速度 0 → 0.016 → 0.091 → 0.207 → 0.243 → **0.444**；峰值涡量 0 → 0.574 → 3.02 → 6.82 → 7.31 → **13.6**；散度 ~1e-17（谱投影精确）。
+
+### 17.3 两个真 bug
+
+1. `nonlinear()` 把谱系数当物理量又做了一次 `fftn` → 双重变换，`t>0.15` 即 overflow。修法：入参就是谱系数，内部 `ifftn` 回物理空间算对流项再 `fftn`。
+2. 固定 `dt=0.006` 在强外力下违反 CFL → 发散。修法：按 `v_max` 与粘性算自适应步长。
+
+### 17.4 接口与用法
+
+所有 `/api/ns/*` 端点都接受 `source=analytic|solver`：
+
+```bash
+python -m plotkit.ns.app --source solver          # 首次约 15 s 出解，页面显示进度
+python -m plotkit.ns.app --source solver --t 0.6 --shot b.png --seconds 45
+```
+
+数值解模式下 `h/X₀/η₀` 三个旋钮被禁用（数值解不吃剖面参数），面板脚注改为「有限时间代理，非奇异性证明」。
+
+> **诚实声明**：32³ 的数值解只能说明"涡量在快速增强、散度保持机器精度"，**不构成有限时间奇异的证明**。参考工程自己在 README 里也写明 *finite surrogate, not an independent proof*。

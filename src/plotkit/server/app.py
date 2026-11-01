@@ -132,9 +132,14 @@ def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
         raise
 
 
-def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path | None = None) -> FastAPI:
+def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path | None = None,
+               with_ns: bool = False) -> FastAPI:
     """`figure` 是 plotkit.api.native.Figure。"""
     app = FastAPI(title=title or "PlotKit", docs_url=None, redoc_url=None)
+    if with_ns:                      # 同一个进程里同时提供二维图与 NS 三维涡旋接口
+        from .ns_app import router as ns_router
+
+        app.include_router(ns_router)
     # 图 JSON/spec 动辄几十 KB，压缩后 ~1/10；本地回环也受益于解析前的字节数
     app.add_middleware(GZipMiddleware, minimum_size=1024)
 

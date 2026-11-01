@@ -26,7 +26,13 @@ def _assert_window(limits, lo, hi, margin=0.06):
     assert got_lo >= lo - margin * span and got_hi <= hi + margin * span
 
 
-def test_window_keeps_only_recent_part():
+def test_window_allows_empty_live_figure_until_first_data():
+    fig = pk.figure(window=10.0)
+    fig.add_plot("line", x=[], y=[])
+    payload = fig.render(width=320, height=200)
+    assert payload.startswith(b"\x89PNG\r\n\x1a\n")
+
+
     fig, _ = _figure(window=2.0)
     _, limits = fig.render(width=400, height=250, with_limits=True)
     _assert_window(limits, 8.0, 10.0)

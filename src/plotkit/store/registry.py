@@ -184,6 +184,9 @@ class DataStore:
         if key in self._sets and not overwrite:
             raise KeyError(f"数据集已存在: {name}（改值请用 push()，或 overwrite=True）")
         array = _as_array(values, name=name)
+        previous = self._sets.get(key)
+        version = int(previous.meta.version) + 1 if previous is not None else 1
+        history = list(previous.history) if previous is not None else []
         meta = DataSetMeta(
             name=key,
             unit=unit,
@@ -193,10 +196,11 @@ class DataStore:
             length=int(array.shape[0]) if array.ndim else 1,
             dtype=str(array.dtype),
             shape=tuple(int(s) for s in array.shape),
-            version=1,
+            version=version,
             note=note,
         )
-        self._sets[key] = DataSet(meta=meta, values=array, history=[(1, meta.length, meta.updated_at)])
+        history.append((version, meta.length, meta.updated_at))
+        self._sets[key] = DataSet(meta=meta, values=array, history=history)
         return meta
 
     def push(self, name: str, values: Any) -> DataSetMeta:

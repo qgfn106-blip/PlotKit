@@ -607,10 +607,15 @@ class Figure:
         elif wnd:
             # 没有回放游标：实时视图 = 数据末尾往回 window 秒（plotly 退役后由这里接管）
             _, t_hi = _time_bounds(self.spec, self.store)
-            t1 = float(t_hi)
-            trange = (t1 - float(wnd), t1)
-            if not _all_windowable(self.spec):
-                store = self._store_at(t1)
+            if t_hi is None:
+                # 实时图可以先创建再推送数据；没有首帧时保留空范围，
+                # 首批数据到达后下一次渲染再启用滚动窗口。
+                trange = None
+            else:
+                t1 = float(t_hi)
+                trange = (t1 - float(wnd), t1)
+                if not _all_windowable(self.spec):
+                    store = self._store_at(t1)
         token = mpl_backend.push_trange(trange)
         try:
             return dispatch.render_result(

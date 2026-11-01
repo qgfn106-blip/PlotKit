@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import json
 import struct
+import threading
 from functools import lru_cache
 
 import numpy as np
@@ -16,6 +17,9 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import Response
 
 from ..ns import SimilarityParams, analyze, convergence, profile_table, velocity_at
+from ..ns.solver import MODE_LABEL as SOLVER_LABEL
+from ..ns.solver import SolverField, SolverParams
+from ..ns.solver import solve as solve_ns
 
 __all__ = ["router", "MODE_LABEL"]
 
@@ -51,6 +55,85 @@ def _table(h: float, x0: float, eta0: float):
     p = SimilarityParams(h=h, x0=x0, eta0=eta0)
     return p, profile_table(p)
 
+# ---------------------------------------------------------------- 数值解（模式 B）
+# 参考工程 cmccomb/navier-stokes-singularity-simulation 的做法：从静止起步、平滑开启的
+# 紧支撑制造外力。这里用伪谱 + 2/3 去混叠 + 每步投影，32³ 跑到 t=0.95 约 14 s。
+_SOLVER: dict = {
+    "field": None, "result": None, "progress": 0.0, "error": None,
+    "started": False, "lock": threading.Lock(), "n": 32, "t_end": 0.95,
+}
+
+
+def _solver_progress(_i: int, t: float, _peak: float) -> None:
+    _SOLVER["progress"] = min(1.0, float(t) / max(float(_SOLVER["t_end"]), 1e-9))
+
+
+def ensure_solver(n: int = 32, t_end: float = 0.95) -> None:
+    """后台线程算一次数值解；重复调用只启动一次。"""
+    with _SOLVER["lock"]:
+        if _SOLVER["started"]:
+            return
+        _SOLVER["started"] = True
+        _SOLVER["n"] = int(n)
+        _SOLVER["t_end"] = float(t_end)
+
+    def work() -> None:
+        try:
+            res = solve_ns(SolverParams(n=n, t_end=t_end, save_every=0.02),
+                           progress=_solver_progress)
+            _SOLVER["result"] = res
+            _SOLVER["field"] = SolverField(res)
+            _SOLVER["progress"] = 1.0
+        except Exception as exc:  # noqa: BLE001 - 启动失败要能被前端看到
+            _SOLVER["error"] = f"{type(exc).__name__}: {exc}"[:300]
+
+    threading.Thread(target=work, daemon=True, name="ns-solver").start()
+
+
+def _solver_field(source: str):
+    """source='solver' 时返回 SolverField；未就绪就抛 503（前端据此显示进度）。"""
+    if source != "solver":
+        return None
+    if _SOLVER["error"]:
+        raise HTTPException(500, f"数值解失败：{_SOLVER['error']}")
+    if _SOLVER["field"] is None:
+        ensure_solver()
+        raise HTTPException(503, f"数值解准备中 {100 * _SOLVER['progress']:.0f}%")
+    return _SOLVER["field"]
+
+
+def _solver_time(field, t: float) -> float:
+    """数值解只覆盖 [0, t_end]，越界就取端点（并在 meta 里标注）。"""
+    times = _SOLVER["result"].times
+    return float(min(max(t, float(times[0])), float(times[-1])))
+
+
+def _cyl(source: str, t: float, R: np.ndarray, Z: np.ndarray,
+         h: float, x0: float, eta0: float):
+    """柱坐标 (r,z) 上的 (u_r, u_θ, u_z)：解析场直接算，数值解在 y=0 面上取。"""
+    field = _solver_field(source)
+    if field is None:
+        p, table = _table(h, x0, eta0)
+        return velocity_at(np.maximum(R, 1e-6), Z, t, p, table)
+    ts = _solver_time(field, t)
+    pts = np.stack([R.ravel(), np.zeros(R.size), Z.ravel()], axis=1)
+    v = field.velocity(pts, ts)
+    shape = R.shape
+    return v[:, 0].reshape(shape), v[:, 1].reshape(shape), v[:, 2].reshape(shape)
+
+
+def _cart(source: str, t: float, P: np.ndarray, h: float, x0: float, eta0: float):
+    """任意笛卡尔点上的速度。"""
+    field = _solver_field(source)
+    if field is not None:
+        return field.velocity(P, _solver_time(field, t))
+    r = np.hypot(P[:, 0], P[:, 1])
+    th = np.arctan2(P[:, 1], P[:, 0])
+    p, table = _table(h, x0, eta0)
+    ur, ut, uz = velocity_at(np.maximum(r, 1e-6), P[:, 2], t, p, table)
+    return np.stack([ur * np.cos(th) - ut * np.sin(th),
+                     ur * np.sin(th) + ut * np.cos(th), uz], axis=1)
+
 
 router = APIRouter(prefix="/api/ns", tags=["ns"])
 
@@ -66,22 +149,39 @@ def meta() -> dict:
                    "nu": p.nu, "t_blow": p.t_blow},
         "paper_compliant": p.paper_compliant,
         "note": "前导阶自相似解；剖面形状为自选核，h<0.01 才落在论文证明区间。",
+        "sources": ["analytic", "solver"],
+        "solver": {"label": SOLVER_LABEL, "n": _SOLVER["n"], "t_end": _SOLVER["t_end"],
+                   "ready": _SOLVER["field"] is not None,
+                   "progress": round(float(_SOLVER["progress"]), 3),
+                   "error": _SOLVER["error"]},
     }
+
+
+@router.get("/state")
+def state() -> dict:
+    """前端轮询：数值解是否就绪（首次约 10–20 s）。"""
+    ensure_solver()
+    return {"ready": _SOLVER["field"] is not None,
+            "progress": round(float(_SOLVER["progress"]), 3),
+            "error": _SOLVER["error"],
+            "n": _SOLVER["n"], "t_end": _SOLVER["t_end"],
+            "label": SOLVER_LABEL}
 
 
 @router.get("/slice")
 def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
            n_z: int = Query(256, ge=32, le=512),
            h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
-           r_max: float = Query(0.35, gt=0.0), z_max: float = Query(1.2, gt=0.0)):
+           r_max: float = Query(0.35, gt=0.0), z_max: float = Query(1.2, gt=0.0),
+           source: str = Query("analytic")):
     """轴对称场在 (r,z) 上的一个切片（体积渲染用 2D 纹理，方位角对称）。"""
     if t >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
-    p, table = _table(h, x0, eta0)
     r = np.linspace(0.0, r_max, n_r)
     z = np.linspace(-z_max, z_max, n_z)
     R, Z = np.meshgrid(r, z, indexing="ij")
-    ur, ut, uz = velocity_at(np.maximum(R, 1e-6), Z, t, p, table)
+    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0)
+    t_blow = SimilarityParams().t_blow if source != "solver" else 1.0
 
     # 着色标量：角速度 Ω = u_θ/r（涡核里最大，远处衰减），取 log10 便于压动态范围
     omega = np.abs(ut) / np.maximum(R, 1e-6)
@@ -91,7 +191,8 @@ def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
 
     speed = np.sqrt(ur ** 2 + ut ** 2 + uz ** 2).T.astype(np.float32)
     meta = {
-        "t": float(t), "tau": float(p.t_blow - t),
+        "t": float(t), "tau": float(t_blow - t), "source": source,
+        "label": (SOLVER_LABEL if source == "solver" else MODE_LABEL),
         "n_r": n_r, "n_z": n_z, "r_max": float(r_max), "z_max": float(z_max),
         "vmin": float(np.log10(vmax * 1e-4)), "vmax": float(np.log10(vmax)),
         "omega_p995": vmax, "u_max": float(np.sqrt((ur ** 2 + ut ** 2 + uz ** 2).max())),
@@ -104,9 +205,29 @@ def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
 @router.get("/diagnostics")
 def diagnostics(t: float = Query(0.5, ge=0.0),
                 h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
-                grid: bool = Query(True), n: int = Query(48, ge=16, le=96)) -> dict:
+                grid: bool = Query(True), n: int = Query(48, ge=16, le=96),
+                source: str = Query("analytic")) -> dict:
     if t >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
+    if source == "solver":
+        field = _solver_field(source)
+        res = _SOLVER["result"]
+        ts = _solver_time(field, t)
+        i = int(np.argmin(np.abs(np.asarray(res.times) - ts)))
+        d = res.diag
+        row = {
+            "t": float(ts), "tau": float(1.0 - ts),
+            "u_max": float(d["peak_speed"][i]),
+            "omega_max": float(d["peak_vorticity"][i]),
+            "enstrophy": float(d["enstrophy"][i]),
+            "kinetic": float(d["energy"][i]),
+            "core_radius": float(d["half_peak_radius"][i]),
+            "divergence_rel": float(d["divergence"][i]),
+            "n_grid": int(_SOLVER["n"]),
+        }
+        return {"analytic": row, "mode": "B-solver", "label": SOLVER_LABEL,
+                "source": "solver", "note": "有限时间代理，非奇异性证明；数值解直接给出，无解析/网格双列。",
+                "grid": None}
     p, table = _table(h, x0, eta0)
     analytic = analyze(p, t, table=table, n_r=200, n_z=200).as_dict()
     out: dict = {"analytic": analytic, "mode": "A-prime", "label": MODE_LABEL}
@@ -147,7 +268,8 @@ def formula_svg(width: float = Query(7.2, ge=2.0, le=16.0)) -> Response:
 @router.get("/velocity")
 def velocity_grid(t: float = Query(0.5, ge=0.0), n: int = Query(48, ge=16, le=96),
                   extent: float = Query(0.35, gt=0.0), z_extent: float = Query(1.0, gt=0.0),
-                  h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)):
+                  h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+                  source: str = Query("analytic")):
     """笛卡尔速度网格（供 GPU 三线性插值推进粒子）。n³×(u,v,w) float32。"""
     if t >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
@@ -224,16 +346,16 @@ def export_animation(payload: dict = Body(...)):
 def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
            n_theta: int = Query(20, ge=6, le=48), n_z: int = Query(7, ge=3, le=16),
            r_max: float = Query(0.42, gt=0.0), z_max: float = Query(0.95, gt=0.0),
-           h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)):
+           h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+           source: str = Query("analytic")):
     """柱坐标稀疏网格上的矢量箭头（任务书图层③）：位置 + 速度，供前端 glyph 批量绘制。"""
     if t >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
-    p, table = _table(h, x0, eta0)
     rs = np.linspace(r_max / n_r, r_max, n_r, dtype=np.float32)
     thetas = np.linspace(0.0, 2 * np.pi, n_theta, endpoint=False, dtype=np.float32)
     zs = np.linspace(-z_max, z_max, n_z, dtype=np.float32)
     R, TH, Z = np.meshgrid(rs, thetas, zs, indexing="ij")
-    ur, ut, uz = velocity_at(np.maximum(R, 1e-6), Z, t, p, table)
+    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0)
     px = (R * np.cos(TH)).ravel().astype(np.float32)
     py = (R * np.sin(TH)).ravel().astype(np.float32)
     pz = Z.ravel().astype(np.float32)
@@ -253,7 +375,8 @@ def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
 def pathlines(t0: float = Query(0.0, ge=0.0), t1: float = Query(0.5, gt=0.0),
               seeds: int = Query(180, ge=8, le=800), steps: int = Query(160, ge=16, le=600),
               r_seed: float = Query(0.06, gt=0.0), z_seed: float = Query(0.55, gt=0.0),
-              h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)):
+              h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+              source: str = Query("analytic")):
     """从环带上释放的种子点做 RK4 积分（真实速度场），返回折线束 + 每帧长度。"""
     if t1 >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
@@ -272,7 +395,9 @@ def pathlines(t0: float = Query(0.0, ge=0.0), t1: float = Query(0.5, gt=0.0),
     def vel(pts, tt):
         r = np.hypot(pts[:, 0], pts[:, 1])
         th = np.arctan2(pts[:, 1], pts[:, 0])
-        ur, ut, uz = velocity_at(np.maximum(r, 1e-6), pts[:, 2], tt, p, table)
+        ur, ut, uz = _cyl(source, tt, np.maximum(r, 1e-6).reshape(-1, 1),
+                          pts[:, 2].reshape(-1, 1), h, x0, eta0)
+        ur, ut, uz = ur.ravel(), ut.ravel(), uz.ravel()
         return np.stack([ur * np.cos(th) - ut * np.sin(th),
                          ur * np.sin(th) + ut * np.cos(th), uz], axis=1)
 

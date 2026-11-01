@@ -59,14 +59,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shot", type=str, default="", help="截图到该 PNG 后退出")
     parser.add_argument("--seconds", type=float, default=6.0, help="截图前等待秒数")
     parser.add_argument("--t", type=float, default=None, help="打开时停在某个物理时间 t（0..1）")
+    parser.add_argument("--source", choices=("analytic", "solver"), default="analytic",
+                        help="analytic=解析场 A′；solver=数值解 B（首次约 15 s）")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=820)
     args = parser.parse_args(argv)
 
     server, _, port = _serve(args.port)
-    url = f"http://127.0.0.1:{port}/"
+    query = []
     if args.t is not None:
-        url += f"?t={args.t}"
+        query.append(f"t={args.t}")
+    if args.source != "analytic":
+        query.append(f"source={args.source}")
+    url = f"http://127.0.0.1:{port}/" + (("?" + "&".join(query)) if query else "")
     print(f"[ns] serving {url}", flush=True)
 
     if not args.shot:

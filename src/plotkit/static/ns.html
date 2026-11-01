@@ -58,6 +58,13 @@
 </div>
 
 <div id="knobs" class="panel">
+  <label>数据源 <span class="val" id="vsrc">解析 A′</span></label>
+  <select id="ksrc" style="width:100%;margin:2px 0 6px;background:#151a22;color:#dfe7f3;
+          border:1px solid #2a3442;border-radius:6px;padding:4px">
+    <option value="analytic">解析场（模式 A′，瞬时）</option>
+    <option value="solver">数值解（模式 B，首次约 15 s）</option>
+  </select>
+  <div class="note" id="srcnote" style="margin:0 0 6px"></div>
   <label>h <span class="val" id="vh">0.005</span></label>
   <input id="kh" type="range" min="0" max="0.30" step="0.001" value="0.005">
   <label>X₀ <span class="val" id="vx">0.60</span></label>
@@ -116,6 +123,7 @@ const S = {
   playing: Q.get("play") === "1",
   rate: qnum("rate", 1.0),
   h: qnum("h", 0.005), x0: qnum("x0", 0.6), eta0: qnum("eta0", 1.0),
+  source: qstr("source", "analytic"),
   particles: qnum("particles", 120000), dirtyField: true, dirtyVel: true, lastVel: 0,
 };
 const $ = (id) => document.getElementById(id);
@@ -135,7 +143,38 @@ async function getFrame(url) {
 }
 
 function params() {
-  return `h=${S.h}&x0=${S.x0}&eta0=${S.eta0}`;
+  // 数值解（模式 B）不吃 h/X₀/η₀，多传也无害；source 决定服务端取哪个场
+  return `h=${S.h}&x0=${S.x0}&eta0=${S.eta0}&source=${S.source}`;
+}
+
+function qstr(key, fallback) {
+  const v = new URLSearchParams(location.search).get(key);
+  return v === null || v === "" ? fallback : v;
+}
+
+// 数值解首次要算 ~15 s：轮询 /state，进度写进面板
+async function waitSolver() {
+  const note = $("srcnote");
+  for (let i = 0; i < 240; i++) {
+    const st = await (await fetch("/api/ns/state")).json();
+    if (st.error) { note.textContent = "数值解失败：" + st.error; return false; }
+    if (st.ready) { note.textContent = `${st.label}（${st.n}³，t≤${st.t_end}）`; return true; }
+    note.textContent = `数值解准备中 ${(st.progress * 100).toFixed(0)}%…`;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  note.textContent = "数值解超时";
+  return false;
+}
+
+async function setSource(src) {
+  S.source = src;
+  $("vsrc").textContent = src === "solver" ? "数值解 B" : "解析 A′";
+  // 模式 B 下剖面参数没有意义：禁用三个旋钮，避免误导
+  for (const id of ["kh", "kx", "ke"]) $(id).disabled = src === "solver";
+  if (src === "solver") await waitSolver();
+  else $("srcnote").textContent = "前导阶自相似解：瞬时、可调剖面";
+  await loadMeta();
+  await scheduleRefresh("all");
 }
 
 async function loadMeta() {
@@ -187,6 +226,8 @@ async function loadDiag() {
   S.diag = d.analytic || {};
   $("ana").innerHTML = rows(d.analytic);
   $("grd").innerHTML = rows(d.grid) + `<tr><td>网格 N</td><td>${d.grid ? d.grid.n_grid : "—"}</td></tr>`;
+  // 数值解没有"解析/网格双列"之分，脚注要跟着换，不能继续挂着 A′ 的说明
+  $("note").textContent = d.note || "前导阶自相似解：t→1 时解析量 ≍ τ^(−1/2−h) 发散，网格值受 N 限制。";
 }
 
 function tOfSlider(v) {                 // v: 0..1000 -> t（对数 τ 刻度）
@@ -244,6 +285,13 @@ function scheduleRefresh(mode) {
 function bind() {
   const kh = $("kh"), kx = $("kx"), ke = $("ke"), kd = $("kd"), kp = $("kp"),
         ks = $("ks"), kw = $("kw"), kb = $("kb");
+  const ksrc = $("ksrc");
+  if (ksrc) {
+    ksrc.value = S.source;
+    $("vsrc").textContent = S.source === "solver" ? "数值解 B" : "解析 A′";
+    if (S.source === "solver") for (const id of ["kh", "kx", "ke"]) $(id).disabled = true;
+    ksrc.onchange = () => { setSource(ksrc.value); };
+  }
   kh.oninput = () => { S.h = +kh.value; $("vh").textContent = S.h.toFixed(3); scheduleRefresh(true); };
   kx.oninput = () => { S.x0 = +kx.value; $("vx").textContent = S.x0.toFixed(2); scheduleRefresh(true); };
   ke.oninput = () => { S.eta0 = +ke.value; $("ve").textContent = S.eta0.toFixed(2); scheduleRefresh(true); };
@@ -433,6 +481,7 @@ function probeAt(clientX, clientY) {
   bind();
   const guard = async (name, fn) => { try { await fn(); } catch (e) { (window.__nsErr = window.__nsErr || []).push(name + ": " + e); console.error(name, e); } };
   await guard("meta", loadMeta);
+  if (S.source === "solver") await guard("solver", waitSolver);
   await guard("field", loadField);
   await guard("velocity", loadVelocity);
   await guard("arrows", loadArrows);

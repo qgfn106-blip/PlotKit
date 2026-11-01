@@ -291,6 +291,7 @@
 > 图表扩展的需求、矩阵、票单、验收与经验**全部在本文件**（§1 PK-R11–R16 / §2 D24–D32 / §3 计划 / §4 进度 / §5 经验）；netlab 侧只在 R32 留一行指针，不复制结论。
 
 | P16-00 | 三维 NS 涡旋可视化（模式 A-prime）：自相似场 + WebGL2 体积/粒子 + 双轨诊断 + 实时调参 | ✅ 完成：`src/plotkit/ns/`（field/diagnostics/app）+ `static/ns.html`/`nsview.js` + `server/ns_app.py`；`tests/test_ns_field.py` 14 条 + `tests/test_ns_api.py` 6 条；1280×820 **98–120 fps**；不可压残差 2.1–2.5%；详见 [NS_VORTEX.md](NS_VORTEX.md) |
+| P16-01 | 模式 B：真数值解（伪谱 NS 求解器 + `source=solver` 全链路） | ✅ 完成：`src/plotkit/ns/solver.py`（2/3 去混叠 + Heun RK2 + 每步投影 + 自适应 dt），32³/t=0.95 → 13.8 s / 48 帧 / 18.9 MB，峰值速度 0→0.444、峰值涡量 0→13.6、散度 ~1e-17；`/api/ns/*` 全部支持 `source=analytic|solver`，`/api/ns/state` 报进度，页面加数据源下拉；`create_app(with_ns=True)` 可把 NS 路由挂进主应用；`tests/test_ns_solver_api.py` 6 条，全库 **381 passed** |
 
 **测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **356 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
 

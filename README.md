@@ -198,6 +198,19 @@ TEG 还支持沿流向分 8 段（状态数 18）看分布参数效应：迎火�
 
 它同时是规模压测：100 万点 × 3 通道入库 9 ms、M4 抽稀 24 ms、冷渲染 273 ms、峰值 42 MB。
 
+## NS 涡旋：两种数据源
+
+| 模式 | 数据来源 | 启动 |
+| --- | --- | --- |
+| A′ 解析 | 前导阶自相似解（瞬时、可调剖面 `h/X₀/η₀`） | `python -m plotkit.ns.app` |
+| B 数值 | 自研伪谱求解器（32³，2/3 去混叠 + 投影，首次约 15 s） | `python -m plotkit.ns.app --source solver` |
+
+```python
+# 也可以把 NS 接口挂进自己的二维应用（同一个 FastAPI 进程）
+from plotkit.server.app import create_app
+app = create_app(figure, with_ns=True)     # 多出 /api/ns/*
+```
+
 ## 三维视图
 
 页面右上角「3D」按钮：把带 `z` 的图层（`scatter3d` / `line3d` / `stream3d`）交给 WebGL2 直接画，

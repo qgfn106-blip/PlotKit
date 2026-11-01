@@ -22,8 +22,21 @@ def test_duplicate_add_needs_overwrite():
     store.add("v", [1])
     with pytest.raises(KeyError):
         store.add("v", [2])
+    first = store.meta("v")["version"]
     store.add("v", [2], overwrite=True)
     assert store.values("v").tolist() == [2]
+    assert store.meta("v")["version"] > first
+
+
+def test_overwrite_invalidates_large_data_pyramid():
+    store = pk.DataStore()
+    store.add("x", np.arange(400001.0))
+    store.add("y", np.zeros(400001))
+    before = store.pyramid("x", "y")
+    store.add("y", np.ones(400001), overwrite=True)
+    after = store.pyramid("x", "y")
+    assert after is not before
+    assert float(after[-1][1].max()) == pytest.approx(1.0)
 
 
 def test_bad_role_and_life_rejected():
