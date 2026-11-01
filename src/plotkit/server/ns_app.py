@@ -162,8 +162,13 @@ def velocity_grid(t: float = Query(0.5, ge=0.0), n: int = Query(48, ge=16, le=96
     V = (ur * np.sin(th) + ut * np.cos(th)).astype(np.float32)
     W = uz.astype(np.float32)
     meta = {"t": float(t), "n": n, "extent": float(extent), "z_extent": float(z_extent),
-            "order": "x fastest, then y, then z; channels u,v,w"}
-    return _frame(meta, np.concatenate([U.ravel(), V.ravel(), W.ravel()]))
+            "order": "x fastest, then y, then z; interleaved channels u,v,w"}
+    # The WebGL sampler indexes one interleaved (u, v, w) triple per
+    # point, with x as the fastest spatial axis.
+    payload = np.stack([
+        U.ravel(order="F"), V.ravel(order="F"), W.ravel(order="F")
+    ], axis=1).ravel()
+    return _frame(meta, payload)
 
 
 @router.post("/export")

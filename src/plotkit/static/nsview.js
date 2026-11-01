@@ -346,10 +346,17 @@ const NS = (() => {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, nr, nz, 0, gl.RG, gl.FLOAT, packed);
       // 相似坐标：采样盒随 τ 收缩，已有粒子要按比例换算到新单位，否则会被判越界重撒
       const prevR = this.extent ? this.extent[0] : meta.r_max;
-      if (this.particles && Math.abs(prevR - meta.r_max) > 1e-9) {
-        const k = meta.r_max / prevR;
+      const prevZ = this.extent ? this.extent[1] : meta.z_max;
+      if (this.particles && prevR > 0 && prevZ > 0 &&
+          (Math.abs(prevR - meta.r_max) > 1e-9 || Math.abs(prevZ - meta.z_max) > 1e-9)) {
+        const kr = meta.r_max / prevR;
+        const kz = meta.z_max / prevZ;
         const pos = this.particles.pos;
-        for (let i = 0; i < pos.length; i++) pos[i] *= k;
+        for (let i = 0; i < pos.length; i += 3) {
+          pos[i] *= kr;
+          pos[i + 1] *= kr;
+          pos[i + 2] *= kz;
+        }
         gl.bindBuffer(gl.ARRAY_BUFFER, this.particles.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW);
       }
@@ -699,7 +706,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.vertexAttribPointer(lt, 1, gl.FLOAT, false, 0, 0);
         gl.uniformMatrix4fv(gl.getUniformLocation(this.lines, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.lines, "uHead"), T.head);
-        gl.uniform1f(gl.getUniformLocation(this.lines, "uRMax"), this.extent ? this.extent.x : 0.5);
+        gl.uniform1f(gl.getUniformLocation(this.lines, "uRMax"), this.extent ? this.extent[0] : 0.5);
         gl.uniform3f(gl.getUniformLocation(this.lines, "uColor"), 1.0, 0.55, 0.18);
         gl.drawArrays(gl.LINES, 0, T.steps * T.seeds);
       }

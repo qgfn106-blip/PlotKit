@@ -134,3 +134,12 @@ PYTHONPATH=src python -m plotkit.ns.app --shot out.png --seconds 10   # 自检�
 - **快照对比**（Q8）：「快照」按钮冻结当前 `h/X₀/η₀/t` 的画布缩略图 + 诊断值（ω_max、|u|_max、涡核半径），列在右下角面板；点任意一条即恢复那组参数与时刻并重绘。
 - **导出 GIF/MP4**（VortexExporter）：前端按 `t=0.02→0.98` 扫 24 帧（`?gifn=` 可调），逐帧 `canvas.toDataURL('image/jpeg',0.85)` 后 POST `/api/ns/export`；服务端用 PIL 合成 GIF，或调 ffmpeg 出 MP4（缺 ffmpeg 时明确报错）。实测 6 帧 → 415 KB GIF；4 帧管线 86 KB。导出期间自动暂停并在结束后恢复原时刻。
 - **相似坐标 ξ**：「ξ 相似」按钮按自相似长度 `L(τ)=τ^(1/2+h)` 缩放相机视距（`zoomScale=(0.5/τ)^(0.5+h)`，夹在 0.5–12），让涡核在屏幕上保持同样大小，便于看内部结构。实测 t=0.9 → 2.25×、t=0.2 → 0.79×。
+
+## §17 速度网格协议与显示一致性修复（2026-11-01）
+
+- **`/api/ns/velocity` 轴序**：元数据承诺 `x fastest, then y, then z`，但旧实现直接 `ravel()` 形状 `(x,y,z)` 的数组，实际是 z-fastest；前端 `_advect` 按 `(i + j*n + k*n*n)*3` 取样，于是粒子的径向/轴向速度被互换，出现“只会向外散/原地冻结”的观感。现在服务端按 `order="F"` 展开，并把每个格点的 `u,v,w` 交错成 AoS，与前端 `idx*3+c` 完全一致；回归测试 `test_velocity_frame_preserves_declared_xyz_order` 用解析 `velocity_at` 校验已知非对称点。
+- **速度域覆盖**：切片/粒子域是 `r≤0.5, |z|≤1.2`，旧速度请求只有 `0.35/1.0`，边缘粒子落在无速度区会冻结到重撒。页面现在请求同一物理域（`extent=0.5&z_extent=1.2`）。
+- **尾迹半径 uniform**：`nsview.js` 把数组 `this.extent` 当对象读 `this.extent.x`，得到 `undefined`，尾迹着色器 `uRMax` 失效。改为 `this.extent[0]`。
+- **相似坐标缩放**：场域变化时旧代码用径向比例同时缩放粒子的 x/y/z；现在 z 使用 `z_max` 自己的比例，径向与轴向分别换算。
+- **网格诊断**：`grid_stats()` 的 `np.gradient` 原来对 x/y/z 统一用 `h`，但 API 的 z 域是 `z_extent`，z 导数被系统性放大；现在按 `(h,h,hz)` 求导，体元改为 `h*h*hz`，散度复用 `dW_dz`，涡核半径改为从轴心 `mid` 起算。
+- 验证：`PYTHONPATH=src python -m pytest tests/test_ns_field.py tests/test_ns_api.py -q` → 25 passed；`node --check src/plotkit/static/nsview.js` 通过；`--shot` 截图见 `docs/ns_after_fix.png`（t=0.95，41 fps，速度网格已加载）。

@@ -137,9 +137,10 @@ def grid_stats(p: SimilarityParams | None = None, t: float = 0.5, *,
     W = uz
 
     h = xs[1] - xs[0]
-    dW_dx, dW_dy, dW_dz = np.gradient(W, h)
-    dV_dx, dV_dy, dV_dz = np.gradient(V, h)
-    dU_dx, dU_dy, dU_dz = np.gradient(U, h)
+    hz = zs[1] - zs[0]
+    dW_dx, dW_dy, dW_dz = np.gradient(W, h, h, hz)
+    dV_dx, dV_dy, dV_dz = np.gradient(V, h, h, hz)
+    dU_dx, dU_dy, dU_dz = np.gradient(U, h, h, hz)
 
     wx = dW_dy - dV_dz
     wy = dU_dz - dW_dx
@@ -147,9 +148,9 @@ def grid_stats(p: SimilarityParams | None = None, t: float = 0.5, *,
 
     w2 = wx ** 2 + wy ** 2 + wz ** 2
     speed2 = U ** 2 + V ** 2 + W ** 2
-    dV_cell = h ** 3
+    dV_cell = h * h * hz
 
-    div = dU_dx + dV_dy + np.gradient(W, h, axis=2)
+    div = dU_dx + dV_dy + dW_dz
     u_rms = float(np.sqrt(np.mean(speed2)))
 
     # 网格列里涡核尺度用「轴上 u_θ 剖面」的 1/e 半宽（沿 x 轴取样）
@@ -159,7 +160,7 @@ def grid_stats(p: SimilarityParams | None = None, t: float = 0.5, *,
     core = float("nan")
     if peak > 0:
         idx = np.nonzero(axis_line < peak / np.e)[0]
-        core = float(h * (idx[0] if idx.size else n // 2))
+        core = float(h * abs(idx[0] - mid))
 
     return VortexStats(
         t=float(t), tau=float(p.t_blow - t),

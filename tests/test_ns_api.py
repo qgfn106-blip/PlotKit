@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from plotkit.ns.app import create_app as create_ns_app
+from plotkit.ns.field import SimilarityParams, profile_table, velocity_at
 from plotkit.server.ns_app import MAGIC
 
 
@@ -50,6 +51,36 @@ def test_velocity_frame_shapes(client):
     assert meta["n"] == 16
     assert data.size == 16 ** 3 * 3          # (u_r, u_θ, u_z)
     assert np.abs(data).max() > 0
+
+
+def test_velocity_frame_preserves_declared_xyz_order(client):
+    n = 16
+    extent = 0.35
+    z_extent = 1.0
+    res = client.get("/api/ns/velocity", params={
+        "t": 0.5, "n": n, "extent": extent, "z_extent": z_extent,
+    })
+    meta, data = _unframe(res.content)
+    assert meta["order"] == "x fastest, then y, then z; interleaved channels u,v,w"
+
+    # The browser samples idx=(i + j*n + k*n*n)*3 and reads u/v/w
+    # interleaved at that point; the server uses the same x-fastest order.
+    i, j, k = 11, 4, 10
+    points = data.reshape(n ** 3, 3)
+    point = points[i + j * n + k * n * n]
+    xs = np.linspace(-extent, extent, n)
+    zs = np.linspace(-z_extent, z_extent, n)
+    p = SimilarityParams()
+    ur, ut, uz = velocity_at(
+        np.hypot(xs[i], xs[j]), zs[k], 0.5, p, profile_table(p)
+    )
+    theta = np.arctan2(xs[j], xs[i])
+    expected = np.array([
+        ur * np.cos(theta) - ut * np.sin(theta),
+        ur * np.sin(theta) + ut * np.cos(theta),
+        uz,
+    ])
+    np.testing.assert_allclose(point, expected, rtol=2e-5, atol=2e-5)
 
 
 def test_diagnostics_has_both_columns(client):
