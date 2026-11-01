@@ -289,8 +289,50 @@ class ArrayField:
     def time_bounds(self) -> tuple[float, float]:
         return float(self.t[0]), float(self.t[-1])
 
-    def velocity(self, points: np.ndarray, t: float) -> np.ndarray:  # pragma: no cover
-        raise NotImplementedError("外部场采样待接（当前只用于体积渲染）")
+    @property
+    def times(self) -> list[float]:
+        return [float(v) for v in self.t]
+
+    @property
+    def bounds(self):
+        return ((float(self.x[0]), float(self.y[0]), float(self.z[0])),
+                (float(self.x[-1]), float(self.y[-1]), float(self.z[-1])))
+
+    def _frame(self, t: float) -> np.ndarray:
+        """取最接近 t 的那一帧，形状统一成 `(nz, ny, nx, 3)`。"""
+        ti = int(np.argmin(np.abs(self.t - t)))
+        stack = np.stack([self.u[ti] if self.u.ndim == 4 else self.u,
+                          self.v[ti] if self.v.ndim == 4 else self.v,
+                          self.w[ti] if self.w.ndim == 4 else self.w], axis=-1)
+        if stack.shape[:3] != (self.z.size, self.y.size, self.x.size):
+            raise ValueError(
+                f"ArrayField 期望 u/v/w 形状 (nz,ny,nx) 或 (nt,nz,ny,nx)，"
+                f"实际 {stack.shape[:3]}，坐标 {self.z.size}×{self.y.size}×{self.x.size}")
+        return stack.astype(np.float64)
+
+    def velocity(self, points: np.ndarray, t: float) -> np.ndarray:
+        """规则网格上的三线性插值（越界按最近边界夹住）。"""
+        pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+        grid = self._frame(t)
+        def axis(coord, values):
+            i = np.searchsorted(values, coord) - 1
+            i = np.clip(i, 0, values.size - 2)
+            span = values[i + 1] - values[i]
+            frac = np.clip((coord - values[i]) / np.where(span == 0, 1.0, span), 0.0, 1.0)
+            return i, frac
+        ix, fx = axis(pts[:, 0], self.x)
+        iy, fy = axis(pts[:, 1], self.y)
+        iz, fz = axis(pts[:, 2], self.z)
+        out = np.zeros((pts.shape[0], 3), dtype=np.float64)
+        for dz in (0, 1):
+            wz = fz if dz else 1.0 - fz
+            for dy in (0, 1):
+                wy = fy if dy else 1.0 - fy
+                for dx in (0, 1):
+                    wx = fx if dx else 1.0 - fx
+                    w = wz * wy * wx
+                    out += w[:, None] * grid[iz + dz, iy + dy, ix + dx]
+        return out
 
 @dataclass(frozen=True)
 class PhysicalParams:

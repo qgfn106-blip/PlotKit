@@ -211,6 +211,30 @@ from plotkit.server.app import create_app
 app = create_app(figure, with_ns=True)     # 多出 /api/ns/*
 ```
 
+### 任意三维流场 → 一张图（`pk.field3d`）
+
+只要实现一个方法 `velocity(points, t) -> (N,3)`，就能拿到体积 + 粒子 + 流线三层：
+
+```python
+class MyField:
+    bounds = ((-1, -1, -1), (1, 1, 1))
+    def velocity(self, points, t):
+        return ...                      # (N, 3)
+
+fig = pk.field3d.scene(MyField(), t=0.0, layers=("volume", "particles", "streamlines"))
+fig.render(width=900, height=700, backend="pyvista")
+```
+
+`pk.ns.scene.figure()` 现在就是它的薄封装；`pk.ns.ArrayField(npz)` 可从规则网格数据加载。
+
+### 批量渲染（三维并发）
+
+```bash
+curl -X POST localhost:8750/api/render3d/batch   -H 'content-type: application/json'   -d '{"width":800,"height":600,"workers":4,"frames":[{"spec":{...}},{"spec":{...}}]}' -o frames.zip
+```
+
+二维帧走进程内 mpl，三维帧走 `pyvista_pool` 多进程（逐字节一致）；`frames` 上限 600，少于 8 帧会自动退化成串行。命令行等价物：`plotkit render3d --payload frames.json --out frames.zip`。
+
 ### 多段折线（`segments`）
 
 流线束、轨迹束这类"很多段短线"用 `segments`：`x/y/z` 是**端点点对**（第 2i、2i+1 连成一段），

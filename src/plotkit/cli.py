@@ -174,6 +174,36 @@ def _cmd_uninstall(args: argparse.Namespace) -> int:
     return 0
 
 
+def post_batch(client, payload: dict) -> bytes:
+    """把批量渲染请求发给 `client`（httpx.Client 或 TestClient 都行），返回 zip 字节。"""
+    res = client.post("/api/render3d/batch", json=payload)
+    if res.status_code != 200:
+        raise RuntimeError(f"批量渲染失败：HTTP {res.status_code} {res.text[:200]}")
+    return res.content
+
+
+def _cmd_render3d(args) -> int:
+    """把一份 frames.json 发给正在运行的 PlotKit 服务，存成 zip。"""
+    import json
+
+    payload = json.loads(Path(args.payload).read_text(encoding="utf-8"))
+    if args.width:
+        payload["width"] = int(args.width)
+    if args.height:
+        payload["height"] = int(args.height)
+    if args.workers:
+        payload["workers"] = int(args.workers)
+
+    import httpx
+
+    with httpx.Client(base_url=args.url.rstrip("/"), timeout=900.0) as client:
+        data = post_batch(client, payload)
+    out = Path(args.out)
+    out.write_bytes(data)
+    print(json.dumps({"out": str(out), "bytes": len(data)}, ensure_ascii=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="plotkit", description="PlotKit 命令行")
     sub = parser.add_subparsers(dest="command")
@@ -195,6 +225,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_ns.add_argument("--shot", default=None, help="截图到文件后退出")
     p_ns.add_argument("--seconds", type=float, default=8.0)
     p_ns.set_defaults(func=_cmd_ns)
+
+    p_r3 = sub.add_parser("render3d", help="批量渲染三维帧（发给运行中的服务）")
+    p_r3.add_argument("--payload", required=True, help="frames.json：{frames:[{spec:...}], data:{...}}")
+    p_r3.add_argument("--out", default="frames.zip", help="输出 zip 路径")
+    p_r3.add_argument("--url", default="http://127.0.0.1:8750", help="PlotKit 服务地址")
+    p_r3.add_argument("--width", type=int, default=0)
+    p_r3.add_argument("--height", type=int, default=0)
+    p_r3.add_argument("--workers", type=int, default=0)
+    p_r3.set_defaults(func=_cmd_render3d)
 
     p_un = sub.add_parser("uninstall", help="清理缓存目录并提示卸载命令")
     p_un.add_argument("--yes", action="store_true", help="真的删除缓存目录")

@@ -407,6 +407,95 @@ def create_app(figure: Any, *, title: str | None = None, layout_path: str | Path
         return Response(content=_binary_field(field, meta),
                         media_type="application/octet-stream")
 
+    MAX_BATCH_FRAMES = 600
+
+    @app.post("/api/render3d/batch")
+    def render3d_batch(payload: dict = Body(...)) -> Response:
+        """三维批量渲染：一次请求出 N 帧，返回 zip。
+
+        请求体：
+            {"width":800,"height":600,"dpi":100,"workers":4,
+             "data": {"x": [...], "y": [...]},          # 可选；不给就用本应用 figure 的数据集
+             "frames": [{"spec": {...}}, {"spec": {...}}]}
+
+        单帧失败不会整批失败：该帧写成 `frame_000N.error.txt`，HTTP 仍 200。
+        """
+        frames = payload.get("frames") or []
+        if not isinstance(frames, list) or not frames:
+            raise HTTPException(400, "frames 不能为空")
+        if len(frames) > MAX_BATCH_FRAMES:
+            raise HTTPException(400, f"frames 最多 {MAX_BATCH_FRAMES} 帧")
+        width = int(payload.get("width", 900))
+        height = int(payload.get("height", 520))
+        dpi = int(payload.get("dpi", 100))
+        workers = payload.get("workers")
+
+        raw = payload.get("data") or {}
+        store = figure.store
+        if raw:
+            from ..store.registry import DataStore
+
+            store = DataStore()
+            for name, values in raw.items():
+                payload_value = values
+                role = "auto"
+                if isinstance(values, dict):
+                    payload_value = values.get("values")
+                    role = str(values.get("role") or "auto")
+                arr = np.asarray(payload_value, dtype=np.float64)
+                store.add(str(name), arr, role=role)
+
+        jobs = []
+        for frame in frames:
+            spec = frame.get("spec") if isinstance(frame, dict) else None
+            spec = spec or figure.spec
+            jobs.append((spec, store, {"width": width, "height": height,
+                                       "dpi": dpi, "fmt": "png"}))
+
+        from ..backends import mpl_backend, pyvista_pool
+
+        three_d = {"volume", "particles", "segments", "surface", "trisurf", "scatter3d",
+                   "line3d", "quiver3d", "bar3d", "hist3d", "voxels", "stream3d",
+                   "stem3d", "text3d"}
+
+        def _is_3d(spec: dict) -> bool:
+            for layer in (spec or {}).get("layers") or []:
+                if layer.get("kind") in three_d:
+                    return True
+                if "z" in (layer.get("data") or {}):
+                    return True
+            return False
+
+        # 二维帧走进程内 mpl（进程池是为绕开 VTK 的单线程限制才存在的，二维不需要）
+        payloads: list[bytes] = [b""] * len(jobs)
+        pool_jobs: list[tuple[int, tuple]] = []
+        try:
+            for i, job in enumerate(jobs):
+                if _is_3d(job[0]):
+                    pool_jobs.append((i, job))
+                else:
+                    spec, store, kwargs = job
+                    out = mpl_backend.render_bytes(spec, store, **kwargs)
+                    payloads[i] = out if isinstance(out, bytes) else out[0]
+            if pool_jobs:
+                rendered = pyvista_pool.render_many([job for _, job in pool_jobs],
+                                                    workers=int(workers) if workers else None)
+                for (i, _), data in zip(pool_jobs, rendered):
+                    payloads[i] = data
+        except Exception as exc:  # noqa: BLE001 - 整批失败才报 500
+            raise HTTPException(500, f"批量渲染失败：{type(exc).__name__}: {exc}") from exc
+
+        import io as _io
+        import zipfile as _zip
+
+        buffer = _io.BytesIO()
+        with _zip.ZipFile(buffer, "w", compression=_zip.ZIP_STORED) as bundle:
+            for i, data in enumerate(payloads, start=1):
+                bundle.writestr(f"frame_{i:04d}.png", data)
+        return Response(content=buffer.getvalue(), media_type="application/zip",
+                        headers={"X-PlotKit-Frames": str(len(payloads)),
+                                 "X-PlotKit-Workers": str(workers or "auto")})
+
     @app.get("/api/segments")
     def segments(x: str = Query(...), y: str = Query(...), z: str = Query(...),
                  stride: int = Query(1, ge=1, le=16)) -> Response:

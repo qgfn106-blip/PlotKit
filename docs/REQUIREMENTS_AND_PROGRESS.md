@@ -295,10 +295,11 @@
 | P16-02 | NS 规模与一致性验收（任务书 §12）：`tools/verify_ns.py` | ✅ 完成：10 万 48 fps / 50 万 10 fps / 100 万 5 fps（瓶颈是 JS 侧粒子推进）；四项一致性检查（跳转确定性、倍速不改物理、暂停续进、相机不改数据）全绿；粒子层加 8 帧历史流线（instanced LINE_STRIP，31→29 fps） |
 | P16-05 | NS 场场景化：`pk.ns.scene.figure()` → 普通 spec（volume + particles）+ 主查看器入口 | ✅ 完成：`--figure` 模式 120 fps；Γ 2→8 时 u_max 比值 4.00；`tests/test_ns_scene.py` 5 条；规格与验收见 [NS_INTEGRATION.md](NS_INTEGRATION.md) |
 | P16-06 | `segments` 图层 + coverage 控制台兼容 + NS 流线进主查看器 | ✅ 完成：`pk.kinds()` 54；`tests/test_ns_scene.py` 8 条；全量 **405 passed**；`docs/NS_INTEGRATION.md` 阶段 4 |
+| P16-07 | Field3D 通用场景 + 三维批量渲染接口 + CLI `render3d` | ✅ 完成：`pk.field3d.scene()` 任意三维流场出图；`/api/render3d/batch` 出 zip；`plotkit render3d`；全量 **421 passed**（`docs/specs/2026-11-02-3d-field-and-batch-render.md`） |
 | P16-04 | 浏览器 3D 图层：`volume`（标量场 + 等值面）与 `particles`（时空点云） | ✅ 完成：`/api/volume`（field/surface 两种载荷）、`/api/particles`、view3d 的 mesh/点精灵渲染；`tests/test_web3d_layers.py` 5 条；`tools/verify_volume3d.py` 真机截图 `docs/web3d_volume.png` |
 | P16-03 | GPU 粒子推进（实验，`?gpu=1`） | ⏸ **暂缓（2026-11-01 用户决定「先收手」）**：20 万粒子 GPU 58–79 fps 且可见（CPU 同条件 40–50）；50 万/100 万整层不可见，已排除链接/uniform/纹理单元/混合深度/历史 blit/uStride/冻结 advect，关键证据是位置纹理尾部全 0 → 疑在初始上传或取点映射。默认仍走 CPU 路径（12 万 41–49 fps）；证据见 [NS_VORTEX.md](NS_VORTEX.md) §19.1 |
 
-**测试基线：PlotKit **405 passed**（2026-11-02，含 NS 场景 8 条 + segments 端到端）。
+**测试基线：PlotKit **421 passed**（2026-11-02，新增 field3d 8 条 + 批量渲染 5 条 + CLI 4 条）。
 
 **性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms。
 
