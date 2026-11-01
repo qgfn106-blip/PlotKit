@@ -114,33 +114,41 @@ const NS = (() => {
 
   const VERT_PT = `#version 300 es
   in vec3 aPos;
+  in vec3 aPrev;          // 上一帧位置：用它插值出"运动拖尾"的残影
   in float aAge;
   in vec3 aCol;
   uniform mat4 uVP;
   uniform float uPointSize;
+  uniform float uLerp;    // 0 = 当前位置；越大越靠后（残影越淡越小）
   out float vAge;
   out vec3 vCol;
+  out float vFade;
   void main() {
-    vec4 c = uVP * vec4(aPos, 1.0);
+    vec3 p = mix(aPos, aPrev, uLerp);
+    vec4 c = uVP * vec4(p, 1.0);
     gl_Position = c;
-    gl_PointSize = uPointSize * (1.0 - 0.25 * aAge) * (3.0 / max(c.w, 0.2));
+    gl_PointSize = uPointSize * (1.0 - 0.25 * aAge) * (1.0 - 0.55 * uLerp) * (3.0 / max(c.w, 0.2));
     vAge = aAge;
     vCol = aCol;
+    vFade = 1.0 - 0.62 * uLerp;
   }`;
 
   const FRAG_PT = `#version 300 es
   precision highp float;
   in float vAge;
   in vec3 vCol;
+  in float vFade;
   uniform vec3 uColor;
   out vec4 fragColor;
   void main() {
-    vec2 q = gl_PointCoord * 2.0 - 1.0;
-    float d = dot(q, q);
-    if (d > 1.0) discard;
-    float core = pow(1.0 - d, 1.8);
-    float a = core * (1.0 - 0.25 * vAge) * 0.05;
-    fragColor = vec4(vCol * (1.0 - 0.25 * vAge) + vec3(0.25 * core), a);
+    // 圆形柔光点精灵：核心高斯 + 外圈光晕（原来是硬边圆盘，放大后能看到锯齿方角）
+    float r = length(gl_PointCoord * 2.0 - 1.0);
+    if (r > 1.0) discard;
+    float core = exp(-r * r * 5.5);
+    float halo = smoothstep(1.0, 0.1, r) * 0.22;
+    float a = (core + halo) * (1.0 - 0.25 * vAge) * vFade * 0.038;
+    vec3 col = vCol * (0.85 + 0.45 * core) + vec3(0.10 * core);
+    fragColor = vec4(col, a);
   }`;
 
   const VERT_LN = `#version 300 es
@@ -297,7 +305,7 @@ const NS = (() => {
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false, showArrows: false, arrowLen: 0.14, arrowAlpha: 0.90,
+      this.settings = { density: 1.0, pointSize: 5.4, trail: 0.6, envelope: 0.45, showParticles: true, showTrails: false, showArrows: false, arrowLen: 0.14, arrowAlpha: 0.90,
                         streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
@@ -418,7 +426,11 @@ const NS = (() => {
       const cbo = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
       gl.bufferData(gl.ARRAY_BUFFER, col, gl.DYNAMIC_DRAW);
-      this.particles = { pos, age, col, vbo, abo, cbo, count };
+      const prev = new Float32Array(pos);          // 上一帧位置（拖尾残影用）
+      const pvo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, pvo);
+      gl.bufferData(gl.ARRAY_BUFFER, prev, gl.DYNAMIC_DRAW);
+      this.particles = { pos, prev, age, col, vbo, pvo, abo, cbo, count };
     }
 
     setTime(t, tBlow) {
@@ -506,9 +518,11 @@ const NS = (() => {
       };
       const k1 = [0, 0, 0], k2 = [0, 0, 0];
       const pos = P.pos, age = P.age;
+      const prev = P.prev;
       for (let i = 0; i < P.count; i++) {
         const o = i * 3;
         let x = pos[o], y = pos[o + 1], z = pos[o + 2];
+        prev[o] = x; prev[o + 1] = y; prev[o + 2] = z;   // 拖尾残影的起点
         // 子步：单步位移不许超过域的 2%，否则轨迹会"跳步"甚至越界被回收（约束守不住）
         sample(x, y, z, k1);
         const vmag = Math.hypot(k1[0], k1[1], k1[2]);
@@ -530,7 +544,7 @@ const NS = (() => {
           const shell = Math.floor(Math.random() * SHELLS);
           const rad = disk
             ? ext * (shell + 0.5) / SHELLS * (0.985 + 0.03 * Math.random())
-            : 0.02 + 0.12 * ext * Math.sqrt(Math.random());
+            : 0.02 + 0.30 * ext * Math.sqrt(Math.random());
           const th = Math.random() * Math.PI * 2;
           const zz = disk
             ? (Math.random() * 2 - 1) * 0.035 * zext
@@ -539,6 +553,7 @@ const NS = (() => {
           x = rad * taper * Math.cos(th);
           y = rad * taper * Math.sin(th);
           z = zz;
+          prev[o] = x; prev[o + 1] = y; prev[o + 2] = z;  // 重生点不该拖旧轨迹
           age[i] = 0.0;
         }
         age[i] = Math.min(1.0, age[i] + 0.004);
@@ -561,6 +576,8 @@ const NS = (() => {
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, pos);
       gl.bindBuffer(gl.ARRAY_BUFFER, P.abo);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, age);
+      gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, prev);
     }
 
     // ---------- 相机预设（俯视看同心环 / 侧视看轴向拉伸） ----------
@@ -774,10 +791,23 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
           gl.enableVertexAttribArray(pc);
           gl.vertexAttribPointer(pc, 3, gl.FLOAT, false, 0, 0);
         }
+        // 上一帧位置 → 运动拖尾的残影（在"当前位"和"上一位"之间插值画几层）
+        gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
+        const pp = gl.getAttribLocation(this.points, "aPrev");
+        if (pp >= 0) {
+          gl.enableVertexAttribArray(pp);
+          gl.vertexAttribPointer(pp, 3, gl.FLOAT, false, 0, 0);
+        }
         gl.uniformMatrix4fv(gl.getUniformLocation(this.points, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.points, "uPointSize"), this.settings.pointSize * (h / 900));
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);
-        gl.drawArrays(gl.POINTS, 0, P.count);
+        const uLerp = gl.getUniformLocation(this.points, "uLerp");
+        const trail = this.settings.trail === undefined ? 0.6 : this.settings.trail;
+        const ghosts = trail > 0.02 ? 3 : 1;
+        for (let g = 0; g < ghosts; g++) {
+          gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+          gl.drawArrays(gl.POINTS, 0, P.count);
+        }
       }
       gl.disable(gl.BLEND);
       this._lastVP = vp;

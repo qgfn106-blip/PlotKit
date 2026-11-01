@@ -88,6 +88,8 @@
   <input id="kr" type="range" min="0.5" max="8" step="0.5" value="1">
   <label>粒子数 <span class="val" id="vp">200000</span></label>
   <input id="kp" type="range" min="20000" max="300000" step="20000" value="200000">
+  <label>粒子拖尾 <span class="val" id="vt">0.60</span></label>
+  <input id="kt" type="range" min="0" max="1" step="0.05" value="0.6">
   <div style="margin-top:8px; display:flex; gap:6px">
     <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-ar">矢量</button><button id="btn-xi">ξ 相似</button><button id="btn-snap">快照</button><button id="btn-gif">导出 GIF</button>
   <div style="margin-top:6px;color:#8b98ad">预设</div>
@@ -304,6 +306,15 @@ function bind() {
     S.particles = +kp.value; $("vp").textContent = S.particles;
     view.seedParticles(S.particles);
   };
+  const kt = $("kt");
+  if (kt) {
+    kt.value = String(view.settings.trail ?? 0.6);
+    $("vt").textContent = (+kt.value).toFixed(2);
+    kt.oninput = () => {
+      view.settings.trail = +kt.value;
+      $("vt").textContent = (+kt.value).toFixed(2);
+    };
+  }
   $("btn-pt").onclick = () => { view.settings.showParticles = !view.settings.showParticles; };
   $("btn-tr").onclick = () => { view.settings.showTrails = !view.settings.showTrails; };
   $("btn-ar").onclick = () => { view.settings.showArrows = !view.settings.showArrows; };

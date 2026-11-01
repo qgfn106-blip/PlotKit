@@ -33,6 +33,7 @@ def test_window_allows_empty_live_figure_until_first_data():
     assert payload.startswith(b"\x89PNG\r\n\x1a\n")
 
 
+def test_window_keeps_only_recent_part():
     fig, _ = _figure(window=2.0)
     _, limits = fig.render(width=400, height=250, with_limits=True)
     _assert_window(limits, 8.0, 10.0)
