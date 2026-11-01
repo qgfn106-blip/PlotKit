@@ -225,3 +225,29 @@ python -m plotkit.ns.app --source solver --t 0.6 --shot b.png --seconds 45
 ### 18.3 流线层（本版新增）
 
 粒子在纹理里保存 **8 帧历史位置**（`[slot][row][col]` 布局，宽 1024，RGB32F），顶点着色器 `texelFetch` 取出后画成 instanced `LINE_STRIP`，头部亮、尾部按 `(1-age)²` 淡出。代价：120k 粒子约 11.6 MB 纹理、每帧一次 1.4 MB 行块上传、帧率 31→29 fps。
+
+### 18.1c 「JS 减负」：把 CPU→GPU 上传砍下来（2026-11-01）
+
+粒子规模的真实瓶颈不是推进数学，而是**每帧把整份粒子数组传给 GPU**：50 万粒子时
+`positions + prev + colors + age` 约 18 MB/帧，WebView2 的 `bufferSubData` 只能跑到
+百来 MB/s，帧率直接掉到 9 fps。
+
+三项改动（都在 `src/plotkit/static/nsview.js`）：
+
+| 改动 | 做法 | 效果 |
+| --- | --- | --- |
+| 轮转更新 | `frac = count>400k ? 3 : (count>150k ? 2 : 1)`，每帧只推进 1/frac 的粒子，`age` 按 `frac` 补偿 | CPU 推进成本 ÷frac |
+| 颜色按需上传 | 颜色本来就每 4 帧才重算，改成只在算过的那帧 `bufferSubData(P.cbo)` | 省 ~6 MB/帧（50 万） |
+| 拖尾按需上传 | `settings.trail === 0` 时不传 `prev` | 关拖尾省 ~6 MB/帧 |
+| 显示 LOD 收紧 | 点精灵 12 万、流线 10 万顶点上限；>20 万时残影层 3 → 2 | GPU 顶点处理恒定 |
+
+实测（2217×1372，体积+环+流线全开，等 12–15 s 初始化后读数）：
+
+| 粒子数 | 改动前 | 改动后 |
+| --- | --- | --- |
+| 12 万 | 48–58 fps | 41–49 fps |
+| 50 万 | 10 fps | **29 fps** |
+| 100 万 | 5–6 fps | **15 fps** |
+
+结论：**上传带宽**是这条路的墙。要继续往上（任务书的 500 万）必须让位置留在显存里
+（GPU 推进 / transform feedback），仅靠 JS 侧减负到 100 万就到头了。

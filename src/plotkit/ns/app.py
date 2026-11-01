@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--t", type=float, default=None, help="打开时停在某个物理时间 t（0..1）")
     parser.add_argument("--source", choices=("analytic", "solver"), default="analytic",
                         help="analytic=解析场 A′；solver=数值解 B（首次约 15 s）")
+    parser.add_argument("--particles", type=int, default=0, help="粒子数（0 = 用页面默认值）")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=820)
     args = parser.parse_args(argv)
@@ -69,6 +70,8 @@ def main(argv: list[str] | None = None) -> int:
     query = []
     if args.t is not None:
         query.append(f"t={args.t}")
+    if args.particles:
+        query.append(f"particles={args.particles}")
     if args.source != "analytic":
         query.append(f"source={args.source}")
     url = f"http://127.0.0.1:{port}/" + (("?" + "&".join(query)) if query else "")

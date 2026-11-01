@@ -791,7 +791,10 @@ const NS = (() => {
       const doColor = (this._colTick = ((this._colTick || 0) + 1) % 4) === 0;
       const pos = P.pos, age = P.age;
       const prev = P.prev;
-      for (let i = 0; i < P.count; i++) {
+      // 轮转更新：粒子多时每帧只推进 1/frac（10 万以上看不到差别，CPU 直接省 frac 倍）
+      const frac = P.count > 400000 ? 3 : (P.count > 150000 ? 2 : 1);
+      this._advOff = ((this._advOff || 0) + 1) % frac;
+      for (let i = this._advOff; i < P.count; i += frac) {
         const o = i * 3;
         let x = pos[o], y = pos[o + 1], z = pos[o + 2];
         prev[o] = x; prev[o + 1] = y; prev[o + 2] = z;   // 拖尾残影的起点
@@ -828,7 +831,7 @@ const NS = (() => {
           prev[o] = x; prev[o + 1] = y; prev[o + 2] = z;  // 重生点不该拖旧轨迹
           age[i] = 0.0;
         }
-        age[i] = Math.min(1.0, age[i] + 0.004);
+        age[i] = Math.min(1.0, age[i] + 0.004 * frac);
         pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
         if (!doColor) continue;
         // 颜色跟着局部速度走：慢 → 蓝紫，中 → 青绿，快 → 橙黄
@@ -845,12 +848,18 @@ const NS = (() => {
         }
       }
       const gl = this.gl;
+      // CPU→GPU 上传才是大数量下的真瓶颈（50 万粒子每帧 ~18 MB）：只传变化的那部分
       gl.bindBuffer(gl.ARRAY_BUFFER, P.vbo);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, pos);
       gl.bindBuffer(gl.ARRAY_BUFFER, P.abo);
       gl.bufferSubData(gl.ARRAY_BUFFER, 0, age);
-      gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, prev);
+      if (doColor) {
+        this._colDirty = true;
+      }
+      if (this.settings.trail !== 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, prev);
+      }
 
       // 历史位置：写进当前 slot 后整块上传（[slot][row][col] 连续，一次 texSubImage2D）
       const K = P.K, W = P.W, rows = P.rows, slot = P.slot;
@@ -1073,9 +1082,10 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         const pg = gl.getAttribLocation(this.points, "aAge");
         gl.enableVertexAttribArray(pg);
         gl.vertexAttribPointer(pg, 1, gl.FLOAT, false, 0, 0);
-        if (!this.gpu) {
+        if (!this.gpu && this._colDirty) {
           gl.bindBuffer(gl.ARRAY_BUFFER, P.cbo);
           gl.bufferSubData(gl.ARRAY_BUFFER, 0, P.col);
+          this._colDirty = false;
         }
         const pc = gl.getAttribLocation(this.points, "aCol");
         if (pc >= 0) {
@@ -1088,7 +1098,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);
         const uLerp = gl.getUniformLocation(this.points, "uLerp");
         const trail = this.settings.trail === undefined ? 0.5 : this.settings.trail;
-        const ghosts = trail > 0.02 ? 3 : 1;
+        const ghosts = trail > 0.02 ? (P.count > 200000 ? 2 : 3) : 1;
         // 能量守恒：3 层残影会把亮度顶到 3 倍，按 1/(1+0.9*trail) 归一
         const trailNorm = 1.0 / (1.0 + 0.9 * trail);
         [gl.getUniformLocation(this.points, "uAlphaScale")].fill(1.0);
@@ -1101,7 +1111,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
           gl.uniform1i(gl.getUniformLocation(this.points, "uPrev"), 3);
           gl.uniform1f(gl.getUniformLocation(this.points, "uExt"), this.vel.extent);
           gl.uniform1i(gl.getUniformLocation(this.points, "uW"), G.W);
-          const strideP = Math.max(1, Math.ceil(G.count / 200000));
+          const strideP = Math.max(1, Math.ceil(G.count / 120000));
           gl.uniform1i(gl.getUniformLocation(this.points, "uStride"), strideP);
           for (let g = 0; g < ghosts; g++) {
             gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
@@ -1116,7 +1126,7 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
             gl.enableVertexAttribArray(pp);
             gl.vertexAttribPointer(pp, 3, gl.FLOAT, false, 0, 0);
           }
-          const strideP = Math.max(1, Math.ceil(P.count / 200000));
+          const strideP = Math.max(1, Math.ceil(P.count / 120000));
           for (let g = 0; g < ghosts; g++) {
             gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
             gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
