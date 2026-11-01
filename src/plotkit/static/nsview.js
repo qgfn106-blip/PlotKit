@@ -409,6 +409,10 @@ const NS = (() => {
 
     setVelocity(meta, data) {
       this.vel = { n: meta.n, extent: meta.extent, zExtent: meta.z_extent, data };
+      if (this.settings.gpuAdvect !== false) {
+        // GPU 推进默认关闭：初始化阶段会拿到 GL_INVALID_VALUE，且绘制端还要独立程序。
+      if (this.settings.gpuAdvect === true && this._initParticleGPU()) this._uploadVelTex();
+      }
     }
 
     seedParticles(count = 120000) {
@@ -534,6 +538,225 @@ const NS = (() => {
       gl.bufferData(gl.ARRAY_BUFFER, tt, gl.STATIC_DRAW);
       this.trails = { steps, seeds, vbo, tbo, head: 1.0 };
     }
+
+
+  // ==================== GPU 粒子推进（位置纹理 ping-pong） ====================
+  // 为什么：JS 侧 _advect 每帧每粒子做三线性采样 + RK2，100 万粒子要几百万次采样，
+  // V8 扛不住。这里把状态存进 RGBA32F 纹理（xyz + age），全屏 pass 里做积分，
+  // 历史帧用 blitFramebuffer 拷进历史纹理（流线直接 texelFetch 它）。
+  _initParticleGPU() {
+    if (!this.gl || !this.particles) return false;
+    const gl = this.gl, P = this.particles;
+    if (this.gpu && this.gpu.count === P.count) return true;
+    try {
+      const W = 1024;
+      const rows = Math.ceil(P.count / W);
+      const K = P.K || 8;
+      const mk = () => {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, W, rows, 0, gl.RGBA, gl.FLOAT, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        return { tex, fbo };
+      };
+      const buf = new Float32Array(W * rows * 4);
+      for (let i = 0; i < P.count; i++) {
+        buf[i * 4] = P.pos[i * 3];
+        buf[i * 4 + 1] = P.pos[i * 3 + 1];
+        buf[i * 4 + 2] = P.pos[i * 3 + 2];
+        buf[i * 4 + 3] = P.age[i];
+      }
+      const A = mk();
+      gl.bindTexture(gl.TEXTURE_2D, A.tex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, rows, gl.RGBA, gl.FLOAT, buf);
+      const B = mk();
+      gl.bindTexture(gl.TEXTURE_2D, B.tex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, W, rows, gl.RGBA, gl.FLOAT, buf);
+      const hist = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, hist);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB32F, W, rows * K, 0, gl.RGB, gl.FLOAT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      const histFBO = gl.createFramebuffer();
+      gl.bindFramebuffer(gl.FRAMEBUFFER, histFBO);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, hist, 0);
+      for (let k = 0; k < K; k++) {
+        gl.bindTexture(gl.TEXTURE_2D, hist);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, k * rows, W, rows, gl.RGB, gl.FLOAT, buf, 0);
+      }
+      this.gpu = { W, rows, K, tex: [A.tex, B.tex], fbo: [A.fbo, B.fbo],
+                   hist, histFBO, cur: 0, slot: 0, count: P.count, frame: 0 };
+      this.particles.histTex = hist;
+      this.particles.W = W; this.particles.rows = rows; this.particles.K = K;
+      this._initAdvectProgram();
+      this._uploadVelTex();
+      return true;
+    } catch (err) {
+      console.warn("GPU 粒子推进不可用，回退 CPU：", err);
+      this.gpu = null;
+      return false;
+    }
+  }
+
+  _initAdvectProgram() {
+    const gl = this.gl;
+    const vs = `#version 300 es
+    precision highp float;
+    in vec2 aPos;
+    void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+    const fs = `#version 300 es
+    precision highp float;
+    uniform sampler2D uPos;
+    uniform sampler3D uVel;
+    uniform float uStep, uExt, uZExt;
+    uniform int uW, uCount, uSubCap, uFrame;
+    out vec4 o;
+
+    uint hash(uint x) { x ^= x >> 16; x *= 0x7feb352du; x ^= x >> 15; x *= 0x846ca68bu; x ^= x >> 16; return x; }
+    float rnd(inout uint s) { s = hash(s); return float(s & 0xffffffu) / 16777216.0; }
+
+    vec3 sampleVel(vec3 p) {
+      vec3 g = vec3(p.x / uExt * 0.5 + 0.5, p.y / uExt * 0.5 + 0.5, p.z / uZExt * 0.5 + 0.5);
+      if (g.x < 0.0 || g.y < 0.0 || g.z < 0.0 || g.x > 1.0 || g.y > 1.0 || g.z > 1.0) return vec3(0.0);
+      ivec3 n = textureSize(uVel, 0);
+      vec3 f = g * vec3(n - 1);
+      ivec3 i0 = ivec3(floor(f));
+      ivec3 i1 = min(i0 + 1, n - 1);
+      vec3 t = f - vec3(i0);
+      vec3 c00 = mix(texelFetch(uVel, ivec3(i0.x, i0.y, i0.z), 0).xyz,
+                     texelFetch(uVel, ivec3(i1.x, i0.y, i0.z), 0).xyz, t.x);
+      vec3 c10 = mix(texelFetch(uVel, ivec3(i0.x, i1.y, i0.z), 0).xyz,
+                     texelFetch(uVel, ivec3(i1.x, i1.y, i0.z), 0).xyz, t.x);
+      vec3 c01 = mix(texelFetch(uVel, ivec3(i0.x, i0.y, i1.z), 0).xyz,
+                     texelFetch(uVel, ivec3(i1.x, i0.y, i1.z), 0).xyz, t.x);
+      vec3 c11 = mix(texelFetch(uVel, ivec3(i0.x, i1.y, i1.z), 0).xyz,
+                     texelFetch(uVel, ivec3(i1.x, i1.y, i1.z), 0).xyz, t.x);
+      return mix(mix(c00, c10, t.y), mix(c01, c11, t.y), t.z);
+    }
+
+    void main() {
+      ivec2 px = ivec2(gl_FragCoord.xy);
+      int id = px.y * uW + px.x;
+      if (id >= uCount) { o = vec4(0.0); return; }
+      vec4 st = texelFetch(uPos, px, 0);
+      vec3 x = st.xyz;
+      float age = st.w;
+      vec3 v0 = sampleVel(x);
+      float vm = length(v0);
+      int sub = int(clamp(ceil(vm * uStep / max(0.004, 0.02 * uExt)), 1.0, float(uSubCap)));
+      float hs = uStep / float(sub);
+      for (int k = 0; k < 8; k++) {
+        if (k >= sub) break;
+        vec3 a = sampleVel(x);
+        vec3 b = sampleVel(x + 0.5 * hs * a);
+        x += hs * b;
+      }
+      float rr = length(x.xy);
+      if (!(rr == rr) || rr > uExt * 1.6 || abs(x.z) > uZExt * 1.15 || rr < uExt * 0.05 || age > 0.85) {
+        uint sd = hash(uint(id) * 747796405u + uint(uFrame) * 2891336453u);
+        float diskP = rnd(sd);
+        float shellP = rnd(sd);
+        float angP = rnd(sd);
+        float zP = rnd(sd);
+        bool disk = diskP < 0.78;
+        float shell = floor(shellP * 40.0);
+        float rad = disk ? uExt * (shell + 0.5) / 40.0 * 0.997 : 0.02 + 0.16 * uExt * sqrt(shellP);
+        float th = angP * 6.28318530718;
+        float zz = disk ? (zP * 2.0 - 1.0) * 0.035 * uZExt : (zP * 2.0 - 1.0) * 0.92 * uZExt;
+        float taper = disk ? 1.0 : 1.0 - 0.86 * pow(abs(zz) / uZExt, 1.1);
+        x = vec3(rad * taper * cos(th), rad * taper * sin(th), zz);
+        age = 0.0;
+      }
+      age = min(1.0, age + 0.004);
+      o = vec4(x, age);
+    }`;
+    const mk = (type, src) => {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src); gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) || "shader");
+      return sh;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, mk(gl.VERTEX_SHADER, vs));
+    gl.attachShader(prog, mk(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog) || "link");
+    const quad = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    this.gpu.adv = { prog, quad };
+  }
+
+  _uploadVelTex() {
+    const gl = this.gl, g = this.gpu;
+    if (!gl || !g || !this.vel) return;
+    const v = this.vel, n = v.n;
+    if (!g.velTex) {
+      g.velTex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_3D, g.velTex);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_3D, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE);
+    }
+    gl.bindTexture(gl.TEXTURE_3D, g.velTex);
+    gl.texImage3D(gl.TEXTURE_3D, 0, gl.RGB32F, n, n, n, 0, gl.RGB, gl.FLOAT, v.data);
+  }
+
+  _advectGPU(dt) {
+    const gl = this.gl, g = this.gpu;
+    if (!gl || !g || !g.adv) return false;
+    const src = g.cur, dst = 1 - g.cur;
+    const ext = this.vel.extent, zext = this.vel.zExtent;
+    const tauScale = Math.max(0.10, Math.min(1.0, Math.pow(Math.max(this.tau, 1e-3), 0.55) * 3.2));
+    const step = 0.012 * Math.max(dt, 0.4) * tauScale;
+    const subCap = g.count > 400000 ? 1 : (g.count > 150000 ? 2 : 6);
+    const P0 = g.adv.prog;
+
+    gl.useProgram(P0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, g.fbo[dst]);
+    gl.viewport(0, 0, g.W, g.rows);
+    gl.disable(gl.BLEND);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, g.tex[src]);
+    gl.uniform1i(gl.getUniformLocation(P0, "uPos"), 0);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_3D, g.velTex);
+    gl.uniform1i(gl.getUniformLocation(P0, "uVel"), 1);
+    gl.uniform1f(gl.getUniformLocation(P0, "uStep"), step);
+    gl.uniform1f(gl.getUniformLocation(P0, "uExt"), ext);
+    gl.uniform1f(gl.getUniformLocation(P0, "uZExt"), zext);
+    gl.uniform1i(gl.getUniformLocation(P0, "uW"), g.W);
+    gl.uniform1i(gl.getUniformLocation(P0, "uCount"), g.count);
+    gl.uniform1i(gl.getUniformLocation(P0, "uSubCap"), subCap);
+    g.frame = (g.frame + 1) % 100000;
+    gl.uniform1i(gl.getUniformLocation(P0, "uFrame"), g.frame);
+    const a = gl.getAttribLocation(P0, "aPos");
+    gl.bindBuffer(gl.ARRAY_BUFFER, g.adv.quad);
+    gl.enableVertexAttribArray(a);
+    gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, g.fbo[dst]);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, g.histFBO);
+    gl.blitFramebuffer(0, 0, g.W, g.rows, 0, g.slot * g.rows, g.W, (g.slot + 1) * g.rows,
+                       gl.COLOR_BUFFER_BIT, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    g.slot = (g.slot + 1) % g.K;
+    g.cur = dst;
+    this.particles.slot = g.slot;
+    gl.activeTexture(gl.TEXTURE0);
+    return true;
+  }
 
     _advect(dt) {
       const v = this.vel, P = this.particles;
@@ -714,7 +937,10 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         this._frames = 0; this._t0 = now;
         if (this.onStats) this.onStats(this.stats);
       }
-      if (this.settings.showParticles) this._advect(dt);
+      if (this.settings.showParticles) {
+        if (this.settings.gpuAdvect === true && this.gpu) this._advectGPU(dt);
+        else this._advect(dt);
+      }
       this._draw();
       requestAnimationFrame(() => this._loop());
     }
@@ -847,20 +1073,16 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         const pg = gl.getAttribLocation(this.points, "aAge");
         gl.enableVertexAttribArray(pg);
         gl.vertexAttribPointer(pg, 1, gl.FLOAT, false, 0, 0);
-        gl.bindBuffer(gl.ARRAY_BUFFER, P.cbo);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, P.col);
+        if (!this.gpu) {
+          gl.bindBuffer(gl.ARRAY_BUFFER, P.cbo);
+          gl.bufferSubData(gl.ARRAY_BUFFER, 0, P.col);
+        }
         const pc = gl.getAttribLocation(this.points, "aCol");
         if (pc >= 0) {
           gl.enableVertexAttribArray(pc);
           gl.vertexAttribPointer(pc, 3, gl.FLOAT, false, 0, 0);
         }
-        // 上一帧位置 → 运动拖尾的残影（在"当前位"和"上一位"之间插值画几层）
-        gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
-        const pp = gl.getAttribLocation(this.points, "aPrev");
-        if (pp >= 0) {
-          gl.enableVertexAttribArray(pp);
-          gl.vertexAttribPointer(pp, 3, gl.FLOAT, false, 0, 0);
-        }
+        const G = this.gpu;
         gl.uniformMatrix4fv(gl.getUniformLocation(this.points, "uVP"), false, vp);
         gl.uniform1f(gl.getUniformLocation(this.points, "uPointSize"), this.settings.pointSize * (h / 900));
         gl.uniform3f(gl.getUniformLocation(this.points, "uColor"), 1.0, 0.62, 0.22);
@@ -869,11 +1091,37 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         const ghosts = trail > 0.02 ? 3 : 1;
         // 能量守恒：3 层残影会把亮度顶到 3 倍，按 1/(1+0.9*trail) 归一
         const trailNorm = 1.0 / (1.0 + 0.9 * trail);
-        const strideP = Math.max(1, Math.ceil(P.count / 200000));
-        for (let g = 0; g < ghosts; g++) {
-          gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
-          gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
-          gl.drawArrays(gl.POINTS, 0, Math.ceil(P.count / strideP));
+        [gl.getUniformLocation(this.points, "uAlphaScale")].fill(1.0);
+        if (false && G) {
+          gl.activeTexture(gl.TEXTURE2);
+          gl.bindTexture(gl.TEXTURE_2D, G.tex[G.cur]);
+          gl.uniform1i(gl.getUniformLocation(this.points, "uPos"), 2);
+          gl.activeTexture(gl.TEXTURE3);
+          gl.bindTexture(gl.TEXTURE_2D, G.tex[1 - G.cur]);
+          gl.uniform1i(gl.getUniformLocation(this.points, "uPrev"), 3);
+          gl.uniform1f(gl.getUniformLocation(this.points, "uExt"), this.vel.extent);
+          gl.uniform1i(gl.getUniformLocation(this.points, "uW"), G.W);
+          const strideP = Math.max(1, Math.ceil(G.count / 200000));
+          gl.uniform1i(gl.getUniformLocation(this.points, "uStride"), strideP);
+          for (let g = 0; g < ghosts; g++) {
+            gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+            gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
+            gl.drawArrays(gl.POINTS, 0, Math.ceil(G.count / strideP));
+          }
+          gl.activeTexture(gl.TEXTURE0);
+        } else {
+          gl.bindBuffer(gl.ARRAY_BUFFER, P.pvo);
+          const pp = gl.getAttribLocation(this.points, "aPrev");
+          if (pp >= 0) {
+            gl.enableVertexAttribArray(pp);
+            gl.vertexAttribPointer(pp, 3, gl.FLOAT, false, 0, 0);
+          }
+          const strideP = Math.max(1, Math.ceil(P.count / 200000));
+          for (let g = 0; g < ghosts; g++) {
+            gl.uniform1f(uLerp, ghosts === 1 ? 0.0 : (g / ghosts) * trail);
+            gl.uniform1f(gl.getUniformLocation(this.points, "uAlphaScale"), ghosts === 1 ? 1.0 : trailNorm);
+            gl.drawArrays(gl.POINTS, 0, Math.ceil(P.count / strideP));
+          }
         }
         // 真·流线：历史位置连成 LINE_STRIP（头亮尾淡），和点精灵叠在一起才像流体
         if (trail > 0.02 && P.histTex) {

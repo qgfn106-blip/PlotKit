@@ -107,8 +107,14 @@ def main(argv: list[str] | None = None) -> int:
                 "(() => { const v = window.__ns.view; const gl = v.gl;"
                 " const px = new Uint8Array(4 * 4 * 4);"
                 " gl.readPixels(Math.floor(gl.drawingBufferWidth*0.48), Math.floor(gl.drawingBufferHeight*0.5), 4, 4, gl.RGBA, gl.UNSIGNED_BYTE, px);"
+                " const ext = gl.getExtension('EXT_color_buffer_float');"
+                " let fb = 'none';"
+                " if (v.gpu) { gl.bindFramebuffer(gl.FRAMEBUFFER, v.gpu.fbo[v.gpu.cur]);"
+                "   fb = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE ? 'complete' : 'INCOMPLETE';"
+                "   gl.bindFramebuffer(gl.FRAMEBUFFER, null); }"
                 " return JSON.stringify({particles: v.particles ? v.particles.count : 0,"
                 " vel: !!v.vel, tex: !!v.tex, center: Array.from(px.slice(0,8)),"
+                " gpu: !!v.gpu, floatFBO: !!ext, fb: fb, glErr: gl.getError(),"
                 " extent: v.extent, vmin: v.vmin, vmax: v.vmax}); })()"))
             result["overlay"] = json.loads(window.evaluate_js(
                 "JSON.stringify({tau: document.getElementById('tau').textContent,"
