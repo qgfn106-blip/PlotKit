@@ -545,7 +545,7 @@ function probeAt(clientX, clientY) {
 (async function main() {
   view = new NS.NSView($("gl"));
   view.onStats = (s) => { S.fps = s.fps; };
-  view.settings.gpuAdvect = !!S.gpuAdvect;   // ?gpu=1 才启用实验性的 GPU 推进
+  view.settings.gpuAdvect = !!S.gpuAdvect; view.settings.gpuFrozen = qstr('gf','') === '1';   // ?gpu=1 才启用实验性的 GPU 推进
   window.__ns = { view, S };
   bind();
   const guard = async (name, fn) => { try { await fn(); } catch (e) { (window.__nsErr = window.__nsErr || []).push(name + ": " + e); console.error(name, e); } };

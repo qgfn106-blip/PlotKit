@@ -63,6 +63,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="analytic=解析场 A′；solver=数值解 B（首次约 15 s）")
     parser.add_argument("--particles", type=int, default=0, help="粒子数（0 = 用页面默认值）")
     parser.add_argument("--gpu", action="store_true", help="启用 GPU 粒子推进（实验）")
+    parser.add_argument("--gf", action="store_true", help="冻结 GPU advect（只渲染初始位置，诊断用）")
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=820)
     args = parser.parse_args(argv)
@@ -75,6 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         query.append(f"particles={args.particles}")
     if args.gpu:
         query.append("gpu=1")
+    if args.gf:
+        query.append("gf=1")
     if args.source != "analytic":
         query.append(f"source={args.source}")
     url = f"http://127.0.0.1:{port}/" + (("?" + "&".join(query)) if query else "")
