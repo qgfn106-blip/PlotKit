@@ -75,3 +75,19 @@ def test_pathlines_are_finite_and_ordered(client):
     assert meta["steps"] == 16 and meta["seeds"] >= 8
     assert data.size == meta["steps"] * meta["seeds"] * 3
     assert np.isfinite(data).all()
+
+
+def test_arrows_returns_structured_glyphs(client):
+    """/api/ns/arrows：柱坐标稀疏网格上的位置+速度，供前端 glyph 批量绘制。"""
+    res = client.get("/api/ns/arrows", params={"t": 0.4, "n_r": 4, "n_theta": 6, "n_z": 3})
+    assert res.status_code == 200
+    mlen = int.from_bytes(res.content[4:8], "little")
+    meta = json.loads(res.content[8:8 + mlen].decode())
+    assert meta["count"] == 4 * 6 * 3
+    body = res.content[8 + mlen:]
+    assert len(body) == meta["count"] * 6 * 4
+    assert np.isfinite(np.frombuffer(body, dtype=np.float32)).all()
+
+
+def test_arrows_rejects_singular_time(client):
+    assert client.get("/api/ns/arrows", params={"t": 1.0}).status_code == 400

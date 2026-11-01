@@ -75,10 +75,14 @@
   <div class="note" style="margin:-4px 0 6px">显示包络（非物理）：0 = 直柱，1 = 薄盘</div>
   <label>辉光强度 <span class="val" id="vb">0.45</span></label>
   <input id="kb" type="range" min="0" max="2.5" step="0.05" value="0.45">
+  <label>箭头长度 <span class="val" id="val">0.10</span></label>
+  <input id="ka" type="range" min="0.02" max="0.30" step="0.01" value="0.10">
+  <label>播放倍速 <span class="val" id="vrt">1.0×</span></label>
+  <input id="kr" type="range" min="0.5" max="8" step="0.5" value="1">
   <label>粒子数 <span class="val" id="vp">200000</span></label>
   <input id="kp" type="range" min="20000" max="300000" step="20000" value="200000">
   <div style="margin-top:8px; display:flex; gap:6px">
-    <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-top">俯视环盘</button><button id="btn-side">侧视</button><button id="btn-reset">默认视角</button>
+    <button id="btn-pt">粒子</button><button id="btn-tr">轨迹</button><button id="btn-ar">矢量</button><button id="btn-top">俯视环盘</button><button id="btn-side">侧视</button><button id="btn-reset">默认视角</button>
   </div>
 </div>
 
@@ -149,6 +153,12 @@ async function loadTrails() {
   if (view.trails) view.trails.head = 1.0;
 }
 
+async function loadArrows() {
+  const { meta, data } = await getFrame(`/api/ns/arrows?t=${S.t.toFixed(5)}&${params()}`);
+  S.arrowsMeta = meta; S.arrowsData = data;
+  view.setArrows(meta, data);
+}
+
 async function loadDiag() {
   const d = await (await fetch(`/api/ns/diagnostics?t=${S.t.toFixed(5)}&${params()}&n=48`)).json();
   const rows = (obj) => {
@@ -185,6 +195,7 @@ function scheduleRefresh(mode) {
     S.busy = true;
     try {
       await loadField();
+      await loadArrows();
       if (m !== "field") { await loadVelocity(); await loadDiag(); }
       if (m === "all") await loadTrails();
     } catch (e) { console.error(e); }
@@ -209,6 +220,12 @@ function bind() {
   };
   $("btn-pt").onclick = () => { view.settings.showParticles = !view.settings.showParticles; };
   $("btn-tr").onclick = () => { view.settings.showTrails = !view.settings.showTrails; };
+  $("btn-ar").onclick = () => { view.settings.showArrows = !view.settings.showArrows; };
+  $("ka").oninput = () => {
+    view.settings.arrowLen = +$("ka").value; $("val").textContent = (+$("ka").value).toFixed(2);
+    if (S.fieldMeta) view.setArrows(S.arrowsMeta || S.fieldMeta, S.arrowsData || new Float32Array(0));
+  };
+  $("kr").oninput = () => { S.rate = +$("kr").value; $("vrt").textContent = (+$("kr").value).toFixed(1) + "×"; };
   $("btn-top").onclick = () => view.setPreset("top");
   $("btn-side").onclick = () => view.setPreset("side");
   $("btn-reset").onclick = () => view.setPreset("home");
@@ -247,6 +264,7 @@ function tick(now) {
   await guard("meta", loadMeta);
   await guard("field", loadField);
   await guard("velocity", loadVelocity);
+  await guard("arrows", loadArrows);
   await guard("trails", loadTrails);
   await guard("diag", loadDiag);
   view.seedParticles(S.particles);

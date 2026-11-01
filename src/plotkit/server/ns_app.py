@@ -166,6 +166,35 @@ def velocity_grid(t: float = Query(0.5, ge=0.0), n: int = Query(48, ge=16, le=96
     return _frame(meta, np.concatenate([U.ravel(), V.ravel(), W.ravel()]))
 
 
+@router.get("/arrows")
+def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
+           n_theta: int = Query(20, ge=6, le=48), n_z: int = Query(7, ge=3, le=16),
+           r_max: float = Query(0.42, gt=0.0), z_max: float = Query(0.95, gt=0.0),
+           h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)):
+    """柱坐标稀疏网格上的矢量箭头（任务书图层③）：位置 + 速度，供前端 glyph 批量绘制。"""
+    if t >= 1.0:
+        raise HTTPException(400, "t 必须小于 t_blow=1")
+    p, table = _table(h, x0, eta0)
+    rs = np.linspace(r_max / n_r, r_max, n_r, dtype=np.float32)
+    thetas = np.linspace(0.0, 2 * np.pi, n_theta, endpoint=False, dtype=np.float32)
+    zs = np.linspace(-z_max, z_max, n_z, dtype=np.float32)
+    R, TH, Z = np.meshgrid(rs, thetas, zs, indexing="ij")
+    ur, ut, uz = velocity_at(np.maximum(R, 1e-6), Z, t, p, table)
+    px = (R * np.cos(TH)).ravel().astype(np.float32)
+    py = (R * np.sin(TH)).ravel().astype(np.float32)
+    pz = Z.ravel().astype(np.float32)
+    vx = (ur * np.cos(TH) - ut * np.sin(TH)).ravel().astype(np.float32)
+    vy = (ur * np.sin(TH) + ut * np.cos(TH)).ravel().astype(np.float32)
+    vz = uz.ravel().astype(np.float32)
+    speed = np.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
+    meta = {"t": float(t), "count": int(px.size), "n_r": n_r, "n_theta": n_theta, "n_z": n_z,
+            "r_max": float(r_max), "z_max": float(z_max),
+            "u_max": float(speed.max()) if speed.size else 0.0,
+            "u_theta_max": float(np.abs(ut).max()) if ut.size else 0.0,
+            "order": "positions xyz then vectors xyz"}
+    return _frame(meta, np.concatenate([px, py, pz, vx, vy, vz]))
+
+
 @router.get("/pathlines")
 def pathlines(t0: float = Query(0.0, ge=0.0), t1: float = Query(0.5, gt=0.0),
               seeds: int = Query(180, ge=8, le=800), steps: int = Query(160, ge=16, le=600),

@@ -170,6 +170,23 @@ const NS = (() => {
     fragColor = vec4(c, vA);
   }`;
 
+  const VERT_AR = `#version 300 es
+  in vec3 aPos;
+  in vec3 aCol;
+  uniform mat4 uVP;
+  out vec3 vCol;
+  void main() {
+    gl_Position = uVP * vec4(aPos, 1.0);
+    vCol = aCol;
+  }`;
+
+  const FRAG_AR = `#version 300 es
+  precision highp float;
+  in vec3 vCol;
+  uniform float uAlpha;
+  out vec4 fragColor;
+  void main() { fragColor = vec4(vCol, uAlpha); }`;
+
   const mat4 = {
     mul(a, b) {
       const o = new Float32Array(16);
@@ -253,6 +270,7 @@ const NS = (() => {
       this.quad = program(gl, VERT, FRAG_VOL);
       this.points = program(gl, VERT_PT, FRAG_PT);
       this.lines = program(gl, VERT_LN, FRAG_LN);
+      this.arrowProg = program(gl, VERT_AR, FRAG_AR);
 
       this.quadBuf = gl.createBuffer();
       gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuf);
@@ -274,7 +292,7 @@ const NS = (() => {
       this.extent = [0.35, 1.2];
       this.particles = null;
       this.trails = null;
-      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false,
+      this.settings = { density: 1.0, pointSize: 3.2, envelope: 0.45, showParticles: true, showTrails: false, showArrows: true, arrowLen: 0.14, arrowAlpha: 0.90,
                         streaks: 0.8, spin: 2.0, bloom: 0.45, bloomThresh: 0.92, ringAlpha: 0.22, showRings: true };
       this.time = 0.0;
       this.tau = 1.0;
@@ -387,6 +405,42 @@ const NS = (() => {
       this.tau = Math.max(1e-3, tBlow - t);
     }
 
+    setArrows(meta, data) {
+      // data = [x y z vx vy vz] 交错；这里把每支箭头展开成 2 个顶点（尾、头），
+      // 箭头长度按速度方向归一化，颜色按 |u| 在调色板上取。
+      const n = meta.count;
+      const f = new Float32Array(data);
+      const pos = new Float32Array(n * 2 * 3);
+      const col = new Float32Array(n * 2 * 3);
+      const umax = Math.max(meta.u_max || 1e-6, 1e-6);
+      let vmax = 1e-6;
+      for (let i = 0; i < n; i++) vmax = Math.max(vmax, Math.hypot(f[i * 6 + 3], f[i * 6 + 4], f[i * 6 + 5]));
+      const len = this.settings.arrowLen;
+      for (let i = 0; i < n; i++) {
+        const x = f[i * 6], y = f[i * 6 + 1], z = f[i * 6 + 2];
+        const vx = f[i * 6 + 3], vy = f[i * 6 + 4], vz = f[i * 6 + 5];
+        const m = Math.hypot(vx, vy, vz) || 1e-9;
+        const t = Math.min(1, m / vmax);
+        // 速度越大箭头越长（0.35~1.0 倍），方向严格按真实速度
+        const L = len * (0.35 + 0.65 * t);
+        const o = i * 6;
+        pos[o] = x; pos[o + 1] = y; pos[o + 2] = z;
+        pos[o + 3] = x + vx / m * L; pos[o + 4] = y + vy / m * L; pos[o + 5] = z + vz / m * L;
+        const r = Math.hypot(x, y) / Math.max(this.extent ? this.extent[0] : 0.5, 1e-6);
+        const c = r < 0.3 ? [1.0, 0.78, 0.35] : (r < 0.65 ? [0.95, 0.45, 0.22] : [0.55, 0.55, 1.0]);
+        col[o] = c[0]; col[o + 1] = c[1]; col[o + 2] = c[2];
+        col[o + 3] = c[0]; col[o + 4] = c[1]; col[o + 5] = c[2];
+      }
+      const gl = this.gl;
+      const vbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW);
+      const cbo = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, cbo);
+      gl.bufferData(gl.ARRAY_BUFFER, col, gl.STATIC_DRAW);
+      this.arrows = { vbo, cbo, count: n * 2, uMax: umax };
+    }
+
     setTrails(meta, data) {
       const { steps, seeds } = meta;
       const gl = this.gl;
@@ -433,9 +487,17 @@ const NS = (() => {
       for (let i = 0; i < P.count; i++) {
         const o = i * 3;
         let x = pos[o], y = pos[o + 1], z = pos[o + 2];
+        // 子步：单步位移不许超过域的 2%，否则轨迹会"跳步"甚至越界被回收（约束守不住）
         sample(x, y, z, k1);
-        sample(x + 0.5 * step * k1[0], y + 0.5 * step * k1[1], z + 0.5 * step * k1[2], k2);
-        x += step * k2[0]; y += step * k2[1]; z += step * k2[2];
+        const vmag = Math.hypot(k1[0], k1[1], k1[2]);
+        const maxMove = Math.max(0.004, 0.02 * ext);
+        const sub = vmag > 1e-9 ? Math.min(6, Math.max(1, Math.ceil(vmag * step / maxMove))) : 1;
+        const hs = step / sub;
+        for (let k = 0; k < sub; k++) {
+          sample(x, y, z, k1);
+          sample(x + 0.5 * hs * k1[0], y + 0.5 * hs * k1[1], z + 0.5 * hs * k1[2], k2);
+          x += hs * k2[0]; y += hs * k2[1]; z += hs * k2[2];
+        }
         const rr = Math.hypot(x, y);
         // 这个场是向轴收缩的：粒子迟早挤进核心里堆成一团白雾。
         // 所以按"示踪粒子注入"的办法回收——寿命到、飞出域、或落进核心就重新撒回离散壳上。
@@ -644,6 +706,26 @@ void main(){ o = vec4(vCol, vA * uAlpha); }`;
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
         gl.drawArrays(gl.LINES, 0, this.rings.count);
+      }
+
+      // 2.2) 矢量箭头层（真实 u，稀疏柱坐标网格）
+      if (this.settings.showArrows !== false && this.arrows) {
+        const A = this.arrows;
+        gl.useProgram(this.arrowProg);
+        gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.bindBuffer(gl.ARRAY_BUFFER, A.vbo);
+        const aa = gl.getAttribLocation(this.arrowProg, "aPos");
+        gl.enableVertexAttribArray(aa);
+        gl.vertexAttribPointer(aa, 3, gl.FLOAT, false, 0, 0);
+        gl.bindBuffer(gl.ARRAY_BUFFER, A.cbo);
+        const ac = gl.getAttribLocation(this.arrowProg, "aCol");
+        gl.enableVertexAttribArray(ac);
+        gl.vertexAttribPointer(ac, 3, gl.FLOAT, false, 0, 0);
+        gl.uniformMatrix4fv(gl.getUniformLocation(this.arrowProg, "uVP"), false, vp);
+        gl.uniform1f(gl.getUniformLocation(this.arrowProg, "uAlpha"), this.settings.arrowAlpha);
+        gl.lineWidth(1.0);
+        gl.drawArrays(gl.LINES, 0, A.count);
       }
 
       // 3) 粒子（加法混合）
