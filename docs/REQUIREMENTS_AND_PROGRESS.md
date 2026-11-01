@@ -293,6 +293,7 @@
 | P16-00 | 三维 NS 涡旋可视化（模式 A-prime）：自相似场 + WebGL2 体积/粒子 + 双轨诊断 + 实时调参 | ✅ 完成：`src/plotkit/ns/`（field/diagnostics/app）+ `static/ns.html`/`nsview.js` + `server/ns_app.py`；`tests/test_ns_field.py` 14 条 + `tests/test_ns_api.py` 6 条；1280×820 **98–120 fps**；不可压残差 2.1–2.5%；详见 [NS_VORTEX.md](NS_VORTEX.md) |
 | P16-01 | 模式 B：真数值解（伪谱 NS 求解器 + `source=solver` 全链路） | ✅ 完成：`src/plotkit/ns/solver.py`（2/3 去混叠 + Heun RK2 + 每步投影 + 自适应 dt），32³/t=0.95 → 13.8 s / 48 帧 / 18.9 MB，峰值速度 0→0.444、峰值涡量 0→13.6、散度 ~1e-17；`/api/ns/*` 全部支持 `source=analytic|solver`，`/api/ns/state` 报进度，页面加数据源下拉；`create_app(with_ns=True)` 可把 NS 路由挂进主应用；`tests/test_ns_solver_api.py` 6 条，全库 **381 passed** |
 | P16-02 | NS 规模与一致性验收（任务书 §12）：`tools/verify_ns.py` | ✅ 完成：10 万 48 fps / 50 万 10 fps / 100 万 5 fps（瓶颈是 JS 侧粒子推进）；四项一致性检查（跳转确定性、倍速不改物理、暂停续进、相机不改数据）全绿；粒子层加 8 帧历史流线（instanced LINE_STRIP，31→29 fps） |
+| P16-03 | GPU 粒子推进（实验，`?gpu=1`） | ⏸ **暂缓（2026-11-01 用户决定「先收手」）**：20 万粒子 GPU 58–79 fps 且可见（CPU 同条件 40–50）；50 万/100 万整层不可见，已排除链接/uniform/纹理单元/混合深度/历史 blit/uStride/冻结 advect，关键证据是位置纹理尾部全 0 → 疑在初始上传或取点映射。默认仍走 CPU 路径（12 万 41–49 fps）；证据见 [NS_VORTEX.md](NS_VORTEX.md) §19.1 |
 
 **测试基线**：PlotKit `PYTHONPATH=src python -m pytest` → **356 passed**；netlab `python -m pytest netlab/tests -q` → **347 passed**。
 
