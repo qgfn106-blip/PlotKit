@@ -59,9 +59,15 @@ def _polar_grid(t: float, p: SimilarityParams, table, *, n_r: int, n_z: int,
 
 def analyze(p: SimilarityParams | None = None, t: float = 0.5, *,
             table: dict | None = None, n_r: int = 320, n_z: int = 320,
-            r_max: float = 0.35, z_max: float = 1.2) -> VortexStats:
-    """解析列：在细 r–z 网格上算峰值、能量、Enstrophy、涡核尺度。"""
+            r_max: float | None = None, z_max: float = 1.2) -> VortexStats:
+    """解析列：在细 r–z 网格上算峰值、能量、Enstrophy、涡核尺度。
+
+    采样半径默认按剖面自适应（r_max ≈ 2.2·√X₀）：写死 0.35 时，一旦把涡核
+    调大（r_core>0.5），core_radius 就会被盒子截断、永远是 0.35。
+    """
     p = p or SimilarityParams()
+    if r_max is None:
+        r_max = max(0.35, 2.2 * float(np.sqrt(max(p.x0, 1e-6))))
     table = table if table is not None else profile_table(p)
     r, z, R, Z, ur, ut, uz = _polar_grid(t, p, table, n_r=n_r, n_z=n_z,
                                          r_max=r_max, z_max=z_max)

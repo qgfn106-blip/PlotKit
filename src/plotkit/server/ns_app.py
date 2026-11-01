@@ -50,10 +50,38 @@ def _frame(meta: dict, payload: np.ndarray) -> Response:
     return Response(content=head + raw + blob, media_type="application/octet-stream")
 
 
+def _frame_parts(meta: dict, *parts) -> Response:
+    """多段二进制帧：magic + meta_len + meta + 各段原始字节（段长写进 meta）。
+
+    与 `_frame` 不同：段可以是 float32 也可以是 uint32，不再统一转 float32。
+    """
+    raw = json.dumps(meta).encode()
+    pad = (-len(raw)) % 4
+    if pad:
+        raw = raw + b" " * pad
+    head = MAGIC + struct.pack("<I", len(raw))
+    body = b"".join(np.ascontiguousarray(x).tobytes() for x in parts)
+    return Response(content=head + raw + body, media_type="application/octet-stream")
+
+
 @lru_cache(maxsize=8)
 def _table(h: float, x0: float, eta0: float):
     p = SimilarityParams(h=h, x0=x0, eta0=eta0)
     return p, profile_table(p)
+
+
+def _resolve(phys: str, h: float, x0: float, eta0: float):
+    """物理量旋钮优先：`phys="Γ,a,r_core"` 走 PhysicalParams 映射，否则用剖面参数。"""
+    if phys:
+        try:
+            g, a, rc = (float(v) for v in phys.split(","))
+        except ValueError as exc:
+            raise HTTPException(400, "phys 需为 'gamma,a,r_core'") from exc
+        from ..ns.field import PhysicalParams
+
+        p = PhysicalParams(gamma=g, a=a, r_core=rc, h=h, eta0=eta0).to_similarity()
+        return p, profile_table(p)
+    return _table(h, x0, eta0)
 
 # ---------------------------------------------------------------- 数值解（模式 B）
 # 参考工程 cmccomb/navier-stokes-singularity-simulation 的做法：从静止起步、平滑开启的
@@ -109,11 +137,11 @@ def _solver_time(field, t: float) -> float:
 
 
 def _cyl(source: str, t: float, R: np.ndarray, Z: np.ndarray,
-         h: float, x0: float, eta0: float):
+         h: float, x0: float, eta0: float, phys: str = ""):
     """柱坐标 (r,z) 上的 (u_r, u_θ, u_z)：解析场直接算，数值解在 y=0 面上取。"""
     field = _solver_field(source)
     if field is None:
-        p, table = _table(h, x0, eta0)
+        p, table = _resolve(phys, h, x0, eta0)
         return velocity_at(np.maximum(R, 1e-6), Z, t, p, table)
     ts = _solver_time(field, t)
     pts = np.stack([R.ravel(), np.zeros(R.size), Z.ravel()], axis=1)
@@ -122,14 +150,15 @@ def _cyl(source: str, t: float, R: np.ndarray, Z: np.ndarray,
     return v[:, 0].reshape(shape), v[:, 1].reshape(shape), v[:, 2].reshape(shape)
 
 
-def _cart(source: str, t: float, P: np.ndarray, h: float, x0: float, eta0: float):
+def _cart(source: str, t: float, P: np.ndarray, h: float, x0: float, eta0: float,
+          phys: str = ""):
     """任意笛卡尔点上的速度。"""
     field = _solver_field(source)
     if field is not None:
         return field.velocity(P, _solver_time(field, t))
     r = np.hypot(P[:, 0], P[:, 1])
     th = np.arctan2(P[:, 1], P[:, 0])
-    p, table = _table(h, x0, eta0)
+    p, table = _resolve(phys, h, x0, eta0)
     ur, ut, uz = velocity_at(np.maximum(r, 1e-6), P[:, 2], t, p, table)
     return np.stack([ur * np.cos(th) - ut * np.sin(th),
                      ur * np.sin(th) + ut * np.cos(th), uz], axis=1)
@@ -171,7 +200,7 @@ def state() -> dict:
 @router.get("/slice")
 def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
            n_z: int = Query(256, ge=32, le=512),
-           h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+           phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
            r_max: float = Query(0.35, gt=0.0), z_max: float = Query(1.2, gt=0.0),
            source: str = Query("analytic")):
     """轴对称场在 (r,z) 上的一个切片（体积渲染用 2D 纹理，方位角对称）。"""
@@ -180,7 +209,7 @@ def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
     r = np.linspace(0.0, r_max, n_r)
     z = np.linspace(-z_max, z_max, n_z)
     R, Z = np.meshgrid(r, z, indexing="ij")
-    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0)
+    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0, phys)
     t_blow = SimilarityParams().t_blow if source != "solver" else 1.0
 
     # 着色标量：角速度 Ω = u_θ/r（涡核里最大，远处衰减），取 log10 便于压动态范围
@@ -204,7 +233,7 @@ def slice_(t: float = Query(0.5, ge=0.0), n_r: int = Query(192, ge=32, le=512),
 
 @router.get("/diagnostics")
 def diagnostics(t: float = Query(0.5, ge=0.0),
-                h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+                phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
                 grid: bool = Query(True), n: int = Query(48, ge=16, le=96),
                 source: str = Query("analytic")) -> dict:
     if t >= 1.0:
@@ -228,7 +257,7 @@ def diagnostics(t: float = Query(0.5, ge=0.0),
         return {"analytic": row, "mode": "B-solver", "label": SOLVER_LABEL,
                 "source": "solver", "note": "有限时间代理，非奇异性证明；数值解直接给出，无解析/网格双列。",
                 "grid": None}
-    p, table = _table(h, x0, eta0)
+    p, table = _resolve(phys, h, x0, eta0)
     analytic = analyze(p, t, table=table, n_r=200, n_z=200).as_dict()
     out: dict = {"analytic": analytic, "mode": "A-prime", "label": MODE_LABEL}
     if grid:
@@ -240,7 +269,7 @@ def diagnostics(t: float = Query(0.5, ge=0.0),
 
 @router.get("/convergence")
 def convergence_(t: float = Query(0.5, ge=0.0),
-                 h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)) -> dict:
+                 phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0)) -> dict:
     p, _ = _table(h, x0, eta0)
     return {"t": float(t), "rows": convergence(p, t, sizes=(32, 64, 96))}
 
@@ -268,12 +297,12 @@ def formula_svg(width: float = Query(7.2, ge=2.0, le=16.0)) -> Response:
 @router.get("/velocity")
 def velocity_grid(t: float = Query(0.5, ge=0.0), n: int = Query(48, ge=16, le=96),
                   extent: float = Query(0.35, gt=0.0), z_extent: float = Query(1.0, gt=0.0),
-                  h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+                  phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
                   source: str = Query("analytic")):
     """笛卡尔速度网格（供 GPU 三线性插值推进粒子）。n³×(u,v,w) float32。"""
     if t >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
-    p, table = _table(h, x0, eta0)
+    p, table = _resolve(phys, h, x0, eta0)
     xs = np.linspace(-extent, extent, n).astype(np.float32)
     zs = np.linspace(-z_extent, z_extent, n).astype(np.float32)
     X, Y, Z = np.meshgrid(xs, xs, zs, indexing="ij")
@@ -346,7 +375,7 @@ def export_animation(payload: dict = Body(...)):
 def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
            n_theta: int = Query(20, ge=6, le=48), n_z: int = Query(7, ge=3, le=16),
            r_max: float = Query(0.42, gt=0.0), z_max: float = Query(0.95, gt=0.0),
-           h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+           phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
            source: str = Query("analytic")):
     """柱坐标稀疏网格上的矢量箭头（任务书图层③）：位置 + 速度，供前端 glyph 批量绘制。"""
     if t >= 1.0:
@@ -355,7 +384,7 @@ def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
     thetas = np.linspace(0.0, 2 * np.pi, n_theta, endpoint=False, dtype=np.float32)
     zs = np.linspace(-z_max, z_max, n_z, dtype=np.float32)
     R, TH, Z = np.meshgrid(rs, thetas, zs, indexing="ij")
-    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0)
+    ur, ut, uz = _cyl(source, t, R, Z, h, x0, eta0, phys)
     px = (R * np.cos(TH)).ravel().astype(np.float32)
     py = (R * np.sin(TH)).ravel().astype(np.float32)
     pz = Z.ravel().astype(np.float32)
@@ -371,16 +400,58 @@ def arrows(t: float = Query(0.5, ge=0.0), n_r: int = Query(6, ge=2, le=12),
     return _frame(meta, np.concatenate([px, py, pz, vx, vy, vz]))
 
 
+@router.get("/iso")
+def iso(t: float = Query(0.5, ge=0.0), frac: float = Query(0.2, gt=0.0, le=1.0),
+        level: float | None = Query(None), source: str = Query("solver")) -> Response:
+    """涡量等值面（B 模式）：marching cubes 在服务端算，前端只上传三角形。"""
+    from ..ns.iso import isosurface
+
+    if source != "solver":
+        raise HTTPException(400, "等值面只支持数值解（source=solver）")
+    _solver_field(source)
+    res = _SOLVER["result"]
+    t_use = float(min(max(t, float(res.times[0])), float(res.times[-1])))
+    out = isosurface(res, t_use, frac=frac, level=level)
+    pts = np.asarray(out["points"], dtype=np.float32)
+    nrm = np.asarray(out["normals"], dtype=np.float32)
+    tri = np.asarray(out["indices"], dtype=np.uint32)
+    meta = {"t": out["t"], "level": float(out["level"]), "n_vert": int(pts.shape[0]),
+            "n_tri": int(tri.shape[0]), "source": "solver", "label": SOLVER_LABEL,
+            "order": "points f32x3, normals f32x3, indices u32x3"}
+    return _frame_parts(meta, pts, nrm, tri)
+
+
+@router.get("/streamlines")
+def streamlines_(t: float = Query(0.5, ge=0.0), seeds: int = Query(48, ge=4, le=400),
+                 steps: int = Query(200, ge=20, le=1200), radius: float = Query(0.12, gt=0.0),
+                 source: str = Query("solver")) -> Response:
+    """流线束（B 模式）：VTK 积分器在服务端跑，返回折线点 + 每条线的点数。"""
+    from ..ns.iso import streamlines
+
+    if source != "solver":
+        raise HTTPException(400, "流线只支持数值解（source=solver）")
+    _solver_field(source)
+    res = _SOLVER["result"]
+    t_use = float(min(max(t, float(res.times[0])), float(res.times[-1])))
+    out = streamlines(res, t_use, seeds=seeds, steps=steps, seed_radius=radius)
+    pts = np.asarray(out["points"], dtype=np.float32)
+    cnt = np.asarray(out["counts"], dtype=np.int32)
+    meta = {"t": out["t"], "n_vert": int(pts.shape[0]), "n_lines": int(out["n_lines"]),
+            "source": "solver", "label": SOLVER_LABEL,
+            "order": "points f32x3, counts i32"}
+    return _frame_parts(meta, pts, cnt)
+
+
 @router.get("/pathlines")
 def pathlines(t0: float = Query(0.0, ge=0.0), t1: float = Query(0.5, gt=0.0),
               seeds: int = Query(180, ge=8, le=800), steps: int = Query(160, ge=16, le=600),
               r_seed: float = Query(0.06, gt=0.0), z_seed: float = Query(0.55, gt=0.0),
-              h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
+              phys: str = Query(""), h: float = Query(0.005), x0: float = Query(0.6), eta0: float = Query(1.0),
               source: str = Query("analytic")):
     """从环带上释放的种子点做 RK4 积分（真实速度场），返回折线束 + 每帧长度。"""
     if t1 >= 1.0:
         raise HTTPException(400, "t 必须小于 t_blow=1")
-    p, table = _table(h, x0, eta0)
+    p, table = _resolve(phys, h, x0, eta0)
     rng = np.random.default_rng(7)
     n = seeds
     theta = rng.uniform(0, 2 * np.pi, n)
@@ -396,7 +467,7 @@ def pathlines(t0: float = Query(0.0, ge=0.0), t1: float = Query(0.5, gt=0.0),
         r = np.hypot(pts[:, 0], pts[:, 1])
         th = np.arctan2(pts[:, 1], pts[:, 0])
         ur, ut, uz = _cyl(source, tt, np.maximum(r, 1e-6).reshape(-1, 1),
-                          pts[:, 2].reshape(-1, 1), h, x0, eta0)
+                          pts[:, 2].reshape(-1, 1), h, x0, eta0, phys)
         ur, ut, uz = ur.ravel(), ut.ravel(), uz.ravel()
         return np.stack([ur * np.cos(th) - ut * np.sin(th),
                          ur * np.sin(th) + ut * np.cos(th), uz], axis=1)

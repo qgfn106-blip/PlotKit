@@ -291,3 +291,44 @@ class ArrayField:
 
     def velocity(self, points: np.ndarray, t: float) -> np.ndarray:  # pragma: no cover
         raise NotImplementedError("外部场采样待接（当前只用于体积渲染）")
+
+@dataclass(frozen=True)
+class PhysicalParams:
+    """物理量旋钮（给界面用）：环量 Γ、轴向拉伸 a、涡核半径 r_core。
+
+    与 `SimilarityParams` 的关系是**一步映射**，不是新模型：
+    - r_core：自相似剖面里 Ω 降到轴上值一半的位置。Ω ∝ 1/(1+(X/X₀)^{1+h})，
+      该点在 X≈X₀，而 X=r²/(2q) → 取 q=0.5 得 r_core≈sqrt(X₀)，故 X₀ = r_core²。
+    - a：直接就是相似解里的轴向/径向速度比 α（U = c∞·α·η·g(η)·…）。
+    - Γ：在 r=2·r_core 的圆周上测到的环量；用它反算剖面幅值 c∞，
+      保证「界面上写多少 Γ，画面上那个圆上就是多少环量」。
+    """
+
+    gamma: float = 4.26
+    a: float = 0.6
+    r_core: float = 0.775
+    h: float = 0.005
+    eta0: float = 1.0
+    nu: float = 1e-3
+    t_blow: float = 1.0
+
+    def to_similarity(self) -> "SimilarityParams":
+        if not (0.02 <= self.r_core <= 3.0):
+            raise ValueError("r_core 必须在 0.02..3.0")
+        if not (0.02 <= self.a <= 6.0):
+            raise ValueError("a 必须在 0.02..6.0")
+        x0 = float(self.r_core) ** 2
+        c_inf = float(self.gamma) / _circulation_unit(x0, float(self.eta0), float(self.h),
+                                                     r_ref=float(self.r_core))
+        return SimilarityParams(h=self.h, x0=x0, eta0=self.eta0, c_inf=c_inf,
+                                alpha=float(self.a), nu=self.nu, t_blow=self.t_blow)
+
+
+def _circulation_unit(x0: float, eta0: float, h: float, *, r_ref: float = 0.775) -> float:
+    """c∞=1 时，r=2·r_core 圆周上的环量（η=0 赤道面，q 取 0.5）。"""
+    q = 0.5
+    r = 2.0 * r_ref
+    X = r * r / (2.0 * q)
+    E = np.sqrt(X) / (1.0 + (X / x0) ** (h + 1.0))
+    u_theta = q ** -(0.5 + h) * E
+    return float(2.0 * np.pi * r * u_theta)
