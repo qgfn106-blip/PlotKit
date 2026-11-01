@@ -285,6 +285,14 @@ class ArrayField:
         self.u = np.asarray(data["u"], dtype=np.float32)
         self.v = np.asarray(data["v"], dtype=np.float32)
         self.w = np.asarray(data["w"], dtype=np.float32)
+        # 两种形态：规则网格（x/y/z 是坐标轴，u 形状 (nz,ny,nx) 或 (nt,nz,ny,nx)）
+        # 与散点/非结构（x/y/z 是点表，长度 N，u 形状 (N,) 或 (nt,N)）
+        self.scattered = bool(
+            self.x.ndim == 1 and self.x.size == self.y.size == self.z.size
+            and self.x.size > 8
+            and self.u.shape[-1] == self.x.size
+        )
+        self._cells: dict | None = None
 
     def time_bounds(self) -> tuple[float, float]:
         return float(self.t[0]), float(self.t[-1])
@@ -297,6 +305,45 @@ class ArrayField:
     def bounds(self):
         return ((float(self.x[0]), float(self.y[0]), float(self.z[0])),
                 (float(self.x[-1]), float(self.y[-1]), float(self.z[-1])))
+
+    def _build_cells(self) -> None:
+        """把散点装进均匀桶网格（每桶约 1 个点），查询时只看 3×3×3 邻域。"""
+        lo = np.array([self.x.min(), self.y.min(), self.z.min()], dtype=float)
+        hi = np.array([self.x.max(), self.y.max(), self.z.max()], dtype=float)
+        span = np.maximum(hi - lo, 1e-9)
+        n = self.x.size
+        cell = float(np.cbrt(span.prod() / max(n, 1)) * 2.0)
+        cell = max(cell, float(span.max()) / 64.0)
+        idx = np.floor((np.stack([self.x, self.y, self.z], axis=1) - lo) / cell).astype(np.int64)
+        buckets: dict[tuple[int, int, int], list[int]] = {}
+        for i, key in enumerate(map(tuple, idx)):
+            buckets.setdefault(key, []).append(i)
+        self._cells = {"lo": lo, "cell": cell, "buckets": buckets}
+
+    def _scattered_velocity(self, pts: np.ndarray, t: float) -> np.ndarray:
+        if self._cells is None:
+            self._build_cells()
+        assert self._cells is not None
+        lo, cell, buckets = self._cells["lo"], self._cells["cell"], self._cells["buckets"]
+        ti = int(np.argmin(np.abs(self.t - t)))
+        U = self.u[ti] if self.u.ndim == 2 else self.u
+        V = self.v[ti] if self.v.ndim == 2 else self.v
+        W = self.w[ti] if self.w.ndim == 2 else self.w
+        coords = np.stack([self.x, self.y, self.z], axis=1)
+        out = np.zeros((pts.shape[0], 3), dtype=np.float64)
+        keys = np.floor((pts - lo) / cell).astype(np.int64)
+        for j, key in enumerate(map(tuple, keys)):
+            best, best_d = -1, np.inf
+            for dx in (-1, 0, 1):
+                for dy in (-1, 0, 1):
+                    for dz in (-1, 0, 1):
+                        for cand in buckets.get((key[0] + dx, key[1] + dy, key[2] + dz), ()):
+                            d = float(np.sum((coords[cand] - pts[j]) ** 2))
+                            if d < best_d:
+                                best, best_d = cand, d
+            if best >= 0:
+                out[j] = (float(U[best]), float(V[best]), float(W[best]))
+        return out
 
     def _frame(self, t: float) -> np.ndarray:
         """取最接近 t 的那一帧，形状统一成 `(nz, ny, nx, 3)`。"""
@@ -313,6 +360,8 @@ class ArrayField:
     def velocity(self, points: np.ndarray, t: float) -> np.ndarray:
         """规则网格上的三线性插值（越界按最近边界夹住）。"""
         pts = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+        if self.scattered:
+            return self._scattered_velocity(pts, t)
         grid = self._frame(t)
         def axis(coord, values):
             i = np.searchsorted(values, coord) - 1

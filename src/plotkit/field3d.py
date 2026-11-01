@@ -182,6 +182,7 @@ DEFAULT_LAYERS = ("volume", "particles", "streamlines")
 
 
 def scene(field: Any, *, t: float = 0.0, layers: Iterable[str] = DEFAULT_LAYERS,
+          iso: bool | None = None,
           n: int = 48, extent: float | None = None, z_extent: float | None = None,
           particles: int = 12000, streamlines: int = 28, level: float = 0.80,
           seed: int = 7, title: str | None = None, size: tuple[float, float] = (7.2, 5.6),
@@ -193,6 +194,11 @@ def scene(field: Any, *, t: float = 0.0, layers: Iterable[str] = DEFAULT_LAYERS,
     import plotkit as pk
 
     wanted = {str(name) for name in layers}
+    # iso 开关：True 强制带等值面层，False 强制去掉，None 跟随 layers
+    if iso is True:
+        wanted.add("volume")
+    elif iso is False:
+        wanted.discard("volume")
     xs, ys, zs, speed = sample_velocity(field, t, n=n, extent=extent, z_extent=z_extent)
 
     fig = pk.figure(size=size, dpi=dpi, title=title or f"3D field · t={t:.3f}")

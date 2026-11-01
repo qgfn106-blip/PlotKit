@@ -113,3 +113,35 @@ def test_array_field_roundtrip(tmp_path):
 def test_ns_scene_still_works():
     fig = pk.ns.scene.figure(t=0.05, n=16, particles=300, streamlines=2)
     assert [layer["kind"] for layer in fig.spec["layers"]] == ["volume", "particles", "segments"]
+
+
+def test_iso_switch_toggles_volume_layer():
+    """iso=True 强制带等值面层，iso=False 强制去掉，None 跟随 layers。"""
+    field = _Swirl()
+    on = pk.field3d.scene(field, n=10, particles=100, streamlines=2, iso=True)
+    off = pk.field3d.scene(field, n=10, particles=100, streamlines=2, iso=False)
+    auto = pk.field3d.scene(field, n=10, particles=100, streamlines=2)
+    kinds_on = [layer["kind"] for layer in on.spec["layers"]]
+    kinds_off = [layer["kind"] for layer in off.spec["layers"]]
+    kinds_auto = [layer["kind"] for layer in auto.spec["layers"]]
+    assert "volume" in kinds_on and "volume" not in kinds_off
+    assert "volume" in kinds_auto
+    assert kinds_on.count("volume") == 1
+
+
+def test_array_field_supports_scattered_points(tmp_path):
+    """散点/非结构网格：x/y/z 是点表（长度 N），velocity 用邻域最近点。"""
+    rng = np.random.default_rng(3)
+    n = 400
+    x = rng.uniform(-1, 1, n)
+    y = rng.uniform(-1, 1, n)
+    z = rng.uniform(-1, 1, n)
+    path = tmp_path / "scattered.npz"
+    np.savez(path, t=np.array([0.0]), x=x, y=y, z=z,
+             u=np.full(n, 0.5), v=np.full(n, -0.25), w=np.zeros(n))
+    field = pk.ns.ArrayField(path)
+    assert field.scattered is True
+    vel = field.velocity(np.array([[0.0, 0.0, 0.0], [0.4, -0.3, 0.2]]), 0.0)
+    assert vel.shape == (2, 3)
+    assert np.allclose(vel, [[0.5, -0.25, 0.0], [0.5, -0.25, 0.0]])
+

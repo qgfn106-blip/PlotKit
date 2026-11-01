@@ -23,6 +23,7 @@ from typing import Any, Iterator, Mapping, Sequence
 
 from . import presets as _presets
 from . import field3d, ns  # noqa: F401  (三维涡旋场景)
+from .quick import quick, show
 from .api.native import Figure, default_store, figure, set_default_store, subplots
 from .backends import dispatch as _dispatch
 from .backends import registry as _reg
@@ -156,6 +157,8 @@ def backends() -> tuple[str, ...]:
 
 
 __all__ = [
+    "quick",
+    "show",
     "Figure",
     "figure",
     "subplots",

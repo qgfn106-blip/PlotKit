@@ -487,6 +487,46 @@ function renderUrl(w, h) {
   return url;
 }
 
+async function export3dFrames() {
+  // 三维动画导出：转台（每帧只改相机方位角），交给 /api/render3d/batch 批量出图
+  const btn = $("btn-anim3d");
+  const frames = 24;
+  if (btn) { btn.disabled = true; btn.classList.add("on"); }
+  setStatus("三维动画导出中…", "busy");
+  try {
+    const spec = JSON.parse(JSON.stringify(state.spec));
+    const base = (spec.figure = spec.figure || {});
+    const elev = base.elev === undefined ? 26 : Number(base.elev);
+    const azim0 = base.azim === undefined ? -58 : Number(base.azim);
+    const payload = {
+      width: 900, height: 620, dpi: 100,
+      frames: Array.from({ length: frames }, (_, i) => {
+        const s2 = JSON.parse(JSON.stringify(spec));
+        s2.figure = Object.assign({}, s2.figure, {
+          elev: elev, azim: azim0 + (360 * i) / frames,
+        });
+        return { spec: s2 };
+      }),
+    };
+    const res = await fetch("api/render3d/batch", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${await res.text()}`);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "plotkit-3d-frames.zip";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setStatus(`已导出 ${frames} 帧（${(blob.size / 1048576).toFixed(1)} MB）`, "ok");
+  } catch (err) {
+    setStatus(`三维动画导出失败：${err.message}`, "warn");
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove("on"); }
+  }
+}
+
 function showBlob(blob, { animated = false } = {}) {
   const img = $("plotImg");
   const url = URL.createObjectURL(blob);
