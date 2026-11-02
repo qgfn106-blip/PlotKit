@@ -388,3 +388,16 @@
 - **渲染代价与频率**：6 曲线 528 点时 `figure.render` 900×520=72ms / 1200×700=149ms / 1600×950=191ms / 2400×1400=308ms，且持 GIL。故：`renderUrl` 面积上限 1400×1000 等比缩小；实时自动重绘节流 `LIVE_MIN_MS=1000`；轮询 500→1000ms；拖动预览 `PREVIEW_MS` 70→160ms、`PREVIEW_SCALE` 0.55→0.5；不可见（`document.hidden` / `offsetParent` / 宿主 `postMessage({type:'plotkit-visibility'})`）完全停；面板空图层时轮询顺手重取 `api/spec` 自愈。
 
 效果（netlab 内嵌，`rlc_series`）：可见时 8 次渲染/8s（原约 2Hz），切走或关浮窗后 **0 次**；空场景先开面板也能自动长出 6 条曲线。
+
+## 8. PlotView：数据与渲染解耦（2026-11-02）
+
+**目标**：播放/缩放不再走服务端 matplotlib（单帧 20 s 级），数据只登记、图形由前端 canvas 自绘，matplotlib 仅用于定格导出。
+
+**实现**
+- `src/plotkit/static/render2d.js`（`window.Plot2D`）：canvas 2D 渲染器，支持 23 种 2D kind（line/step/stairs/stem/marker/scatter/points/bar/barh/segments/area/hist/ecdf/boxplot/violinplot/violin/pie/hexbin/quiver/table/heatmap/image/contour/contourf）+ `pick()` 悬停取值。
+- `src/plotkit/server/app.py`：`GET /api/column?name=&pixels=` 单列 float32 + 保首尾抽稀（格式同 `PK01`）。
+- 前端：`#plotCanvas` 与 `clientRenderable/ensureSeries/renderClient/replayRender`；滚轮光标锚定缩放、拖拽平移、双击复位；图层编辑器补全（图型/颜色/子图/数据/图例/线宽/线型/点形/点大小/不透明度/X-Y 范围/X-Y 刻度/网格/Y 翻转）+「画布与子图」（标题/列数/子图数/轴名）；design token 与 netlab 统一。
+
+**实测**：前端 1.46 ms/帧（旧 72–308 ms/帧）；23 kind 全通过；双子图 axes=2；`tests/test_api_column.py` 3 passed、`tests/test_api.py` 17 passed。
+
+**边界**：contourf 用色块近似（无等值线路径）；streamplot/3D 仍回落服务端。
