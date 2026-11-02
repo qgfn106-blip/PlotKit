@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import os
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,6 +19,10 @@ from typing import Any, Iterable, Iterator, Sequence
 import numpy as np
 
 from ..spec.model import ROLES
+
+#: 数据锁：netlab 的同步线程在 push/trim，出图线程在整批读；两边不互斥时
+#: 出图会读到"t 已加、某条曲线还没加"的中间态，直接抛 x/y 长度不一致。
+DATA_LOCK = threading.RLock()
 
 LIVES = ("append", "replace")
 

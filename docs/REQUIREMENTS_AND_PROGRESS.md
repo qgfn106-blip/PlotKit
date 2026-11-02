@@ -378,3 +378,13 @@
 - 依据与本机基线：`surface 100²=619ms`、`scatter3d 10 万=1969ms`、`voxels 35³=4322ms`（800×600 冷渲染），三维在万级单元已比整张 2D 大图慢一个数量级。
 - 三个硬边界：`LayerSpec` 单 builder 要改多后端 builders；三维数组不能 `dtype=float` 悄悄升精度；`stream3d` 必须保留 `algorithm="plotkit_rk2"` 兼容模式。
 - 详见 [THREE_D_BACKENDS.md](THREE_D_BACKENDS.md)（逐 kind 映射、实施顺序、验收指标、不做清单）。
+
+## 7. 实时面板性能（2026-11-02，D37，netlab 内嵌场景）
+
+用户反馈「plotkit 卡顿」，在 netlab 内嵌（`/plotkit/?embed=1`，matplotlib 实时重绘）下定位到三条**代码级**问题并修复：
+
+- **数据集长度错位**：运行中途出现的通道从 0 长度 `push`，与坐标列 `t` 永久错开，`render` 抛 `图层 x/y 长度不一致` → 曲线卡死。新数据集必须先 `np.full(len(t), nan)` 补齐；`_ingest` 每次 push 前统一对齐。
+- **读写并发**：`store/registry.py` 新增模块级 `DATA_LOCK`（RLock）；`server/app.py::_cached` 用它把整个 `build()` 串行化（顺带避免多个 200ms 渲染排队积压）。**任何"后台线程在写、渲染线程在读"的用法都必须持有这把锁。**
+- **渲染代价与频率**：6 曲线 528 点时 `figure.render` 900×520=72ms / 1200×700=149ms / 1600×950=191ms / 2400×1400=308ms，且持 GIL。故：`renderUrl` 面积上限 1400×1000 等比缩小；实时自动重绘节流 `LIVE_MIN_MS=1000`；轮询 500→1000ms；拖动预览 `PREVIEW_MS` 70→160ms、`PREVIEW_SCALE` 0.55→0.5；不可见（`document.hidden` / `offsetParent` / 宿主 `postMessage({type:'plotkit-visibility'})`）完全停；面板空图层时轮询顺手重取 `api/spec` 自愈。
+
+效果（netlab 内嵌，`rlc_series`）：可见时 8 次渲染/8s（原约 2Hz），切走或关浮窗后 **0 次**；空场景先开面板也能自动长出 6 条曲线。

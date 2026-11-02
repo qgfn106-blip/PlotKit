@@ -7,6 +7,12 @@ const $ = (id) => document.getElementById(id);
 
 // 嵌在别人页面里时（netlab 浮窗/停靠），默认收起右侧面板，把宽度全留给图
 const EMBED = new URLSearchParams(location.search).get("embed") === "1";
+// 宿主（netlab 原生界面）可以把主题带进来：?theme=light|dark。
+// 只覆盖页面外壳的深浅色，图本身的 theme 仍由 spec.figure.theme 决定（渲染权威在服务端）。
+const THEME_PARAM = (() => {
+  const value = new URLSearchParams(location.search).get("theme");
+  return value === "light" || value === "dark" ? value : null;
+})();
 
 const state = {
   expanded: new Set(),
@@ -91,7 +97,7 @@ function renderLayoutControls() {
   $("theme").value = fig.theme || "default";
   $("linkx").checked = !!fig.link_x;
   $("figtitle").textContent = fig.title || "未命名";
-  document.body.dataset.theme = fig.theme === "default" ? "light" : "dark";
+  document.body.dataset.theme = THEME_PARAM || (fig.theme === "default" ? "light" : "dark");
 }
 
 /* ---------------- 数据集 ---------------- */
@@ -480,6 +486,14 @@ function plotSize() {
 }
 
 function renderUrl(w, h) {
+  // 实时重绘的成本几乎全在 matplotlib 出图上，且它占着解释器锁，会拖慢同进程的
+  // 仿真步进与 netlab 的 /api/live。像素尺寸按面积上限等比缩小（默认 1400×1000），
+  // 面板再大也不按原始 CSS 尺寸出图。
+  const MAX_W = 1400;
+  const MAX_H = 1000;
+  const scale = Math.min(1, MAX_W / Math.max(1, w), MAX_H / Math.max(1, h));
+  w = Math.max(240, Math.round(w * scale));
+  h = Math.max(160, Math.round(h * scale));
   let url = `api/render?w=${w}&h=${h}&dpi=100`;
   if (state.view.xlim) url += `&xlim=${state.view.xlim[0]},${state.view.xlim[1]}`;
   if (state.view.ylim) url += `&ylim=${state.view.ylim[0]},${state.view.ylim[1]}`;
@@ -548,8 +562,8 @@ function scheduleRender(reason) {
 
 /* 拖动/缩放中的低清预览（P2）：每 70ms 允许一次半分辨率请求，
    回来后直接替换成新视窗的图，所以"拖的时候看到的就是真的"，不再只是拉伸旧图。 */
-const PREVIEW_MS = 70;
-const PREVIEW_SCALE = 0.55;
+const PREVIEW_MS = 160;
+const PREVIEW_SCALE = 0.5;
 let previewBusy = false;
 let previewAt = 0;
 let zooming = false;
@@ -557,7 +571,7 @@ let zoomTimer = null;
 
 function schedulePreview() {
   const now = performance.now();
-  if (previewBusy || now - previewAt < PREVIEW_MS) return;
+  if (previewBusy || state.suspended || document.hidden || !plotVisible() || now - previewAt < PREVIEW_MS) return;
   if (!state.img || !state.img.xlim || !state.img.ylim) return;
   previewAt = now;
   previewBusy = true;
@@ -1057,11 +1071,58 @@ async function refreshCatalog() {
 }
 
 /* ---------------- 实时：数据集变了就重取图元 ---------------- */
-/* 只轮询"数据集目录"（很小），版本号变了才重建；缩放/平移期间暂停，避免抢帧。 */
+/* 只轮询"数据集目录"（很小），版本号变了才重建；缩放/平移期间暂停，避免抢帧。
+   实时自动重绘再节流到 LIVE_MIN_MS 一次：一次 render 要 70–200ms，500ms 一次
+   会让面板永远在出图，还会抢走仿真线程的时间片（表现为整个窗口卡顿）。 */
+// 宿主（netlab 等）通过 postMessage 告知"当前是否看得见这个面板"：
+// 看不见就完全停掉轮询与自动重绘，切回来时补一次。
+window.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "plotkit-visibility") return;
+  const visible = Boolean(data.visible);
+  if (state.suspended === !visible) return;
+  state.suspended = !visible;
+  if (visible) scheduleLiveRedraw("重新可见");
+});
+
+function plotVisible() {
+  const el = $("plot");
+  return !!el && el.offsetParent !== null && el.clientWidth > 0;
+}
+
+const LIVE_MIN_MS = 1000;
+let liveAt = 0;
+let liveTimer = null;
+function scheduleLiveRedraw(reason) {
+  if (liveTimer) return;
+  const wait = Math.max(0, LIVE_MIN_MS - (performance.now() - liveAt));
+  liveTimer = setTimeout(() => {
+    liveTimer = null;
+    if (state.busy || state.suspended || document.hidden || !plotVisible()) return;
+    liveAt = performance.now();
+    redraw(reason).catch((err) => setStatus(`渲染失败：${err.message}`, "bad"));
+  }, wait);
+}
+
 let polling = false;
 async function poll() {
-  if (state.busy || !state.spec || !state.spec.layers.length) return;
+  if (state.busy || state.suspended || document.hidden || !state.spec || !plotVisible()) return;
   try {
+    // 图层是后端在"通道出现后"才补的：面板若先于仿真打开，启动时 spec 里没有 layer，
+    // 不主动重取就会一直停在「0 个图层」，看起来像卡死。空图层时顺带刷新 spec。
+    if (!state.spec.layers.length) {
+      const spec = await api("api/spec");
+      if ((spec.layers || []).length) {
+        state.spec = spec;
+        renderLayoutControls();
+        renderLayers();
+        renderInsets();
+        refreshTimeInfo();
+        scheduleLiveRedraw("图层出现");
+        return;
+      }
+      return;
+    }
     const catalog = await api("api/datasets");
     const key = catalog.datasets.map((d) => `${d.name}:${d.version}:${d.length}`).join("|");
     if (key !== state.catalogKey) {
@@ -1069,7 +1130,7 @@ async function poll() {
       state.catalog = catalog;
       renderDatasets();
       await refreshTimeInfo();
-      await redraw("实时更新");
+      scheduleLiveRedraw("实时更新");
     }
   } catch (err) {
     setStatus(`实时更新失败：${err.message}`, "bad");
@@ -1079,7 +1140,7 @@ async function poll() {
 function startPolling(intervalMs) {
   if (polling) return;
   polling = true;
-  setInterval(() => { poll(); }, intervalMs || 500);
+  setInterval(() => { poll(); }, intervalMs || 1000);
 }
 
 
@@ -1359,7 +1420,7 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("#panel > details")) setTimeout(scheduleLayoutSave, 0);
 }, true);
 
-startPolling(500);
+startPolling(1000);
 
 
 /* ---------------- 3D 视图（P15）：WebGL 直画，拖动只改矩阵 ---------------- */

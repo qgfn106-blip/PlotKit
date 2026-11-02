@@ -19,6 +19,7 @@ import json
 import os
 import struct
 import tempfile
+import threading
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Mapping
@@ -32,6 +33,7 @@ from fastapi.staticfiles import StaticFiles
 from ..backends import registry as reg
 from ..spec.validate import SpecError, validate_spec
 from ..store.downsample import downsample_xy
+from ..store.registry import DATA_LOCK
 from .assets import STATIC_DIR
 
 MAGIC = b"PK01"
@@ -87,6 +89,9 @@ MAX_LAYOUT_BYTES = 64 * 1024
 #: 渲染结果缓存（D35）：键 = spec 摘要 + 数据集版本 + 尺寸 + 视窗 + 格式
 _RENDER_CACHE: "OrderedDict[tuple, tuple[bytes, str, object]]" = OrderedDict()
 _RENDER_CACHE_MAX = 8
+#: 渲染闸门：matplotlib 出图是纯 CPU + 持解释器锁的重活，并发进来只会互相拖慢
+#: 并把后台仿真线程饿死。串行化后前端看到的是"稍慢但稳定"而不是"卡顿 + 积压"。
+_RENDER_LOCK = DATA_LOCK
 
 
 def _clamp(value: int, lo: int, hi: int) -> int:
@@ -114,7 +119,19 @@ def _cached(request: Request, key: tuple, build, media_type: str) -> Response:
     hit = cached is not None
     if cached is None:
         try:
-            payload, extra = build()
+            if hit is False:
+                with _RENDER_LOCK:
+                    cached = _RENDER_CACHE.get(key)  # 排队期间可能已被别人算好
+                    if cached is not None:
+                        hit = True
+                        payload, tag, extra = cached
+                        headers = {"ETag": tag, "Cache-Control": "no-store, max-age=0",
+                                   "X-PlotKit-Render": "hit"}
+                        headers.update(extra or {})
+                        if request.headers.get("if-none-match") == tag:
+                            return Response(status_code=304, headers=headers)
+                        return Response(content=payload, media_type=media_type, headers=headers)
+                    payload, extra = build()
         except (SpecError, ValueError) as exc:
             raise HTTPException(400, str(exc)) from exc
         except Exception as exc:  # noqa: BLE001 - 渲染失败直接回给前端看
