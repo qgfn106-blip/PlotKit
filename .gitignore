@@ -22,3 +22,7 @@ layout.json
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Node (TS dev build)
+node_modules/
+package-lock.json

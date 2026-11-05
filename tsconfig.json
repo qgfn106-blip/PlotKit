@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2020",
+    "module": "none",
+    "lib": ["ES2020", "DOM"],
+    "skipLibCheck": true,
+    "noEmitOnError": true,
+    "removeComments": false,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/plotkit/static/render2d.ts"]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "plotkit-static",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Dev-only TypeScript build for PlotKit front-end static scripts (Phase 1: type-only, no runtime deps).",
+  "devDependencies": {
+    "typescript": "5.6.3"
+  }
+}
