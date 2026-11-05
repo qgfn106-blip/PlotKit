@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-06 03:10
+> 最后修改：2026-11-06 03:16
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -35,6 +35,7 @@
 | **PK-R20** | 「没法方便做到自行拖拽子图到合适区域，即子图能够相互重叠」 | 子图从网格改为自由矩形、可重叠、可拖拽缩放 | **已完成**（2026-11-03，`figure.layout` 自由矩形可重叠；spec P4） |
 | **PK-R21** | 「不能自行放置文字框，数据标注，箭头等类似于笔记功能」 | 笔记级批注：文字框/箭头/框选/数据标注，存进 `figure.notes` | 已完成（2026-11-03，3.16.10；spec P5） |
 | **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化、e2e 基线等价；运行时仍纯 `.js` + `<script>` 加载 | **规划中**（2026-11-06；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76） |
+| **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **规划中**（2026-11-06，待 TS 重构完成后启动；详见 netlab `REQUIREMENTS_AND_RULES.md` R42 / P18） |
 
 ## 2. 决策台账（D1–D36，摘录结论）
 
@@ -261,6 +262,7 @@
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
 | TS 迁移 | 四个静态前端文件纳入 netlab R41 全局 JS→TS（一期类型化 P16，二期模块化 P17 暂挂） | 规划中（2026-11-06） |
+| Python PEP 8 | TS 重构完成后，PlotKit 全部 Python 代码按 PEP 8 规范化（无损、不改功能）；对应 netlab R42 / P18 | 规划中（2026-11-06，待 TS 完成） |
 | P12-01 | spec + DataStore + 分块落盘 + 抽稀 | 完成 |
 | P12-02 | plotly + matplotlib 双后端 | 完成 |
 | P12-03 | 浏览器交互（面板/inset 拖拽/撤销/菜单/快捷键/layout.json） | 完成 |
