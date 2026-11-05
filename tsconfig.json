@@ -12,6 +12,7 @@
   "include": [
     "src/plotkit/static/render2d.ts",
     "src/plotkit/static/view3d.ts",
-    "src/plotkit/static/app.ts"
+    "src/plotkit/static/app.ts",
+    "src/plotkit/static/nsview.ts"
   ]
 }
