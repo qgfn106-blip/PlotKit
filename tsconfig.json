@@ -9,5 +9,9 @@
     "removeComments": false,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/plotkit/static/render2d.ts", "src/plotkit/static/view3d.ts"]
+  "include": [
+    "src/plotkit/static/render2d.ts",
+    "src/plotkit/static/view3d.ts",
+    "src/plotkit/static/app.ts"
+  ]
 }
