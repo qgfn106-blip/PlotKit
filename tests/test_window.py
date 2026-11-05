@@ -105,3 +105,15 @@ def test_clear_endpoint_empties_layers_and_data():
     assert names == ["t", "v"]
     lengths = [d["length"] for d in client.get("/api/datasets").json()["datasets"]]
     assert lengths == [0, 0]
+
+
+def test_time_bounds_falls_back_to_coord_data_without_layers():
+    """没有图层时回放仍要有时间范围：宿主只登记数据、图层由用户自己加。"""
+    fig = pk.figure()
+    t = np.linspace(0.0, 2.0, 201)
+    fig.add_data("t", t, unit="s", role="coord", life="append")
+    fig.add_data("v", np.sin(t), unit="V", role="series", life="append")
+    assert fig.spec["layers"] == []
+    lo, hi = fig.time_bounds()
+    assert lo == pytest.approx(0.0)
+    assert hi == pytest.approx(2.0)

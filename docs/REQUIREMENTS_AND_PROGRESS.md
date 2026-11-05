@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-10-31 00:20
+> 最后修改：2026-11-06 03:10
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -29,6 +29,12 @@
 | **PK-R14** | 「并且可自己优化」 | 允许偏离原实现：服务端分箱/相关矩阵、重绘缓存与 ETag、按像素宽度抽稀、节流刷新 | 部分已有（D22 缓存、min-max 抽稀） |
 | **PK-R15** | 「开始前做好项目规划，确定需求，以及项目推进流程，验收标准」 | 需求 + 分期 + 四件套验收见 §3.5/§3.6 | 完成（2026-10-30） |
 | **PK-R16** | 「以及持续更新文档」 | 每票收尾四处同步，不允许只改代码 | 执行中（§3.8 口径） |
+| **PK-R17** | 「plotkit即使有了netlab预计算数据后依然无法播放」 | 有数据就要能播：时间范围不能依赖"用户先加图层" | **完成**（2026-11-03，§9）：`time_bounds()` 回退 `role="coord"` 数据集 |
+| **PK-R18** | 「移动拖拽表格画布感觉不太合理，拖拽后难回到合理尺寸，并且持续窗口播放被打断」 | 拖拽不打断播放 + 一键复位尺寸 | **完成**（2026-11-03，§9）：拖动不重绘、松手重绘一次、「复位面板宽度」按钮 |
+| **PK-R19** | 「图层设置希望是独立窗口，类似于netlab里的独立窗口」 | 图层面板可脱离右侧栏 | **已完成**（2026-11-03，方案 A 页内浮动窗口，可拖可缩、记住浮出状态；spec P3） |
+| **PK-R20** | 「没法方便做到自行拖拽子图到合适区域，即子图能够相互重叠」 | 子图从网格改为自由矩形、可重叠、可拖拽缩放 | **已完成**（2026-11-03，`figure.layout` 自由矩形可重叠；spec P4） |
+| **PK-R21** | 「不能自行放置文字框，数据标注，箭头等类似于笔记功能」 | 笔记级批注：文字框/箭头/框选/数据标注，存进 `figure.notes` | 已完成（2026-11-03，3.16.10；spec P5） |
+| **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化、e2e 基线等价；运行时仍纯 `.js` + `<script>` 加载 | **规划中**（2026-11-06；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76） |
 
 ## 2. 决策台账（D1–D36，摘录结论）
 
@@ -254,6 +260,7 @@
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
+| TS 迁移 | 四个静态前端文件纳入 netlab R41 全局 JS→TS（一期类型化 P16，二期模块化 P17 暂挂） | 规划中（2026-11-06） |
 | P12-01 | spec + DataStore + 分块落盘 + 抽稀 | 完成 |
 | P12-02 | plotly + matplotlib 双后端 | 完成 |
 | P12-03 | 浏览器交互（面板/inset 拖拽/撤销/菜单/快捷键/layout.json） | 完成 |
@@ -401,3 +408,36 @@
 **实测**：前端 1.46 ms/帧（旧 72–308 ms/帧）；23 kind 全通过；双子图 axes=2；`tests/test_api_column.py` 3 passed、`tests/test_api.py` 17 passed。
 
 **边界**：contourf 用色块近似（无等值线路径）；streamplot/3D 仍回落服务端。
+
+## 9. 回放时间范围、拖拽复位与自由布局/批注（2026-11-03）
+
+用户反馈（原话见 `docs/specs/2026-11-03-canvas-free-layout-annotations.md`）：预计算后仍无法播放、拖画布打断播放且难复位、图层设置要独立窗口、子图要能自由拖拽/重叠、要能放文字框/箭头/数据标注。
+
+**已修复（PK-R17 / PK-R18）**
+- 播放根因：`backends/series.py::time_bounds()` 只从图层 `x` 取范围；netlab 按 D-PlotView 只登记数据集、不建图层 → `/api/meta` 的 `time.min/max` 为 `null` → 前端 `playStep()` 恒返回 0，播放游标不动。修复：图层范围为空时回退 `role="coord"` 数据集（`_coord_time_bounds`）。实测预计算 1 s 后 `meta={'min':0.0005,'max':1.0,'count':600}`。
+- 回归：`tests/test_window.py::test_time_bounds_falls_back_to_coord_data_without_layers`；netlab 侧 `test_plotkit_meta_has_time_range_after_precompute`。
+- 拖拽：面板拖动只改 CSS、不逐帧重绘（重绘占 `state.busy`，`tickPlay` 会跳帧），松手重绘一次；「布局」组新增「复位面板宽度」按钮（等价双击 grip）。
+
+**已实现（PK-R20 子图自由布局，2026-11-03）**
+- 新增可选 `figure.layout = [{slot, rect:[x,y,w,h]}]`（figure 比例，y 从下往上，允许重叠）；`figure.subplots` 整数语义不变，没写 layout 时渲染与改前一致。
+- 后端：`backends/mpl_backend.py::_grid_rect()` 抽网格矩形；`to_figure()` 解析 layout，命中槽位走 `fig.add_axes(rect)` 并 `set_layout_engine("none")`；`spec/validate.py` 校验 layout（slot 非负整数不重复、rect 4 数且 w/h>0、范围 -0.5…1.5）；`api/native.py` 的 `update_layout` 白名单加 `layout`。
+- 前端：「布局」组新增「自由布局 / 回到网格」；开关时用服务端 `X-PlotKit-Axes` 包围盒 materialize；`#layout-overlay` 里虚线框可拖拽/拖角缩放，松手 `commit`；自由布局强制走服务端渲染（前端 canvas 不设 `state.img`，否则框没有几何）。
+- 实测（无头 Edge）：开启→两槽 rect 各自落位；拖动 40/20px 后持久化；两槽拖到同一位置重叠成立；回到网格后 overlay 隐藏、恢复前端渲染。
+- 回归：`PlotKit/tests/test_free_layout.py` 11 项全绿；用旧 vendored 代码跑同测试 8 failed（证明能红）。
+
+**已实现（PK-R21 画布批注，2026-11-03，3.16.10）**
+- 新增可选 `figure.notes`，条目 `{id, kind, text, color, size, …}`，`kind` ∈ `text`（`pos` 文字框）/ `arrow`（`start`→`end`）/ `region`（`rect` 虚线框）/ `mark`（`subplot` + 数据坐标 `x`/`y` 引线标注）。`text`/`arrow`/`region` 用 figure 比例坐标，`mark` 用数据坐标，缩放平移后仍跟着数据点。
+- 后端：`spec/model.py` 加 `NOTE_TYPES` 与 `new_note()`；`spec/validate.py` 加 `notes` 白名单与逐条校验；`backends/mpl_backend.py::_draw_notes()` 用 `fig.text` / `FancyArrowPatch` / `Rectangle` / `ax.annotate` 绘制，在 `_draw_decorations()` 之后调用；`api/native.py` 的 `update_layout` 白名单加 `notes`。
+- 前端：「布局」组新增「文字框 / 箭头 / 框选 / 数据标注 / 删除批注」；`#note-overlay` 按图像 rect 定位，点/拖建批注，拖动移动、双击改字、Delete 删除、Esc 退出工具；有批注时强制服务端渲染（前端 canvas 不写 `state.img`，覆盖层没有几何）。
+- 实测（无头 Edge + CDP）：4 类批注依次创建并 `GET /api/spec` 读到 4 条；数据标注落在 `x=1.4349, y=2.5064`；双击改字同步；删除第一条后剩 `arrow/region/mark`；截图确认虚线框、箭头、引线、文字框都进了 PNG。
+- 回归：`PlotKit/tests/test_notes.py` 14 项全绿；改前端前静态护栏断言为红（`note-overlay` 不存在）。
+
+**不做**：完整矢量编辑器（Veusz/ParaView 那种）、批注富文本/旋转/多选批量拖动。
+
+**已实现（PK-R19 图层独立窗口，2026-11-03，方案 A）**
+- 「布局」组新增「图层独立窗口 / 图层已浮出」开关；浮窗 `#layerWin` 挂在 `.plotwrap` 上，标题栏可拖、右下角可缩、最小 260×180，`clampLayerWinRect()` 夹在画布内。
+- 浮出/收起是把 `#layerSect`（图层 `<details>` 整块）在 `#panel` 与 `#layerWinBody` 之间搬 DOM，不重建内容，`renderLayers()` 照旧按 id 写入。
+- `localStorage["pk.layerWin"] = {popped, rect}`：记住位置/尺寸与浮出状态，刷新还原；收起后刷新不会自己弹出来。
+- 实测（无头 Edge + CDP，15 项断言全 PASS）：浮出搬运、拖标题栏 −120/+80、拖右下角 380×418→450×468、收起归位、刷新保持收起、再浮出后刷新还原 450×468。
+- 回归：`PlotKit/tests/test_layer_window.py` 5 项全绿；用 P4 备份的旧静态文件对照，8 个关键标记全缺（能红）。
+- 方案 B（独立浏览器窗口 + BroadcastChannel）留作 A 之上的「弹出」按钮，未做；C 依赖桌面壳，不做。
