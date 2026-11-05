@@ -34,7 +34,7 @@
 | **PK-R19** | 「图层设置希望是独立窗口，类似于netlab里的独立窗口」 | 图层面板可脱离右侧栏 | **已完成**（2026-11-03，方案 A 页内浮动窗口，可拖可缩、记住浮出状态；spec P3） |
 | **PK-R20** | 「没法方便做到自行拖拽子图到合适区域，即子图能够相互重叠」 | 子图从网格改为自由矩形、可重叠、可拖拽缩放 | **已完成**（2026-11-03，`figure.layout` 自由矩形可重叠；spec P4） |
 | **PK-R21** | 「不能自行放置文字框，数据标注，箭头等类似于笔记功能」 | 笔记级批注：文字框/箭头/框选/数据标注，存进 `figure.notes` | 已完成（2026-11-03，3.16.10；spec P5） |
-| **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化、e2e 基线等价；运行时仍纯 `.js` + `<script>` 加载 | **规划中**（2026-11-06；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76） |
+| **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化；运行时仍纯 `.js` + `<script>` 加载 | **已完成（一期 P16，2026-11-06）**：四文件全部严格类型化、tsc strict 0、AST 行为等价（verify_*_parity.js）、pytest 全绿；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76 |
 | **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **规划中**（2026-11-06，待 TS 重构完成后启动；详见 netlab `REQUIREMENTS_AND_RULES.md` R42 / P18） |
 
 ## 2. 决策台账（D1–D36，摘录结论）
@@ -261,7 +261,7 @@
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
-| TS 迁移 | 四个静态前端文件纳入 netlab R41 全局 JS→TS（一期类型化 P16，二期模块化 P17 暂挂） | 规划中（2026-11-06） |
+| TS 迁移 | 四个静态前端文件纳入 netlab R41 全局 JS→TS（一期类型化 P16，二期模块化 P17 暂挂） | 已完成（2026-11-06，一期 P16；tsc strict 0 / AST 行为等价 / pytest 全绿） |
 | Python PEP 8 | TS 重构完成后，PlotKit 全部 Python 代码按 PEP 8 规范化（无损、不改功能）；对应 netlab R42 / P18 | 规划中（2026-11-06，待 TS 完成） |
 | P12-01 | spec + DataStore + 分块落盘 + 抽稀 | 完成 |
 | P12-02 | plotly + matplotlib 双后端 | 完成 |
