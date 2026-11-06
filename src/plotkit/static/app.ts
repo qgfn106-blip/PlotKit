@@ -2,6 +2,9 @@
  * 渲染在服务端（matplotlib，D33）：前端只显示 PNG，并把缩放/平移翻译成新的 xlim/ylim；
  * 拖动期间只做 CSS 变换（0 延迟），停手 120 ms 才回后端重绘（D34）；hover 读数本地算，不发请求。 */
 "use strict";
+import './view3d.js';
+import './render2d.js';
+import type { Spec, RenderOptions, RenderResult, Axis } from './render2d.js';
 
 /* ================= TypeScript 类型（Phase-1 迁移：仅编译期存在，emit 后即原 JS） ================= */
 type PkNumRange = number[] | null;
@@ -262,9 +265,11 @@ interface PkPK3DStatic {
   parseParticles(buffer: ArrayBuffer): { meta: PkParticleMeta; xyz: Float32Array; scalar: Float32Array };
   PALETTE: string[];
 }
-interface Window {
-  PK3D: PkPK3DStatic;
-  __pk: Record<string, unknown>;
+declare global {
+  interface Window {
+    PK3D: PkPK3DStatic;
+    __pk: Record<string, unknown>;
+  }
 }
 /* ================= /TypeScript 类型 ================= */
 

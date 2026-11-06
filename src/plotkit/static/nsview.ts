@@ -1532,3 +1532,4 @@ void main() {
 
   return { NSView } as NSStatic;
 })();
+(window as unknown as { NS: unknown }).NS = NS;

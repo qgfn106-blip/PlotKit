@@ -2,7 +2,8 @@
   "compilerOptions": {
     "strict": true,
     "target": "ES2020",
-    "module": "none",
+    "module": "ES2020",
+    "moduleResolution": "node",
     "lib": ["ES2020", "DOM"],
     "skipLibCheck": true,
     "noEmitOnError": true,
@@ -13,6 +14,8 @@
     "src/plotkit/static/render2d.ts",
     "src/plotkit/static/view3d.ts",
     "src/plotkit/static/app.ts",
-    "src/plotkit/static/nsview.ts"
+    "src/plotkit/static/nsview.ts",
+    "src/plotkit/static/plot2d.utils.ts",
+    "src/plotkit/static/plot3d.utils.ts"
   ]
 }
