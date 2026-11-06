@@ -1,5 +1,7 @@
 # PlotKit 性能基准（阶段 F 回归基线）
 
+> 最后更新：2026-11-06（文档校对；基线数值仍为 2026-10-31 实测）
+
 **脚本**：`tools/bench_regress.py`（产品路径基准，不是孤立微基准）
 **环境**：本机 Windows / Python 3.13 / matplotlib Agg / 1200×700 @100dpi / 6 通道 × 20k 点
 **测定**：预热 2 次后取 5 次 p50（追加类 1 次，因为代价是累计的）
@@ -41,7 +43,7 @@ python tools/bench_regress.py --check      # 超预算非零退出（CI 用）
 |---|---|---|
 | B | 几何增长缓冲区替代 `np.concatenate` 追加 | `src/plotkit/store/registry.py`（`DataSet.append` / `capacity_bytes`） |
 | C-1 | M4 抽稀（分桶 argmin/argmax，保 float32） | `src/plotkit/store/downsample.py`（`m4_envelope` / `downsample_xy`） |
-| C-2 | 视窗零拷贝（先切片再降采样） | `src/plotkit/backends/plotly_backend.py`、`src/plotkit/api/native.py` |
+| C-2 | 视窗零拷贝（先切片再降采样） | `src/plotkit/backends/plotly_backend.py`（已随 D33/P14-01 删除）、`src/plotkit/api/native.py` |
 | D-1 | 持久 Figure + blit 热重绘 | `src/plotkit/backends/livecache.py` |
 | D-2 | 统一 PNG 编码器（绕过 print_png 内部整图 draw） | `src/plotkit/backends/livecache.py`（`encode_png`） |
 

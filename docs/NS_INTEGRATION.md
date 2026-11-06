@@ -1,5 +1,7 @@
 # NS × PlotKit 整合：阶段 3 规格（2026-11-02）
 
+> 最后更新：2026-11-06（校对：前端源为 `.ts`、`pk.kinds()` 现为 54）
+
 > 本文是这一阶段的需求与验收口径。**改动必须对照本文的条目**；实现与本文冲突时，先改本文再改代码。
 
 ## 1. 背景与目标
@@ -32,13 +34,13 @@
 
 - 新增 Python 模块放 `src/plotkit/ns/`，公开 API 从 `plotkit.ns` 导出。
 - 图层的字段名用既有约定：`volume` 用 `x/y/z/values`，`particles` 用 `x/y/z/c`；不用自定义键。
-- 前端改动只允许改 `ns.html` / `nsview.js` / `app.js` 的既有函数，不新造渲染器。
+- 前端改动只允许改 `ns.html` / `nsview.ts` / `app.ts` 的既有函数（`npm run build` 由 esbuild 生成同名 `.js`），不新造渲染器。
 - 每个改动点必须有测试或验收脚本覆盖；纯样式改动不需要。
 
 ## 5. 约束
 
 - **不得推翻 D33**：二维仍走 Matplotlib Agg + `/api/render`。
-- **不得破坏既有 400+ 测试**；`pk.kinds()` 只增不减（当前 53）。
+- **不得破坏既有 400+ 测试**；`pk.kinds()` 只增不减（当前 54）。
 - 三维数组**不得悄悄升 float64**（沿用 D38 的 `as_float_keep`）。
 - 页面默认路径（不带 `phys`）必须与 `git show 33d4d83:src/plotkit/static/ns.html` 行为一致。
 - 不改 GPU 粒子实验（`?gpu=1` 后面的 50 万/100 万问题**本阶段不碰**）。
@@ -101,7 +103,7 @@ NS 私有页面仍保留，作为"逐帧调参 + 双轨诊断"的专用工作台
 
 - 新图层的字段名沿用既有约定（`x/y/z` + `style.width/color`），不新造键。
 - 服务端二进制沿用 `PK01 + meta_len + n + meta + float32`，与 `/api/particles` 同构。
-- 前端只改 `view3d.js` 的绘制分支与 `app.js` 的 `load3dLayers`，不新增渲染器。
+- 前端只改 `view3d.ts` 的绘制分支与 `app.ts` 的 `load3dLayers`（`npm run build` 产物 `.js`），不新增渲染器。
 - 每个新图层必须同时具备：mpl drawer、pyvista builder、浏览器绘制、`REQUIRED_DATA` 登记。
 
 ## 13. 约束

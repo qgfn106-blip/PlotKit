@@ -1,6 +1,6 @@
 # 三维与大规模后端选型评估（PyVista / VisPy / Trame）
 
-> 2026-10-31 评估。**本文件只做决策，不含实现**；当前生产代码仍是 Matplotlib 单后端（D33），零改动。
+> 2026-10-31 评估（**最后更新：2026-11-06** 校对）。评估时生产代码为 Matplotlib 单后端（D33）；D38 后已接入可选 PyVista 后端（`src/plotkit/backends/pyvista_backend.py`，见 §10），matplotlib 仍为默认与兜底。
 > 依据：本仓库代码核查 + 本机实测基线 + 三个上游仓库的官方源码/文档。
 
 ## 1. 结论（TL;DR）
@@ -101,7 +101,7 @@ PlotKit spec + DataStore            （公共语义，不动）
 
 对外 API 不变：`fig.render(...)` 仍返回 PNG bytes。新增的只是：
 - `style.backend = "auto" | "mpl" | "pyvista" | "vispy"`；
-- 环境变量/extra 控制可选依赖（`pip install plotkit[3d]`）；
+- 环境变量/extra 控制可选依赖（`pip install plotkit[three]`）；
 - `RenderResult.backend` 便于前端提示"此图由 PyVista 渲染"。
 
 ## 7. 实施顺序（建议）

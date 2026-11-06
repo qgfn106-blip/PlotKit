@@ -1,5 +1,7 @@
 # 安装 · 更新 · 卸载
 
+> 最后更新：2026-11-06（补充前端 esbuild 构建步骤）
+
 > 一句话：**只需要 `numpy`+`matplotlib`+`pillow` 就能画二维图**；浏览器界面、三维、桌面壳各自是可选依赖，按需装。
 
 ## 1. 环境要求
@@ -43,6 +45,8 @@ git clone https://github.com/weijiewang/plotkit.git
 cd plotkit
 pip install -e ".[all,dev]"
 ```
+
+> 前端静态脚本由 esbuild 构建（`.ts` 源、`.js` 产物已提交）。修改 `src/plotkit/static/*.ts` 后需在 `PlotKit/` 目录下运行 `npm install && npm run build`；`npm run typecheck` 校验类型，`npm run test:utils` 跑纯函数单测。
 
 > **装完第一件事**：`plotkit doctor`。它会打印 Python 与每个依赖的实际版本、满足/不满足的条目、可选功能是否可用。
 

@@ -1,7 +1,7 @@
 # 三维 NS 涡旋可视化（模式 A′：前导阶自相似解）
 
 > 目标：把「Navier–Stokes 涡旋内旋、轴向拉伸、有限时间奇异性演化」做成 PlotKit 里一个**由真实场驱动**的三维可视化模块，而不是演示动画。
-> 状态：2026-11-01 首版。渲染 98–120 fps，诊断与公式同屏，参数可实时调。
+> 状态：2026-11-01 首版（2026-11-06 校对：`nsview` 源为 `.ts`）。渲染 98–120 fps，诊断与公式同屏，参数可实时调。
 
 ## 1. 数学来源与模式声明
 
@@ -38,7 +38,7 @@ U = c∞ · α · η · sech²(η/η₀) · √X / (1 + (X/X₀)^{h+1})
 | `src/plotkit/ns/diagnostics.py` | `VortexStats` / `analyze`（连续场积分）/ `grid_stats`（N³ 网格）/ `convergence`（32³/64³/128³） |
 | `src/plotkit/server/ns_app.py` | `/api/ns/{meta,field,slice,velocity,pathlines,diagnostics,formula.svg}`，二进制帧 `PKNS + meta_len + meta + float32` |
 | `src/plotkit/static/ns.html` | 页面：公式 / 时钟 / 诊断双表 / 旋钮 / 时间轴 / 色标 / 模式标签 |
-| `src/plotkit/static/nsview.js` | WebGL2：体积 raymarch + instanced 粒子 + 轨迹线 + 相机 |
+| `src/plotkit/static/nsview.ts` | WebGL2：体积 raymarch + instanced 粒子 + 轨迹线 + 相机（esbuild 产物 `nsview.js`） |
 | `src/plotkit/ns/app.py` | 启动器：`python -m plotkit.ns.app`，`--shot` 出图自检 |
 
 ## 3. 关键决策（Q1–Q11 逐轮确认）
