@@ -71,7 +71,10 @@ def test_anim_endpoint_serves_gif():
     assert res.status_code == 200
     assert res.headers["content-type"] == "image/gif"
     assert Image.open(io.BytesIO(res.content)).n_frames == 5
-    assert client.get("/api/anim", params={"w": 260, "h": 170}).headers["x-plotkit-render"] == "hit"
+    assert (
+        client.get("/api/anim", params={"w": 260, "h": 170}).headers["x-plotkit-render"]
+        == "hit"
+    )
 
 
 def test_anim_spec_roundtrip():
@@ -97,7 +100,10 @@ def test_frames_share_one_viewport():
     xlim, ylim = fig.anim_limits(width=280, height=180)
     assert xlim and ylim
     last = fig.frame_times()[-1]
-    assert fig.render(width=280, height=180, t_end=last, xlim=xlim, ylim=ylim) == frames[-1]
+    assert (
+        fig.render(width=280, height=180, t_end=last, xlim=xlim, ylim=ylim)
+        == frames[-1]
+    )
 
 
 def test_spec_rejects_bad_anim():
@@ -135,4 +141,7 @@ def test_anim_endpoint_serves_mp4():
     res = client.get("/api/anim", params={"w": 200, "h": 140, "fmt": "mp4"})
     assert res.status_code == 200
     assert res.headers["content-type"] == "video/mp4"
-    assert client.get("/api/anim", params={"w": 200, "h": 140, "fmt": "x"}).status_code == 400
+    assert (
+        client.get("/api/anim", params={"w": 200, "h": 140, "fmt": "x"}).status_code
+        == 400
+    )

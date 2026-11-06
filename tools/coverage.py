@@ -1,7 +1,7 @@
 """生成覆盖率表：registry 里每个 kind 的维度 / 绘制器 / 数据键 / 预设。
 
-    PYTHONPATH=src python tools/coverage.py            # markdown 表格
-    PYTHONPATH=src python tools/coverage.py --check    # 有缺项就非零退出（CI 用）
+PYTHONPATH=src python tools/coverage.py            # markdown 表格
+PYTHONPATH=src python tools/coverage.py --check    # 有缺项就非零退出（CI 用）
 """
 
 from __future__ import annotations
@@ -32,11 +32,26 @@ from plotkit.spec.validate import REQUIRED_DATA
 MATRIX_18 = [
     # 11 个 2D：line / scatter(marker) / bar / hist / pie / image / table
     #           + heatmap / contour / quiver / streamplot
-    #（correlation 是 MultiPlotter 之外的聚合 kind，不计入 18）
-    "line", "marker", "bar", "hist", "pie", "image", "table",
-    "heatmap", "contour", "quiver", "streamplot",
+    # （correlation 是 MultiPlotter 之外的聚合 kind，不计入 18）
+    "line",
+    "marker",
+    "bar",
+    "hist",
+    "pie",
+    "image",
+    "table",
+    "heatmap",
+    "contour",
+    "quiver",
+    "streamplot",
     # 7 个 3D
-    "surface", "line3d", "scatter3d", "bar3d", "hist3d", "quiver3d", "stream3d",
+    "surface",
+    "line3d",
+    "scatter3d",
+    "bar3d",
+    "hist3d",
+    "quiver3d",
+    "stream3d",
 ]
 
 
@@ -44,14 +59,16 @@ def rows() -> list[tuple[str, int, str, str, str, str]]:
     out = []
     for kind in sorted(reg.kinds()):
         spec = reg.resolve(kind)
-        out.append((
-            kind,
-            spec.dimension,
-            OK if kind in DRAWERS else DASH,
-            ", ".join(REQUIRED_DATA.get(kind, {})) or "—",
-            OK if kind in KIND_PRESETS else DASH,
-            spec.description or "",
-        ))
+        out.append(
+            (
+                kind,
+                spec.dimension,
+                OK if kind in DRAWERS else DASH,
+                ", ".join(REQUIRED_DATA.get(kind, {})) or "—",
+                OK if kind in KIND_PRESETS else DASH,
+                spec.description or "",
+            )
+        )
     return out
 
 
@@ -70,7 +87,9 @@ def main() -> int:
     missing = [k for k in MATRIX_18 if k not in covered]
     no_drawer = [k for k, _, drawer, *_ in data if drawer != OK]
     print()
-    print(f"- registry 共 **{len(data)}** 种；18 种矩阵覆盖 **{len(MATRIX_18) - len(missing)}/18**")
+    print(
+        f"- registry 共 **{len(data)}** 种；18 种矩阵覆盖 **{len(MATRIX_18) - len(missing)}/18**"
+    )
     print(f"- 缺绘制器：{', '.join(no_drawer) or '无'}")
     print(f"- 18 种矩阵缺口：{', '.join(missing) or '无'}")
     if args.check and (missing or no_drawer):

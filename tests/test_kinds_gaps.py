@@ -29,6 +29,7 @@ def _scatter_xy(n: int = 60, seed: int = 0):
 
 # ---------------- 三角 / 非结构 ----------------
 
+
 def test_triplot_renders_triangulation():
     x, y = _scatter_xy()
     fig = _fig("triplot", {"x": x, "y": y})
@@ -40,8 +41,18 @@ def test_triplot_renders_triangulation():
 def test_tricontour_and_filled():
     x, y = _scatter_xy(80)
     z = np.sin(6 * x) * np.cos(6 * y)
-    assert _colors(_fig("tricontour", {"x": x, "y": y, "z": z}).render(width=420, height=280)) > 16
-    assert _colors(_fig("tricontourf", {"x": x, "y": y, "z": z}).render(width=420, height=280)) > 16
+    assert (
+        _colors(
+            _fig("tricontour", {"x": x, "y": y, "z": z}).render(width=420, height=280)
+        )
+        > 16
+    )
+    assert (
+        _colors(
+            _fig("tricontourf", {"x": x, "y": y, "z": z}).render(width=420, height=280)
+        )
+        > 16
+    )
 
 
 def test_tripcolor_renders():
@@ -55,6 +66,7 @@ def test_tripcolor_renders():
 
 # ---------------- 3D 补全 ----------------
 
+
 def test_voxels_renders():
     grid = np.zeros((6, 6, 6), dtype=bool)
     grid[1:4, 1:4, 1:4] = True
@@ -65,7 +77,10 @@ def test_voxels_renders():
 def test_trisurf_renders():
     x, y = _scatter_xy(50)
     z = np.sin(4 * x) * np.cos(4 * y)
-    assert _colors(_fig("trisurf", {"x": x, "y": y, "z": z}).render(width=420, height=300)) > 16
+    assert (
+        _colors(_fig("trisurf", {"x": x, "y": y, "z": z}).render(width=420, height=300))
+        > 16
+    )
 
 
 def test_stem3d_renders():
@@ -79,8 +94,15 @@ def test_stem3d_renders():
 def test_text3d_places_labels():
     fig = pk.figure(size=(4.6, 3.2))
     fig.add_data("labels", ["甲", "乙"], role="table")
-    fig.add("text3d", {"x": np.array([0.0, 1.0]), "y": np.array([0.0, 1.0]),
-                       "z": np.array([0.0, 1.0]), "labels": "labels"})
+    fig.add(
+        "text3d",
+        {
+            "x": np.array([0.0, 1.0]),
+            "y": np.array([0.0, 1.0]),
+            "z": np.array([0.0, 1.0]),
+            "labels": "labels",
+        },
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     texts = [t for t in mpl_fig.axes[0].texts]
     assert len(texts) == 2
@@ -88,8 +110,19 @@ def test_text3d_places_labels():
 
 # ---------------- 信号族 ----------------
 
-@pytest.mark.parametrize("kind", ["csd", "cohere", "acorr", "xcorr",
-                                  "angle_spectrum", "magnitude_spectrum", "phase_spectrum"])
+
+@pytest.mark.parametrize(
+    "kind",
+    [
+        "csd",
+        "cohere",
+        "acorr",
+        "xcorr",
+        "angle_spectrum",
+        "magnitude_spectrum",
+        "phase_spectrum",
+    ],
+)
 def test_signal_kinds_render(kind):
     t = np.linspace(0, 1, 400)
     cfg = {"x": np.sin(2 * np.pi * 20 * t)}
@@ -112,8 +145,21 @@ def test_signal_kinds_require_second_signal_where_needed():
 def test_new_kinds_registered():
     from plotkit.backends import registry as reg
 
-    for kind in ("triplot", "tricontour", "tricontourf", "tripcolor",
-                 "voxels", "trisurf", "stem3d", "text3d",
-                 "csd", "cohere", "acorr", "xcorr",
-                 "angle_spectrum", "magnitude_spectrum", "phase_spectrum"):
+    for kind in (
+        "triplot",
+        "tricontour",
+        "tricontourf",
+        "tripcolor",
+        "voxels",
+        "trisurf",
+        "stem3d",
+        "text3d",
+        "csd",
+        "cohere",
+        "acorr",
+        "xcorr",
+        "angle_spectrum",
+        "magnitude_spectrum",
+        "phase_spectrum",
+    ):
         assert kind in reg.kinds()

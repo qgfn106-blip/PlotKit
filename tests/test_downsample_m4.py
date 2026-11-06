@@ -25,7 +25,7 @@ def test_m4_preserves_endpoints_and_peaks():
     n = 20_000
     x = np.arange(n, dtype=np.float64)
     y = np.sin(x / 100.0)
-    y[12_345] = 99.0          # 单点尖峰
+    y[12_345] = 99.0  # 单点尖峰
     y[7_777] = -42.0
     xo, yo = m4_envelope(x, y, 300)
     assert xo[0] == x[0] and xo[-1] == x[-1]
@@ -44,7 +44,7 @@ def test_m4_output_size_bounded():
     x = np.arange(100_000, dtype=np.float64)
     y = np.cos(x / 50.0)
     xo, _ = m4_envelope(x, y, 400, per_pixel=2.0)
-    assert len(xo) <= 400 * 2 + 2   # 两端点额外保留
+    assert len(xo) <= 400 * 2 + 2  # 两端点额外保留
     assert len(xo) > 100
 
 
@@ -59,11 +59,11 @@ def test_m4_handles_all_nan_bucket():
     n = 10_000
     x = np.arange(n, dtype=np.float64)
     y = np.sin(x / 10.0)
-    y[3_000:3_200] = np.nan      # 整段 NaN
+    y[3_000:3_200] = np.nan  # 整段 NaN
     xo, yo = m4_envelope(x, y, 100)
     assert len(xo) > 0
     assert np.isfinite(yo).any()
-    assert np.isnan(yo).sum() < 20   # 只保留桶起点，不会整段带出来
+    assert np.isnan(yo).sum() < 20  # 只保留桶起点，不会整段带出来
 
 
 def test_m4_matches_minmax_global_envelope():

@@ -88,8 +88,12 @@ def test_render_endpoint_accepts_replay_cursor():
     live = client.get("/api/render?w=300&h=200")
     past = client.get("/api/render?w=300&h=200&t=5")
     assert live.status_code == 200 and past.status_code == 200
-    live_lo, live_hi = [float(v) for v in live.headers["x-plotkit-xlim"].strip("[]").split(",")]
-    past_lo, past_hi = [float(v) for v in past.headers["x-plotkit-xlim"].strip("[]").split(",")]
+    live_lo, live_hi = [
+        float(v) for v in live.headers["x-plotkit-xlim"].strip("[]").split(",")
+    ]
+    past_lo, past_hi = [
+        float(v) for v in past.headers["x-plotkit-xlim"].strip("[]").split(",")
+    ]
     assert live_lo <= 8.0 + 1e-9 and live_hi >= 10.0 - 1e-9
     assert past_lo <= 3.0 + 1e-9 and past_hi >= 5.0 - 1e-9
 

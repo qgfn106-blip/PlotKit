@@ -28,8 +28,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-import plotkit as pk                      # noqa: E402
-from plotkit.backends import livecache    # noqa: E402
+import plotkit as pk  # noqa: E402
+from plotkit.backends import livecache  # noqa: E402
 from plotkit.store import downsample as ds  # noqa: E402
 
 W, H, DPI = 1200, 700, 100
@@ -103,13 +103,18 @@ def bench_shape(shape: str) -> dict:
     # --- 热重绘：固定视窗（blit） ---
     livecache.get_cache().clear()
     fig2 = _figure(t, ys)
-    fig2.render(width=W, height=H, fmt="png", **lim)   # 建缓存
+    fig2.render(width=W, height=H, fmt="png", **lim)  # 建缓存
     state = {"k": 0}
 
     def hot_blit():
         state["k"] += 1
-        fig2.store.add("c0", np.sin(t / 500.0 + 0.001 * state["k"]), role="series",
-                       life="replace", overwrite=True)
+        fig2.store.add(
+            "c0",
+            np.sin(t / 500.0 + 0.001 * state["k"]),
+            role="series",
+            life="replace",
+            overwrite=True,
+        )
         fig2.render(width=W, height=H, fmt="png", **lim)
 
     out["hot_blit"] = _time(hot_blit)
@@ -121,8 +126,13 @@ def bench_shape(shape: str) -> dict:
 
     def hot_auto():
         state["k"] += 1
-        fig3.store.add("c0", np.sin(t / 500.0 + 0.001 * state["k"]), role="series",
-                       life="replace", overwrite=True)
+        fig3.store.add(
+            "c0",
+            np.sin(t / 500.0 + 0.001 * state["k"]),
+            role="series",
+            life="replace",
+            overwrite=True,
+        )
         fig3.render(width=W, height=H, fmt="png")
 
     out["hot_autoscale"] = _time(hot_auto)
@@ -152,8 +162,12 @@ def bench_shape(shape: str) -> dict:
     # --- 数据层：入库复制成本 ---
     arr = np.zeros(2_000_000, dtype=np.float64)
     st = pk.DataStore()
-    out["add_2m"] = _time(lambda: st.add("a", arr, role="series", overwrite=True), warm=1, repeat=3)
-    out["add_2m_peak_mb"] = _peak_mb(lambda: st.add("b", arr, role="series", overwrite=True))
+    out["add_2m"] = _time(
+        lambda: st.add("a", arr, role="series", overwrite=True), warm=1, repeat=3
+    )
+    out["add_2m_peak_mb"] = _peak_mb(
+        lambda: st.add("b", arr, role="series", overwrite=True)
+    )
     return out
 
 
@@ -170,32 +184,47 @@ def main() -> int:
 
     rows = [bench_shape(s.strip()) for s in args.shapes.split(",") if s.strip()]
 
-    keys = [("cold_png", "冷导出 PNG"),
-            ("cold_svg", "冷导出 SVG"),
-            ("hot_blit", "热重绘 blit（固定视窗）"),
-            ("hot_autoscale", "热重绘 整张重画（自动缩放）"),
-            ("downsample_2m", "抽稀 2M 点"),
-            ("append_total", "追加 2000x1000 点")]
+    keys = [
+        ("cold_png", "冷导出 PNG"),
+        ("cold_svg", "冷导出 SVG"),
+        ("hot_blit", "热重绘 blit（固定视窗）"),
+        ("hot_autoscale", "热重绘 整张重画（自动缩放）"),
+        ("downsample_2m", "抽稀 2M 点"),
+        ("append_total", "追加 2000x1000 点"),
+    ]
 
-    print(f"\n{'case':30s} " + " ".join(f"{r['shape']:>18s}" for r in rows) + "   p50/min(ms)")
+    print(
+        f"\n{'case':30s} "
+        + " ".join(f"{r['shape']:>18s}" for r in rows)
+        + "   p50/min(ms)"
+    )
     for key, label in keys:
         cells = [f"{_fmt(r[key]):>18s}" for r in rows]
         print(f"{label:30s} " + " ".join(cells))
 
     print("\n内存峰值（tracemalloc, MB）")
-    for key, label in [("downsample_2m_peak_mb", "抽稀 2M"), ("append_peak_mb", "追加 2000 次"),
-                       ("add_2m_peak_mb", "入库 2M float64")]:
+    for key, label in [
+        ("downsample_2m_peak_mb", "抽稀 2M"),
+        ("append_peak_mb", "追加 2000 次"),
+        ("add_2m_peak_mb", "入库 2M float64"),
+    ]:
         print(f"  {label:16s} " + "  ".join(f"{r[key]:.1f}" for r in rows))
 
     failed = []
     for r in rows:
         for key, label in keys:
             if key in BUDGET and r[key][0] > BUDGET[key]:
-                failed.append(f"{r['shape']}/{label}: {r[key][0]:.1f}ms > {BUDGET[key]:.0f}ms")
+                failed.append(
+                    f"{r['shape']}/{label}: {r[key][0]:.1f}ms > {BUDGET[key]:.0f}ms"
+                )
 
     if args.json:
-        Path(args.json).write_text(json.dumps({"results": rows, "budget": BUDGET},
-                                              ensure_ascii=False, indent=2), encoding="utf-8")
+        Path(args.json).write_text(
+            json.dumps(
+                {"results": rows, "budget": BUDGET}, ensure_ascii=False, indent=2
+            ),
+            encoding="utf-8",
+        )
         print(f"\nJSON → {args.json}")
 
     if failed:

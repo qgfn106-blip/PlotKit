@@ -27,10 +27,18 @@ def test_render_many_matches_single_process():
     jobs = [(fig.spec, fig.store, {"width": 220, "height": 160}) for _ in range(2)]
     pooled = pyvista_pool.render_many(jobs, workers=2)
     single = pyvista_backend.render_result(
-        fig.spec, fig.store, width=220, height=160, dpi=100, fmt="png",
-        xlim=None, ylim=None, with_limits=False).payload
+        fig.spec,
+        fig.store,
+        width=220,
+        height=160,
+        dpi=100,
+        fmt="png",
+        xlim=None,
+        ylim=None,
+        with_limits=False,
+    ).payload
     assert len(pooled) == 2
-    assert pooled[0] == single          # 逐字节一致：同一份 spec 同一台机器
+    assert pooled[0] == single  # 逐字节一致：同一份 spec 同一台机器
     assert pooled[1] == single
 
 

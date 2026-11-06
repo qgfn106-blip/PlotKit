@@ -48,7 +48,12 @@ MPL_METHODS: list[Method] = [
     Method("barh", FORM_KIND, "barh"),
     Method("bar_label", FORM_REUSE, "bar", "柱顶数值标注走 annotations.text"),
     Method("errorbar", FORM_REUSE, "line", "误差棒用 line 的 error_x/error_y"),
-    Method("fill_between", FORM_REUSE, "stackplot", "面积填充用 stackplot，或 figure.shapes"),
+    Method(
+        "fill_between",
+        FORM_REUSE,
+        "stackplot",
+        "面积填充用 stackplot，或 figure.shapes",
+    ),
     Method("fill_betweenx", FORM_REUSE, "stackplot", "同上（横向）"),
     Method("fill", FORM_SHAPES, note="任意多边形装饰用 figure.shapes.path"),
     Method("stackplot", FORM_KIND, "stackplot"),
@@ -83,7 +88,11 @@ MPL_METHODS: list[Method] = [
     Method("pcolormesh", FORM_REUSE, "heatmap"),
     Method("pcolorfast", FORM_REUSE, "heatmap"),
     Method("spy", FORM_SKIP, note="稀疏矩阵可视化，用 heatmap/image 表达，不单建 kind"),
-    Method("figimage", FORM_SKIP, note="绕过 artist 直接贴像素图，与 image kind 语义重合，不做"),
+    Method(
+        "figimage",
+        FORM_SKIP,
+        note="绕过 artist 直接贴像素图，与 image kind 语义重合，不做",
+    ),
     Method("contour", FORM_KIND, "contour"),
     Method("contourf", FORM_KIND, "contourf"),
     Method("clabel", FORM_REUSE, "contour", "contour 的 labels=True"),
@@ -174,7 +183,14 @@ def main() -> int:
         groups.setdefault(m.form, []).append(m)
 
     print(f"# matplotlib 绘图方法归属（共 {len(MPL_METHODS)} 个）")
-    for form in (FORM_KIND, FORM_REUSE, FORM_SHAPES, FORM_ANNOTATIONS, FORM_AXIS, FORM_SKIP):
+    for form in (
+        FORM_KIND,
+        FORM_REUSE,
+        FORM_SHAPES,
+        FORM_ANNOTATIONS,
+        FORM_AXIS,
+        FORM_SKIP,
+    ):
         items = groups.get(form, [])
         print(f"\n## {form}（{len(items)}）")
         print("| 方法 | 目标 / 说明 |")

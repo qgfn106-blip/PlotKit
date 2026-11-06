@@ -38,14 +38,24 @@ def main() -> int:
     args = ap.parse_args()
 
     frames = [surface_figure(i * 0.1) for i in range(args.frames)]
-    jobs = [(f.spec, f.store, {"width": args.width, "height": args.height}) for f in frames]
+    jobs = [
+        (f.spec, f.store, {"width": args.width, "height": args.height}) for f in frames
+    ]
 
     def one(spec, store):
         return pyvista_backend.render_result(
-            spec, store, width=args.width, height=args.height, dpi=100, fmt="png",
-            xlim=None, ylim=None, with_limits=False).payload
+            spec,
+            store,
+            width=args.width,
+            height=args.height,
+            dpi=100,
+            fmt="png",
+            xlim=None,
+            ylim=None,
+            with_limits=False,
+        ).payload
 
-    one(*jobs[0][:2])                      # 预热：首次要建 OpenGL 上下文
+    one(*jobs[0][:2])  # 预热：首次要建 OpenGL 上下文
 
     t0 = time.perf_counter()
     serial = [one(spec, store) for spec, store, _ in jobs]
@@ -57,7 +67,9 @@ def main() -> int:
         pooled = pyvista_pool.render_many(jobs, workers=workers)
         t_pool = time.perf_counter() - t0
         same = all(a == b for a, b in zip(serial, pooled))
-        print(f"pool {workers}w: {t_pool * 1000:.0f} ms  ({t_serial / t_pool:.2f}x)  identical={same}")
+        print(
+            f"pool {workers}w: {t_pool * 1000:.0f} ms  ({t_serial / t_pool:.2f}x)  identical={same}"
+        )
     return 0
 
 

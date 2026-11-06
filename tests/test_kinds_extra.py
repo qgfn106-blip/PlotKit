@@ -30,7 +30,9 @@ def test_stairs_renders_steps():
 
 
 def test_broken_barh_draws_segments():
-    fig = _fig("broken_barh", {"y": np.array([[0.0, 2.0], [4.0, 1.5]]), "x": np.array([1.0])})
+    fig = _fig(
+        "broken_barh", {"y": np.array([[0.0, 2.0], [4.0, 1.5]]), "x": np.array([1.0])}
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     # broken_barh 返回的是 BrokenBarHCollection（挂在 collections 下，不是 patches）
     assert len(mpl_fig.axes[0].collections) == 1

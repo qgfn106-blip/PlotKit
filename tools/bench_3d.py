@@ -59,7 +59,10 @@ def _surface(points: int):
 def _scatter(n: int, seed: int = 0):
     rng = np.random.default_rng(seed)
     fig = pk.figure(title=f"scatter3d {n}")
-    fig.add("scatter3d", {"x": rng.normal(size=n), "y": rng.normal(size=n), "z": rng.normal(size=n)})
+    fig.add(
+        "scatter3d",
+        {"x": rng.normal(size=n), "y": rng.normal(size=n), "z": rng.normal(size=n)},
+    )
     return fig
 
 
@@ -78,7 +81,12 @@ CASES = [
     ("scatter_100k", lambda: _scatter(100_000), 700, 450),
     ("voxels_15", lambda: _voxels(15), 700, 450),
     ("voxels_25", lambda: _voxels(25), 700, 450),
-    ("voxels_35", lambda: _voxels(35), 800, 600),   # 文档 §8 的目标场景（mpl 侧要 14s，跑一次即可）
+    (
+        "voxels_35",
+        lambda: _voxels(35),
+        800,
+        600,
+    ),  # 文档 §8 的目标场景（mpl 侧要 14s，跑一次即可）
 ]
 
 
@@ -122,8 +130,13 @@ def main(argv: list[str] | None = None) -> int:
     rss_end = _rss_mb()
 
     if args.json:
-        print(json.dumps({"cases": report, "rss_mb": {"start": rss_start, "end": rss_end}},
-                         ensure_ascii=False, indent=2))
+        print(
+            json.dumps(
+                {"cases": report, "rss_mb": {"start": rss_start, "end": rss_end}},
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
     else:
         print(f"{'case':14s} {'mpl p50':>10s} {'pyvista p50':>12s} {'speedup':>8s}")
         for name, row in report.items():
@@ -131,11 +144,17 @@ def main(argv: list[str] | None = None) -> int:
             pv = row.get("pyvista") or {}
             if mpl.get("ok") and pv.get("ok"):
                 ratio = mpl["p50_ms"] / pv["p50_ms"] if pv["p50_ms"] else 0
-                print(f"{name:14s} {mpl['p50_ms']:>9.0f}ms {pv['p50_ms']:>10.0f}ms {ratio:>7.1f}x")
+                print(
+                    f"{name:14s} {mpl['p50_ms']:>9.0f}ms {pv['p50_ms']:>10.0f}ms {ratio:>7.1f}x"
+                )
             elif mpl.get("ok"):
-                print(f"{name:14s} {mpl['p50_ms']:>9.0f}ms {'—':>12s}   ({pv.get('error', 'skipped')})")
+                print(
+                    f"{name:14s} {mpl['p50_ms']:>9.0f}ms {'—':>12s}   ({pv.get('error', 'skipped')})"
+                )
             else:
-                print(f"{name:14s} {'—':>10s} {'—':>12s}   ({mpl.get('error', 'skipped')})")
+                print(
+                    f"{name:14s} {'—':>10s} {'—':>12s}   ({mpl.get('error', 'skipped')})"
+                )
         print(f"RSS: {rss_start} MB -> {rss_end} MB")
 
     if args.check:

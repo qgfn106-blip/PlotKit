@@ -22,7 +22,9 @@ def _figure():
 
 def _poses(n=6):
     t = np.linspace(0, 2 * np.pi, n)
-    return np.stack([1.2 * np.cos(t), 1.2 * np.sin(t), 1.0 + 0.2 * np.sin(2 * t)], axis=1)
+    return np.stack(
+        [1.2 * np.cos(t), 1.2 * np.sin(t), 1.0 + 0.2 * np.sin(2 * t)], axis=1
+    )
 
 
 def test_frames_are_png_and_count_matches():

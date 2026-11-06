@@ -52,11 +52,13 @@ def test_scene_produces_the_three_layers():
     assert kinds == ["volume", "particles", "segments"]
     for name in ("vx", "vy", "vz", "speed", "px", "py", "pz", "pc", "sx", "sy", "sz"):
         assert fig.store.values(name).size > 0
-    assert fig.store.values("sx").size % 2 == 0   # 端点点对
+    assert fig.store.values("sx").size % 2 == 0  # 端点点对
 
 
 def test_scene_layers_are_selectable():
-    only_particles = pk.field3d.scene(_Uniform(), layers=("particles",), n=8, particles=200)
+    only_particles = pk.field3d.scene(
+        _Uniform(), layers=("particles",), n=8, particles=200
+    )
     assert [l["kind"] for l in only_particles.spec["layers"]] == ["particles"]
 
     only_volume = pk.field3d.scene(_Uniform(), layers=("volume",), n=8, particles=0)
@@ -73,9 +75,11 @@ def test_scene_survives_degenerate_fields():
     for field in (_Broken(), _Tiny()):
         fig = pk.field3d.scene(field, n=8, particles=100, streamlines=2)
         kinds = [layer["kind"] for layer in fig.spec["layers"]]
-        assert "volume" in kinds          # 至少不抛异常，且仍能出图
-        assert all(np.all(np.isfinite(np.asarray(fig.store.values(n_))))
-                   for n_ in ("vx", "speed"))
+        assert "volume" in kinds  # 至少不抛异常，且仍能出图
+        assert all(
+            np.all(np.isfinite(np.asarray(fig.store.values(n_))))
+            for n_ in ("vx", "speed")
+        )
 
 
 def test_swirl_streamlines_turn():
@@ -95,10 +99,16 @@ def test_array_field_roundtrip(tmp_path):
     v = np.zeros_like(grid[0])
     w = np.zeros_like(grid[0])
     path = tmp_path / "field.npz"
-    np.savez(path, t=np.array([0.0, 1.0]), x=x, y=y, z=z,
-             u=np.stack([u.transpose(2, 1, 0)] * 2),
-             v=np.stack([v.transpose(2, 1, 0)] * 2),
-             w=np.stack([w.transpose(2, 1, 0)] * 2))
+    np.savez(
+        path,
+        t=np.array([0.0, 1.0]),
+        x=x,
+        y=y,
+        z=z,
+        u=np.stack([u.transpose(2, 1, 0)] * 2),
+        v=np.stack([v.transpose(2, 1, 0)] * 2),
+        w=np.stack([w.transpose(2, 1, 0)] * 2),
+    )
 
     field = pk.ns.ArrayField(str(path))
     assert field.bounds[0][0] == pytest.approx(-1.0)
@@ -107,12 +117,20 @@ def test_array_field_roundtrip(tmp_path):
     assert np.allclose(vel[:, 0], 0.5) and np.allclose(vel[:, 1:], 0.0)
 
     fig = pk.field3d.scene(field, n=8, particles=200, streamlines=2)
-    assert [layer["kind"] for layer in fig.spec["layers"]] == ["volume", "particles", "segments"]
+    assert [layer["kind"] for layer in fig.spec["layers"]] == [
+        "volume",
+        "particles",
+        "segments",
+    ]
 
 
 def test_ns_scene_still_works():
     fig = pk.ns.scene.figure(t=0.05, n=16, particles=300, streamlines=2)
-    assert [layer["kind"] for layer in fig.spec["layers"]] == ["volume", "particles", "segments"]
+    assert [layer["kind"] for layer in fig.spec["layers"]] == [
+        "volume",
+        "particles",
+        "segments",
+    ]
 
 
 def test_iso_switch_toggles_volume_layer():
@@ -137,8 +155,16 @@ def test_array_field_supports_scattered_points(tmp_path):
     y = rng.uniform(-1, 1, n)
     z = rng.uniform(-1, 1, n)
     path = tmp_path / "scattered.npz"
-    np.savez(path, t=np.array([0.0]), x=x, y=y, z=z,
-             u=np.full(n, 0.5), v=np.full(n, -0.25), w=np.zeros(n))
+    np.savez(
+        path,
+        t=np.array([0.0]),
+        x=x,
+        y=y,
+        z=z,
+        u=np.full(n, 0.5),
+        v=np.full(n, -0.25),
+        w=np.zeros(n),
+    )
     field = pk.ns.ArrayField(path)
     assert field.scattered is True
     vel = field.velocity(np.array([[0.0, 0.0, 0.0], [0.4, -0.3, 0.2]]), 0.0)
@@ -155,8 +181,9 @@ def test_scattered_velocity_uses_inverse_distance_weighting(tmp_path):
     v = np.zeros(4)
     w = np.zeros(4)
     path = tmp_path / "idw.npz"
-    np.savez(path, t=np.array([0.0]), x=x, y=y, z=z, u=u, v=v, w=w,
-             scattered=np.array(True))
+    np.savez(
+        path, t=np.array([0.0]), x=x, y=y, z=z, u=u, v=v, w=w, scattered=np.array(True)
+    )
     field = pk.ns.ArrayField(path)
     near_x = field.velocity(np.array([[0.9, 0.0, 0.0]]), 0.0)[0, 0]
     far_x = field.velocity(np.array([[0.2, 0.0, 0.0]]), 0.0)[0, 0]
@@ -196,4 +223,3 @@ def test_array_field_reads_hdf5(tmp_path):
     field = pk.ns.ArrayField(path)
     assert field.u.shape == shape
     assert np.allclose(field.velocity(np.zeros((1, 3)), 0.0), [[0.5, -0.25, 0.0]])
-

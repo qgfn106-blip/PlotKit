@@ -26,7 +26,10 @@ def simulate(fig: pk.Figure, hz: float = 50.0, steps: int = 2000) -> None:
         t = i * dt
         window = slice(max(0, i - 100), i + 1)
         t_arr = np.arange(0, i + 1) * dt
-        v = np.sin(2 * math.pi * 0.5 * t_arr) * 2.5 + math.sin(2 * math.pi * 7 * t_arr) * 0.2
+        v = (
+            np.sin(2 * math.pi * 0.5 * t_arr) * 2.5
+            + math.sin(2 * math.pi * 7 * t_arr) * 0.2
+        )
         fig.store.push("t", np.array([t]))
         fig.store.push("v", np.array([v[-1]]))
         _ = window

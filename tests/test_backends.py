@@ -13,7 +13,9 @@ def make_figure(n=50, *, subplot=0):
     store.add("t", t, role="coord", unit="s")
     store.add("v", 1 - np.exp(-t / 0.2), role="series", unit="V")
     spec = new_spec(ncols=2, subplots=2)
-    spec["layers"].append(new_layer("line", subplot=subplot, data={"x": "t", "y": "v"}, label="V"))
+    spec["layers"].append(
+        new_layer("line", subplot=subplot, data={"x": "t", "y": "v"}, label="V")
+    )
     return spec, store
 
 

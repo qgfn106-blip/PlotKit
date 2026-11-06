@@ -44,7 +44,10 @@ def test_surface_renders_with_colorbar():
 
 def test_line3d_renders():
     x, y, z = _line()
-    assert _colors(_fig("line3d", {"x": x, "y": y, "z": z}).render(width=420, height=300)) > 16
+    assert (
+        _colors(_fig("line3d", {"x": x, "y": y, "z": z}).render(width=420, height=300))
+        > 16
+    )
 
 
 def test_scatter3d_renders_and_colors_by_z():
@@ -63,7 +66,9 @@ def test_bar3d_renders():
 
 def test_hist3d_renders():
     rng = np.random.default_rng(5)
-    fig = _fig("hist3d", {"x": rng.normal(size=400), "y": rng.normal(size=400), "bins": 8})
+    fig = _fig(
+        "hist3d", {"x": rng.normal(size=400), "y": rng.normal(size=400), "bins": 8}
+    )
     assert _colors(fig.render(width=420, height=300)) > 16
 
 
@@ -71,7 +76,9 @@ def test_quiver3d_renders():
     n = 5
     g = np.linspace(-1, 1, n)
     X, Y, Z = np.meshgrid(g, g, g)
-    fig = _fig("quiver3d", {"x": X, "y": Y, "z": Z, "u": -Y, "v": X, "w": np.zeros_like(Z)})
+    fig = _fig(
+        "quiver3d", {"x": X, "y": Y, "z": Z, "u": -Y, "v": X, "w": np.zeros_like(Z)}
+    )
     assert _colors(fig.render(width=420, height=300)) > 16
 
 
@@ -79,14 +86,24 @@ def test_stream3d_renders():
     n = 8
     g = np.linspace(-1, 1, n)
     X, Y, Z = np.meshgrid(g, g, g)
-    fig = _fig("stream3d", {"x": X, "y": Y, "z": Z, "u": -Y, "v": X, "w": np.zeros_like(Z)})
+    fig = _fig(
+        "stream3d", {"x": X, "y": Y, "z": Z, "u": -Y, "v": X, "w": np.zeros_like(Z)}
+    )
     assert _colors(fig.render(width=420, height=300)) > 16
 
 
 def test_3d_kinds_registered():
     from plotkit.backends import registry as reg
 
-    for kind in ("surface", "line3d", "scatter3d", "bar3d", "hist3d", "quiver3d", "stream3d"):
+    for kind in (
+        "surface",
+        "line3d",
+        "scatter3d",
+        "bar3d",
+        "hist3d",
+        "quiver3d",
+        "stream3d",
+    ):
         assert kind in reg.kinds()
         assert reg.resolve(kind).dimension == 3
 
@@ -144,6 +161,6 @@ def test_bar3d_colors_by_height():
     z = (x + y).ravel()
     fig = _fig("bar3d", {"x": x.ravel(), "y": y.ravel(), "z": z})
     a = fig.render(width=360, height=260)
-    fig.spec["layers"][0]["style"]["color"] = "#ff0000"   # 纯色
+    fig.spec["layers"][0]["style"]["color"] = "#ff0000"  # 纯色
     b = fig.render(width=360, height=260)
     assert a != b, "默认应按高度上色，显式 color 才是单色"

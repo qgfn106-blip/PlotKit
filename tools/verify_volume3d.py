@@ -1,4 +1,5 @@
 """验收：主查看器里 volume + particles 两个新图层的真机渲染。"""
+
 import base64
 import json
 import pathlib
@@ -31,8 +32,8 @@ def build_figure():
     n = 40
     xs = np.linspace(-1, 1, n)
     X, Y, Z = np.meshgrid(xs, xs, xs, indexing="ij")
-    r = np.sqrt(X ** 2 + Y ** 2)
-    field = np.exp(-(r ** 2) / 0.18) * np.exp(-(Z ** 2) / 0.5) * (1.0 + 0.3 * np.sin(8 * Z))
+    r = np.sqrt(X**2 + Y**2)
+    field = np.exp(-(r**2) / 0.18) * np.exp(-(Z**2) / 0.5) * (1.0 + 0.3 * np.sin(8 * Z))
     fig = pk.figure(size=(7, 5.4), dpi=110, title="volume + particles")
     for name, arr in (("x", xs), ("y", xs), ("z", xs), ("f", field)):
         fig.add_data(name, arr)
@@ -43,8 +44,11 @@ def build_figure():
     fig.add_data("py", rad * np.sin(t))
     fig.add_data("pz", -0.9 + 1.8 * t / t.max())
     fig.add_data("pc", rad)
-    fig.add("particles", {"x": "px", "y": "py", "z": "pz", "c": "pc"},
-            style={"markersize": 3.4, "opacity": 0.30})
+    fig.add(
+        "particles",
+        {"x": "px", "y": "py", "z": "pz", "c": "pc"},
+        style={"markersize": 3.4, "opacity": 0.30},
+    )
     return fig
 
 
@@ -67,17 +71,25 @@ def main() -> int:
         time.sleep(6)
         try:
             win.evaluate_js("window.__err = null;")
-            win.evaluate_js("window.onerror = function (m) { window.__err = String(m); };")
+            win.evaluate_js(
+                "window.onerror = function (m) { window.__err = String(m); };"
+            )
             win.evaluate_js(
                 "window.addEventListener('unhandledrejection', function (e) {"
-                " window.__err = String((e.reason && e.reason.message) || e.reason); });")
+                " window.__err = String((e.reason && e.reason.message) || e.reason); });"
+            )
             info["page"] = win.evaluate_js(
                 "JSON.stringify({ready: document.readyState, title: document.title,"
-                " btns: document.querySelectorAll('button').length})")
-            win.evaluate_js("(document.getElementById('btn-3d') || {click: function () {}}).click()")
+                " btns: document.querySelectorAll('button').length})"
+            )
+            win.evaluate_js(
+                "(document.getElementById('btn-3d') || {click: function () {}}).click()"
+            )
             time.sleep(8)
             info["state"] = win.evaluate_js(STATE)
-            data = win.evaluate_js("document.getElementById('plot3d').toDataURL('image/png')")
+            data = win.evaluate_js(
+                "document.getElementById('plot3d').toDataURL('image/png')"
+            )
             info["bytes"] = len(data or "")
             if data and data.startswith("data:image/png;base64,"):
                 OUT.write_bytes(base64.b64decode(data.split(",", 1)[1]))
@@ -91,8 +103,11 @@ def main() -> int:
     win = webview.create_window("verify3d", url, width=1100, height=760)
     threading.Thread(target=probe, args=(win,), daemon=True).start()
     try:
-        webview.start(gui="edgechromium", private_mode=True,
-                      storage_path=str(pathlib.Path.home() / f".pk-vol-{int(time.time())}"))
+        webview.start(
+            gui="edgechromium",
+            private_mode=True,
+            storage_path=str(pathlib.Path.home() / f".pk-vol-{int(time.time())}"),
+        )
     finally:
         try:
             server.should_exit = True

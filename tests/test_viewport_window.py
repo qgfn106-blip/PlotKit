@@ -34,7 +34,7 @@ def test_window_slice_monotonic():
 def test_window_slice_non_monotonic_falls_back():
     x = np.array([0.0, 5.0, 1.0, 7.0, 3.0])
     i0, i1 = _window_slice(x, (1.0, 5.0))
-    assert (i0, i1) == (1, 5)     # 从第一个命中到最后一个命中之后
+    assert (i0, i1) == (1, 5)  # 从第一个命中到最后一个命中之后
     assert _window_slice(x, (100.0, 200.0)) == (0, 0)
 
 
@@ -71,7 +71,9 @@ def test_xy_window_peak_memory_is_window_sized():
 def test_error_bars_respect_window():
     store = _store()
     store.add("err", np.full(200_000, 0.5), role="series")
-    out = _xy(_layer(error_y="err"), store, pixels=None, per_pixel=2.0, trange=(10.0, 19.0))
+    out = _xy(
+        _layer(error_y="err"), store, pixels=None, per_pixel=2.0, trange=(10.0, 19.0)
+    )
     assert len(out[0]) == 10
 
 
@@ -84,6 +86,7 @@ def test_xy_dtype_kept_when_not_downsampling():
 
 
 # ---- 端到端：render(t_end=...) 不得再复制整份 store ----
+
 
 def _line_figure(t: np.ndarray, y: np.ndarray):
     import plotkit as pk
@@ -107,7 +110,7 @@ def test_render_t_end_with_window_matches_tail():
     t = np.arange(20_000, dtype=float)
     y = np.sin(t / 100.0)
     fig = _line_figure(t, y)
-    fig.window(999.0)                      # [t_end-999, t_end]
+    fig.window(999.0)  # [t_end-999, t_end]
     got = fig.render(width=600, height=360, t_end=9_999.0)
     want = _line_figure(t[9_000:10_000], y[9_000:10_000]).render(width=600, height=360)
     assert got == want
@@ -119,7 +122,7 @@ def test_render_t_end_avoids_store_copy(monkeypatch):
     t = np.arange(50_000, dtype=float)
     fig = _line_figure(t, np.sin(t / 100.0))
 
-    def boom(self, t_end):                  # noqa: ANN001
+    def boom(self, t_end):  # noqa: ANN001
         raise AssertionError("可切片的图层不应走 _store_at 整体复制")
 
     monkeypatch.setattr(pk.Figure, "_store_at", boom)

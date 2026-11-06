@@ -31,8 +31,8 @@ def test_lic_texture_smears_along_flow():
     tex = lic_texture(u, v, steps=24)
     along = float(np.corrcoef(tex[:, :-6].ravel(), tex[:, 6:].ravel())[0, 1])
     across = float(np.corrcoef(tex[:-6, :].ravel(), tex[6:, :].ravel())[0, 1])
-    assert along > 0.6          # 沿流向拉成丝
-    assert across < 0.2         # 横着基本不相关
+    assert along > 0.6  # 沿流向拉成丝
+    assert across < 0.2  # 横着基本不相关
     assert along > across + 0.4
 
 
@@ -42,7 +42,9 @@ def test_lic_rgb_shape_and_scalar_coloring():
     assert rgb.shape == (64, 64, 3)
     assert rgb.min() >= 0.0 and rgb.max() <= 1.0
     # 换了标量场，颜色应该跟着变
-    hot = lic_rgb(u, v, cmap="ocean", steps=6, scalar=np.linspace(0, 1, 64 * 64).reshape(64, 64))
+    hot = lic_rgb(
+        u, v, cmap="ocean", steps=6, scalar=np.linspace(0, 1, 64 * 64).reshape(64, 64)
+    )
     assert not np.allclose(rgb, hot)
 
 
@@ -58,8 +60,11 @@ def test_lic_kind_renders_png():
     fig.add_data("y", y)
     fig.add_data("u", u)
     fig.add_data("v", v)
-    fig.add("lic", {"x": "x", "y": "y", "u": "u", "v": "v"},
-            style={"cmap": "ocean", "steps": 8})
+    fig.add(
+        "lic",
+        {"x": "x", "y": "y", "u": "u", "v": "v"},
+        style={"cmap": "ocean", "steps": 8},
+    )
     png = fig.render(width=220, height=220)
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
 
@@ -77,8 +82,11 @@ def _volume_figure():
     fig.add_data("y", y)
     fig.add_data("z", z)
     fig.add_data("w", values)
-    fig.add("volume", {"x": "x", "y": "y", "z": "z", "values": "w"},
-            style={"cmap": "magma", "opacity_ramp": [0.0, 0.0, 0.2, 0.6]})
+    fig.add(
+        "volume",
+        {"x": "x", "y": "y", "z": "z", "values": "w"},
+        style={"cmap": "magma", "opacity_ramp": [0.0, 0.0, 0.2, 0.6]},
+    )
     return fig
 
 

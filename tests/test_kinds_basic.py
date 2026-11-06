@@ -31,6 +31,7 @@ def _figure(kind: str, cfg: dict) -> pk.Figure:
 
 # ---------------- hist ----------------
 
+
 def test_hist_bins_match_numpy():
     rng = np.random.default_rng(7)
     x = rng.normal(size=400)
@@ -49,12 +50,15 @@ def test_hist_density_and_nan_filtered():
 
 
 def test_hist_renders_non_blank():
-    payload = _figure("hist", {"x": np.random.default_rng(3).normal(size=300)}).render(width=480, height=300)
+    payload = _figure("hist", {"x": np.random.default_rng(3).normal(size=300)}).render(
+        width=480, height=300
+    )
     assert _png_size(payload) == (480, 300)
     assert _distinct_colors(payload) > 8
 
 
 # ---------------- pie ----------------
+
 
 def test_pie_requires_labels_and_values():
     fig = pk.figure()
@@ -70,11 +74,14 @@ def test_pie_roles_are_table_and_series():
 
 
 def test_pie_renders_non_blank():
-    payload = _figure("pie", {"labels": ["A", "B", "C"], "values": [3, 2, 1]}).render(width=480, height=300)
+    payload = _figure("pie", {"labels": ["A", "B", "C"], "values": [3, 2, 1]}).render(
+        width=480, height=300
+    )
     assert _distinct_colors(payload) > 8
 
 
 # ---------------- image ----------------
+
 
 def test_image_accepts_2d_array():
     fig = _figure("image", {"image": np.arange(60).reshape(6, 10)})
@@ -84,8 +91,9 @@ def test_image_accepts_2d_array():
 
 
 def test_image_renders_with_colorbar():
-    payload = _figure("image", {"image": np.random.default_rng(5).random((12, 18)),
-                                "colorbar": True}).render(width=480, height=300)
+    payload = _figure(
+        "image", {"image": np.random.default_rng(5).random((12, 18)), "colorbar": True}
+    ).render(width=480, height=300)
     assert _distinct_colors(payload) > 8
 
 
@@ -102,6 +110,7 @@ def test_image_rejects_wrong_role():
 
 # ---------------- table ----------------
 
+
 def test_table_cells_and_header():
     fig = _figure("table", {"cells": np.arange(6).reshape(3, 2), "header": ["x", "y"]})
     data = fig.layers()[0]["data"]
@@ -110,12 +119,14 @@ def test_table_cells_and_header():
 
 
 def test_table_renders_non_blank():
-    payload = _figure("table", {"cells": np.arange(6).reshape(3, 2),
-                                "header": ["x", "y"]}).render(width=480, height=300)
+    payload = _figure(
+        "table", {"cells": np.arange(6).reshape(3, 2), "header": ["x", "y"]}
+    ).render(width=480, height=300)
     assert _distinct_colors(payload) > 8
 
 
 # ---------------- 通用 ----------------
+
 
 def test_new_kinds_are_registered():
     from plotkit.backends import registry as reg
@@ -128,7 +139,9 @@ def test_new_kinds_are_registered():
 def test_spec_roundtrip_keeps_new_kinds():
     fig = _figure("image", {"image": np.zeros((4, 4)), "cmap": "magma"})
     text = fig.to_json()
-    again = pk.Figure.load_spec_text(text) if hasattr(pk.Figure, "load_spec_text") else None
+    again = (
+        pk.Figure.load_spec_text(text) if hasattr(pk.Figure, "load_spec_text") else None
+    )
     assert "magma" in text and '"image"' in text
     assert again is None or again.spec["layers"][0]["kind"] == "image"
 

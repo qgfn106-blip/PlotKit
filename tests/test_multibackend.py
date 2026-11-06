@@ -88,8 +88,15 @@ def test_layer_spec_builder_backwards_compatible():
     name = "_pk_test_builder_compat"
     builder = lambda layer, store: []  # noqa: E731
     try:
-        registry.register(name, 2, builder, defaults={}, passthrough=(),
-                          description="兼容性测试", overwrite=True)
+        registry.register(
+            name,
+            2,
+            builder,
+            defaults={},
+            passthrough=(),
+            description="兼容性测试",
+            overwrite=True,
+        )
         spec = registry.resolve(name)
         assert spec.builders and spec.builder is spec.builders["mpl"]
         assert spec.backend_names == ("mpl",)
@@ -103,8 +110,12 @@ def test_register_accepts_builders_mapping():
     name = "_pk_test_multi"
     try:
         registry.register(
-            name, 2, builders={"mpl": lambda layer, store: []},
-            defaults={"marker": False}, passthrough=(), description="测试用",
+            name,
+            2,
+            builders={"mpl": lambda layer, store: []},
+            defaults={"marker": False},
+            passthrough=(),
+            description="测试用",
             overwrite=True,
         )
         spec = registry.resolve(name)
@@ -128,7 +139,9 @@ def test_attach_builder_adds_backend():
             builders.pop("pyvista", None)
             import dataclasses
 
-            registry.LAYER_SPECS["line"] = dataclasses.replace(current, builders=builders)
+            registry.LAYER_SPECS["line"] = dataclasses.replace(
+                current, builders=builders
+            )
 
 
 # ---------------------------------------------------------------- 精度保持
@@ -151,7 +164,9 @@ pyvista = pytest.importorskip("pyvista", reason="未安装 pyvista")
 
 def test_pyvista_renders_surface():
     fig = _surface_figure()
-    result = fig.render_result(width=320, height=220, backend="pyvista", with_limits=True)
+    result = fig.render_result(
+        width=320, height=220, backend="pyvista", with_limits=True
+    )
     assert result.backend == "pyvista"
     assert result.payload[:8] == b"\x89PNG\r\n\x1a\n"
     assert result.limits and "xlim" in result.limits and "zlim" in result.limits
@@ -164,9 +179,9 @@ def test_hybrid_svg_is_raster_scene_plus_vector_overlay(monkeypatch):
     result = fig.render_result(width=320, height=240, backend="pyvista", fmt="svg")
     text = result.payload.decode("utf-8")
     assert result.backend == "pyvista"
-    assert text.count("<image") == 1          # 只有三维场景是位图
-    assert text.count("<path") > 30           # 轴/刻度/色块是真矢量
-    assert 'id="text' in text                 # 标题与刻度是文字对象，可检索
+    assert text.count("<image") == 1  # 只有三维场景是位图
+    assert text.count("<path") > 30  # 轴/刻度/色块是真矢量
+    assert 'id="text' in text  # 标题与刻度是文字对象，可检索
 
 
 def test_hybrid_can_be_disabled_with_env(monkeypatch):
@@ -188,7 +203,7 @@ def test_pyvista_svg_falls_back_to_mpl_when_hybrid_disabled(monkeypatch):
     assert result.backend == "mpl"
     assert result.fmt == "svg"
     text = result.payload.decode("utf-8", "ignore")
-    assert "<svg" in text and text.count("<path") > 50   # 真矢量路径，不是 <image>
+    assert "<svg" in text and text.count("<path") > 50  # 真矢量路径，不是 <image>
     assert result.meta.get("fallback") == "mpl"
 
 
@@ -198,7 +213,9 @@ def test_pyvista_backend_rejects_svg_directly():
 
     fig = _surface_figure()
     with pytest.raises(dispatch.BackendUnsupported):
-        pyvista_backend.render_result(fig.spec, fig.store, width=200, height=140, fmt="svg")
+        pyvista_backend.render_result(
+            fig.spec, fig.store, width=200, height=140, fmt="svg"
+        )
 
 
 def test_pyvista_auto_fallback_for_two_dimensional():
@@ -233,7 +250,7 @@ def test_close_plotters_is_safe():
 
     fig = _surface_figure()
     fig.render_result(width=200, height=140, backend="pyvista")
-    pyvista_backend.close_plotters()   # 在主线程关必须转到 VTK 线程，否则段错误
+    pyvista_backend.close_plotters()  # 在主线程关必须转到 VTK 线程，否则段错误
     again = fig.render_result(width=200, height=140, backend="pyvista")
     assert again.payload[:8] == b"\x89PNG\r\n\x1a\n"
 
@@ -247,8 +264,17 @@ def test_stream3d_paths_shared_between_backends():
     z = np.linspace(-1, 1, 5)
     X, Y, Z = np.meshgrid(x, y, z, indexing="ij")
     fig = pk.figure()
-    fig.add("stream3d", {"x": X, "y": Y, "z": Z,
-                         "u": np.ones_like(X), "v": np.zeros_like(Y), "w": np.zeros_like(Z)})
+    fig.add(
+        "stream3d",
+        {
+            "x": X,
+            "y": Y,
+            "z": Z,
+            "u": np.ones_like(X),
+            "v": np.zeros_like(Y),
+            "w": np.zeros_like(Z),
+        },
+    )
     layer = fig.spec["layers"][0]
     paths, style = mpl_backend.stream3d_paths(layer, fig.store)
     assert paths, "应当积分出至少一条流线"
@@ -276,7 +302,9 @@ def test_renderer_selector_two_dimensional():
     assert result.payload[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-@pytest.mark.skipif(not dispatch.available_backends().get("pyvista"), reason="pyvista 未安装")
+@pytest.mark.skipif(
+    not dispatch.available_backends().get("pyvista"), reason="pyvista 未安装"
+)
 def test_renderer_selector_three_dimensional_auto():
     fig = _surface_figure()
     selector = pk.RendererSelector(fig.spec, requested="auto")
@@ -284,6 +312,7 @@ def test_renderer_selector_three_dimensional_auto():
     result = selector.render(fig.store, width=260, height=180)
     assert result.backend == "pyvista"
     assert selector.backend == "pyvista"
+
 
 def test_pyvista_scene_cache_separates_stores():
     """不同 DataStore 的版本号都从 0 开始；场景缓存不能把内容不同的图判成同一场景。"""
@@ -298,5 +327,3 @@ def test_pyvista_scene_cache_separates_stores():
         return fig.render(width=180, height=140, backend="pyvista")
 
     assert render(1.0) != render(2.0)
-
-

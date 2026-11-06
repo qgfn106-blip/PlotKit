@@ -45,7 +45,9 @@ def test_render_is_byte_stable(fig):
 
 def test_render_xlim_changes_pixels_and_reports_limits(fig):
     base = fig.render(width=480, height=300)
-    zoomed, limits = fig.render(width=480, height=300, xlim=(0.0, 0.25), with_limits=True)
+    zoomed, limits = fig.render(
+        width=480, height=300, xlim=(0.0, 0.25), with_limits=True
+    )
     assert zoomed != base
     assert limits["xlim"] == [0.0, 0.25]
     assert limits["box"][2] > 0.5 and limits["box"][3] > 0.5
@@ -74,7 +76,9 @@ def test_render_endpoint_headers_and_etag(client):
     assert second.headers["x-plotkit-render"] == "hit"
     assert second.headers["etag"] == tag
 
-    third = client.get("/api/render", params={"w": 400, "h": 260}, headers={"If-None-Match": tag})
+    third = client.get(
+        "/api/render", params={"w": 400, "h": 260}, headers={"If-None-Match": tag}
+    )
     assert third.status_code == 304
 
 
@@ -107,7 +111,10 @@ def test_presets_apply_before_explicit_style(fig):
 
 def test_add_dispatches_like_multiplotter():
     f = pk.figure()
-    layer = f.add("line", {"x": np.arange(4), "y": np.arange(4) * 2, "color": "#ff0000", "label": "l"})
+    layer = f.add(
+        "line",
+        {"x": np.arange(4), "y": np.arange(4) * 2, "color": "#ff0000", "label": "l"},
+    )
     assert layer["kind"] == "line"
     assert layer["style"]["color"] == "#ff0000"
     assert layer["data"]["x"] and layer["data"]["y"]

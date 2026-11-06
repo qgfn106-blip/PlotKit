@@ -22,9 +22,10 @@ class _FakeField:
 
     def velocity(self, points, t):
         pts = np.asarray(points, dtype=float)
-        return np.stack([np.full(len(pts), 0.1),
-                         np.full(len(pts), 0.2),
-                         np.full(len(pts), 0.3)], axis=1)
+        return np.stack(
+            [np.full(len(pts), 0.1), np.full(len(pts), 0.2), np.full(len(pts), 0.3)],
+            axis=1,
+        )
 
 
 class _FakeResult:
@@ -53,8 +54,8 @@ def solver_client(monkeypatch):
 def _unframe(body: bytes):
     assert body[:4] == MAGIC
     (mlen,) = struct.unpack("<I", body[4:8])
-    meta = json.loads(body[8:8 + mlen].decode())
-    return meta, np.frombuffer(body[8 + mlen:], dtype=np.float32)
+    meta = json.loads(body[8 : 8 + mlen].decode())
+    return meta, np.frombuffer(body[8 + mlen :], dtype=np.float32)
 
 
 def test_meta_lists_both_sources(solver_client):
@@ -65,35 +66,52 @@ def test_meta_lists_both_sources(solver_client):
 
 
 def test_slice_from_solver_field(solver_client):
-    res = solver_client.get("/api/ns/slice", params={
-        "t": 0.4, "n_r": 32, "n_z": 32, "r_max": 0.3, "z_max": 0.6, "source": "solver",
-    })
+    res = solver_client.get(
+        "/api/ns/slice",
+        params={
+            "t": 0.4,
+            "n_r": 32,
+            "n_z": 32,
+            "r_max": 0.3,
+            "z_max": 0.6,
+            "source": "solver",
+        },
+    )
     assert res.status_code == 200
     meta, data = _unframe(res.content)
     assert meta["source"] == "solver"
     assert "Mode B" in meta["label"]
     # 速度模长 = |(0.1,0.2,0.3)|（假场是常数）
-    speed = data[len(data) // 2:]
+    speed = data[len(data) // 2 :]
     assert np.allclose(speed, np.hypot(0.1, np.hypot(0.2, 0.3)), rtol=1e-5)
 
 
 def test_diagnostics_from_solver_has_single_column(solver_client):
-    body = solver_client.get("/api/ns/diagnostics", params={"t": 0.5, "source": "solver"}).json()
+    body = solver_client.get(
+        "/api/ns/diagnostics", params={"t": 0.5, "source": "solver"}
+    ).json()
     assert body["source"] == "solver"
-    assert body["grid"] is None                       # 数值解没有"网格列"这回事
+    assert body["grid"] is None  # 数值解没有"网格列"这回事
     assert body["analytic"]["omega_max"] == pytest.approx(3.1)
     assert body["analytic"]["n_grid"] == 32
 
 
 def test_arrows_from_solver_field(solver_client):
-    res = solver_client.get("/api/ns/arrows", params={
-        "t": 0.2, "n_r": 3, "n_theta": 6, "n_z": 3, "source": "solver",
-    })
+    res = solver_client.get(
+        "/api/ns/arrows",
+        params={
+            "t": 0.2,
+            "n_r": 3,
+            "n_theta": 6,
+            "n_z": 3,
+            "source": "solver",
+        },
+    )
     assert res.status_code == 200
     meta, data = _unframe(res.content)
     n = meta["count"]
     assert n == 3 * 6 * 3
-    vx, vy, vz = data[n * 3:n * 4], data[n * 4:n * 5], data[n * 5:n * 6]
+    vx, vy, vz = data[n * 3 : n * 4], data[n * 4 : n * 5], data[n * 5 : n * 6]
     # 假场给的是柱坐标 (u_r,u_θ,u_z)=(0.1,0.2,0.3)；首个顶点 θ=0 → 笛卡尔 (0.1,0.2,0.3)
     assert np.allclose(vx[0], 0.1, atol=1e-6)
     assert np.allclose(vy[0], 0.2, atol=1e-6)
@@ -103,7 +121,7 @@ def test_arrows_from_solver_field(solver_client):
 def test_solver_not_ready_returns_503(monkeypatch):
     monkeypatch.setitem(ns_api._SOLVER, "field", None)
     monkeypatch.setitem(ns_api._SOLVER, "error", None)
-    monkeypatch.setitem(ns_api._SOLVER, "started", True)   # 不再真的启动求解
+    monkeypatch.setitem(ns_api._SOLVER, "started", True)  # 不再真的启动求解
     app = FastAPI()
     app.include_router(ns_api.router)
     res = TestClient(app).get("/api/ns/slice", params={"t": 0.3, "source": "solver"})

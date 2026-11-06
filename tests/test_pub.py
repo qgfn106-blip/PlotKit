@@ -16,7 +16,7 @@ from plotkit.spec import validate as v
 
 def _paper_figure() -> pk.Figure:
     x = np.linspace(1.4, 10.0, 12)
-    y = 0.5 * x ** -3.0
+    y = 0.5 * x**-3.0
     err = 0.08 * y
     fig = pk.figure(size=(5.6, 4.4), dpi=200)
     fig.add_plot(
@@ -117,7 +117,7 @@ def test_ticks_inside_mirror_and_fonts():
     ax = _axes(fig)
     params = ax.xaxis.get_tick_params()
     assert params["direction"] == "in"
-    assert params["top"] is True          # mirror → 上边也画刻度
+    assert params["top"] is True  # mirror → 上边也画刻度
     assert ax.get_xticklabels()[0].get_fontsize() == pytest.approx(9)
     assert ax.xaxis.label.get_fontsize() == pytest.approx(15)
 
@@ -174,7 +174,7 @@ def test_inset_does_not_consume_grid_slot():
     fig.add_inset(1, parent=0)
     fig.add_plot("line", x=[0, 1], y=[0, 1], subplot=1)
     fig.add_plot("line", x=[0, 1], y=[1, 0], subplot=2)
-    assert fig.spec["figure"]["subplots"] == 2   # figure 层记的是网格槽数
+    assert fig.spec["figure"]["subplots"] == 2  # figure 层记的是网格槽数
     assert len(fig.spec["figure"]["insets"]) == 1
 
 
@@ -190,7 +190,10 @@ def test_paper_figure_renders_to_png():
 
 
 def test_style_whitelist_keeps_unknown_in_warnings():
-    spec = {"figure": {}, "layers": [{"kind": "line", "data": {}, "style": {"bogus_key": 1}}]}
+    spec = {
+        "figure": {},
+        "layers": [{"kind": "line", "data": {}, "style": {"bogus_key": 1}}],
+    }
     report = v.validate_spec(spec)
     assert any("bogus_key" in i.message for i in report.warnings)
 
@@ -198,7 +201,7 @@ def test_style_whitelist_keeps_unknown_in_warnings():
 def test_alias_kind_is_valid_in_spec():
     fig = pk.figure()
     fig.add_plot("scatter", x=[1, 2], y=[1, 2])
-    fig.validate()   # scatter 是 marker 的别名，不应报错
+    fig.validate()  # scatter 是 marker 的别名，不应报错
 
 
 def test_validate_accepts_alias_kind():

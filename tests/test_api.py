@@ -64,15 +64,26 @@ def test_three_entry_points_share_one_spec():
     fig_b = pk.figure(size=(10, 6))
     fig_b.store.add("t", [0, 1, 2], role="coord")
     fig_b.store.add("v", [3, 4, 5], role="series")
-    fig_b.add_trace({"type": "scatter", "x": "t", "y": "v", "name": "V",
-                     "line": {"color": "#4fc3f7"}})
+    fig_b.add_trace(
+        {
+            "type": "scatter",
+            "x": "t",
+            "y": "v",
+            "name": "V",
+            "line": {"color": "#4fc3f7"},
+        }
+    )
 
     fig_c, axes = pk.subplots(1, 1, size=(10, 6))
     fig_c.store.add("t", [0, 1, 2], role="coord")
     fig_c.store.add("v", [3, 4, 5], role="series")
     axes[0].plot("t", "v", label="V", color="#4fc3f7")
 
-    assert strip_ids(fig_a.to_spec()) == strip_ids(fig_b.to_spec()) == strip_ids(fig_c.to_spec())
+    assert (
+        strip_ids(fig_a.to_spec())
+        == strip_ids(fig_b.to_spec())
+        == strip_ids(fig_c.to_spec())
+    )
 
 
 def test_update_layout_and_traces():
@@ -102,7 +113,6 @@ def test_save_and_load_spec(tmp_path):
     assert strip_ids(reloaded.to_spec()) == strip_ids(fig.to_spec())
 
 
-
 def test_png_bytes_nonempty():
     fig = pk.figure()
     fig.add_plot("bar", x=[0, 1, 2], y=[3, 1, 2], label="bars")
@@ -118,7 +128,7 @@ def test_html_is_self_contained():
     assert "<svg" in html
     # 没有任何外链脚本/样式，也没有 plotly：断网也能打开
     assert "<script src=" not in html
-    assert "<link rel=\"stylesheet\"" not in html
+    assert '<link rel="stylesheet"' not in html
     assert "plotly" not in html.lower()
 
 

@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 def test_physical_mapping_hits_reference_amplitude():
     """默认 Γ=4.26 / a=0.6 / r_core=0.775 应当正好还原之前的调参结果（c∞≈1）。"""
     p = PhysicalParams().to_similarity()
-    assert p.x0 == pytest.approx(0.775 ** 2, rel=1e-6)
+    assert p.x0 == pytest.approx(0.775**2, rel=1e-6)
     assert p.alpha == pytest.approx(0.6)
     assert p.c_inf == pytest.approx(1.0, rel=0.02)
 
@@ -57,13 +57,17 @@ def _frame_meta(resp) -> dict:
 
     raw = resp.content
     (mlen,) = struct.unpack("<I", raw[4:8])
-    return json.loads(raw[8:8 + mlen].decode("utf-8"))
+    return json.loads(raw[8 : 8 + mlen].decode("utf-8"))
 
 
 def test_slice_accepts_phys_and_changes_meta():
     c = TestClient(create_app())
-    small = c.get("/api/ns/slice", params={"t": 0.4, "phys": "2,0.6,0.775", "n_r": 32, "n_z": 48})
-    big = c.get("/api/ns/slice", params={"t": 0.4, "phys": "8,0.6,0.775", "n_r": 32, "n_z": 48})
+    small = c.get(
+        "/api/ns/slice", params={"t": 0.4, "phys": "2,0.6,0.775", "n_r": 32, "n_z": 48}
+    )
+    big = c.get(
+        "/api/ns/slice", params={"t": 0.4, "phys": "8,0.6,0.775", "n_r": 32, "n_z": 48}
+    )
     assert small.status_code == 200 and big.status_code == 200
     # Γ 翻 4 倍 → 速度场整体翻 4 倍（环量定义在 r=2·r_core 上，c∞ 线性）
     assert _frame_meta(big)["u_max"] > 3.0 * _frame_meta(small)["u_max"]
@@ -79,24 +83,51 @@ class _FakeResult:
 
     def __init__(self):
         n = 16
-        x, y, z = np.meshgrid(np.linspace(-1, 1, n), np.linspace(-1, 1, n),
-                              np.linspace(-1, 1, n), indexing="ij")
+        x, y, z = np.meshgrid(
+            np.linspace(-1, 1, n),
+            np.linspace(-1, 1, n),
+            np.linspace(-1, 1, n),
+            indexing="ij",
+        )
         r2 = x * x + y * y
-        self.frames = np.stack([
-            np.stack([-y, x, np.zeros_like(x)]).reshape(3, n, n, n),
-            np.stack([np.zeros_like(x), np.zeros_like(x), np.zeros_like(x)]).reshape(3, n, n, n),
-        ])[:1] if False else np.stack([np.stack([-y, x, np.zeros_like(x)]).reshape(3, n, n, n)])
+        self.frames = (
+            np.stack(
+                [
+                    np.stack([-y, x, np.zeros_like(x)]).reshape(3, n, n, n),
+                    np.stack(
+                        [np.zeros_like(x), np.zeros_like(x), np.zeros_like(x)]
+                    ).reshape(3, n, n, n),
+                ]
+            )[:1]
+            if False
+            else np.stack([np.stack([-y, x, np.zeros_like(x)]).reshape(3, n, n, n)])
+        )
         self.frames = np.repeat(self.frames, 3, axis=0).astype(np.float32)
         self.times = np.array([0.0, 0.5, 1.0])
-        self.diag = [{"peak_speed": 1.0, "peak_vorticity": 1.0, "enstrophy": 1.0,
-                      "energy": 1.0, "half_peak_radius": 0.5, "divergence": 0.0}] * 3
+        self.diag = [
+            {
+                "peak_speed": 1.0,
+                "peak_vorticity": 1.0,
+                "enstrophy": 1.0,
+                "energy": 1.0,
+                "half_peak_radius": 0.5,
+                "divergence": 0.0,
+            }
+        ] * 3
 
 
 @pytest.fixture()
 def with_fake_solver():
     old = dict(ns._SOLVER)
-    ns._SOLVER.update({"result": _FakeResult(), "field": object(), "started": True,
-                       "error": None, "progress": 1.0})
+    ns._SOLVER.update(
+        {
+            "result": _FakeResult(),
+            "field": object(),
+            "started": True,
+            "error": None,
+            "progress": 1.0,
+        }
+    )
     yield ns._SOLVER
     ns._SOLVER.clear()
     ns._SOLVER.update(old)
@@ -112,8 +143,15 @@ def test_iso_returns_triangles(with_fake_solver):
 
 def test_iso_and_streamlines_reject_analytic():
     c = TestClient(create_app())
-    assert c.get("/api/ns/iso", params={"t": 0.5, "source": "analytic"}).status_code == 400
-    assert c.get("/api/ns/streamlines", params={"t": 0.5, "source": "analytic"}).status_code == 400
+    assert (
+        c.get("/api/ns/iso", params={"t": 0.5, "source": "analytic"}).status_code == 400
+    )
+    assert (
+        c.get(
+            "/api/ns/streamlines", params={"t": 0.5, "source": "analytic"}
+        ).status_code
+        == 400
+    )
 
 
 def test_streamlines_returns_polylines(with_fake_solver):
@@ -135,11 +173,19 @@ def test_slice_umax_scales_with_gamma():
     client = TestClient(create_app())
 
     def umax(phys: str) -> float:
-        res = client.get("/api/ns/slice", params={
-            "t": 0.3, "n_r": 32, "n_z": 32, "r_max": 0.5, "z_max": 1.1, "phys": phys,
-        })
+        res = client.get(
+            "/api/ns/slice",
+            params={
+                "t": 0.3,
+                "n_r": 32,
+                "n_z": 32,
+                "r_max": 0.5,
+                "z_max": 1.1,
+                "phys": phys,
+            },
+        )
         assert res.status_code == 200
         mlen = struct.unpack("<I", res.content[4:8])[0]
-        return float(json.loads(res.content[8:8 + mlen])["u_max"])
+        return float(json.loads(res.content[8 : 8 + mlen])["u_max"])
 
     assert umax("8,0.6,0.775") / umax("2,0.6,0.775") == pytest.approx(4.0, rel=0.05)

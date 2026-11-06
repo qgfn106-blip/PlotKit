@@ -39,22 +39,28 @@ def test_quiver_renders_and_draws_arrows():
 def test_quiver_accepts_flat_vectors():
     """1D 的 x/y/u/v（散点式箭头）也要能画。"""
     fig = pk.figure()
-    fig.add("quiver", {"x": np.arange(6.0), "y": np.arange(6.0),
-                       "u": np.ones(6), "v": np.zeros(6)})
+    fig.add(
+        "quiver",
+        {"x": np.arange(6.0), "y": np.arange(6.0), "u": np.ones(6), "v": np.zeros(6)},
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     assert mpl_fig.axes[0].collections
 
 
 def test_quiver_requires_four_keys():
     with pytest.raises(ValueError, match="u"):
-        pk.figure().add("quiver", {"x": np.arange(3.0), "y": np.arange(3.0), "v": np.ones(3)})
+        pk.figure().add(
+            "quiver", {"x": np.arange(3.0), "y": np.arange(3.0), "v": np.ones(3)}
+        )
 
 
 def test_streamplot_requires_grid():
     """streamplot 必须是二维网格，1D 输入要给可读的报错，而不是 mpl 的底层异常。"""
     fig = pk.figure()
-    fig.add("streamplot", {"x": np.arange(5.0), "y": np.arange(5.0),
-                           "u": np.ones(5), "v": np.ones(5)})
+    fig.add(
+        "streamplot",
+        {"x": np.arange(5.0), "y": np.arange(5.0), "u": np.ones(5), "v": np.ones(5)},
+    )
     with pytest.raises(ValueError, match="二维"):
         fig.render(width=320, height=220)
 

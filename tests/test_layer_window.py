@@ -3,6 +3,7 @@
 纯前端功能，pytest 里只能静态护栏；真实拖拽/收起的验证用无头浏览器做过，
 见 docs/specs/2026-11-03-canvas-free-layout-annotations.md 的 P3 实测。
 """
+
 from __future__ import annotations
 
 import re
@@ -28,7 +29,7 @@ def test_layer_window_moves_dom_and_restores_it():
     assert "function popLayers(" in JS
     assert "function dockLayers(" in JS
     # 浮出：把 #layerSect 塞进浮窗 body；收起：插回 #panel（内嵌图分组之前）
-    assert 'body.appendChild(sect)' in JS
+    assert "body.appendChild(sect)" in JS
     assert "panel.insertBefore(sect" in JS
     # 按钮是开关，收起按钮直接收
     assert '$("btn-layer-pop").onclick' in JS
@@ -38,8 +39,8 @@ def test_layer_window_moves_dom_and_restores_it():
 def test_layer_window_drag_and_resize_are_clamped():
     assert "function applyLayerWinRect(" in JS
     assert "function clampLayerWinRect(" in JS
-    assert "startDrag(ev, \"move\")" in JS
-    assert "startDrag(ev, \"resize\")" in JS
+    assert 'startDrag(ev, "move")' in JS
+    assert 'startDrag(ev, "resize")' in JS
     # 拖动标题栏不能把「收起」按钮也当成拖窗
     assert 'ev.target.closest("button")' in JS
     # 缩放下限，别拖成 0 宽

@@ -21,7 +21,9 @@ REPEAT = 9
 def _data(n=20_000, seed=0):
     rng = np.random.default_rng(seed)
     t = np.linspace(0.0, 5.0, n)
-    return t, [np.sin(t * (1 + i * 0.3)) * (1 + i) + rng.normal(0, 0.02, n) for i in range(6)]
+    return t, [
+        np.sin(t * (1 + i * 0.3)) * (1 + i) + rng.normal(0, 0.02, n) for i in range(6)
+    ]
 
 
 def _envelope(y, pixels, per_pixel=2):
@@ -151,7 +153,9 @@ def main():
 
     n_src = len(t) * len(ys)
     n_ds = len(ys_ds[0]) * len(ys)
-    print(f"点规模：原始 {n_src:,} 点 → 抽稀后 {n_ds:,} 点（{W}x{H} @ {DPI}dpi，{len(ys)} 通道）")
+    print(
+        f"点规模：原始 {n_src:,} 点 → 抽稀后 {n_ds:,} 点（{W}x{H} @ {DPI}dpi，{len(ys)} 通道）"
+    )
     print(f"{'case':34s} {'p50(ms)':>9s} {'min(ms)':>9s}")
     for name, p50, best in rows:
         print(f"{name:34s} {p50:9.1f} {best:9.1f}")

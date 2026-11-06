@@ -46,7 +46,7 @@ def test_inverse_map_roundtrip(p):
     X, eta, q = inverse_map(z, r, t, p)
     tau = p.t_blow - t
     # 反解：q = τ/(1-η²)，z = q^D η，r = √(2qX)
-    q_back = tau / (1.0 - eta ** 2)
+    q_back = tau / (1.0 - eta**2)
     np.testing.assert_allclose(q_back, q, rtol=1e-6)
     np.testing.assert_allclose(np.power(q, p.D) * eta, z, rtol=1e-6, atol=1e-9)
     np.testing.assert_allclose(np.sqrt(2.0 * q * X), r, rtol=1e-6)
@@ -83,9 +83,12 @@ def test_incompressibility_residual(p, table):
     z = np.linspace(-1.0, 1.0, n)
     R, Z = np.meshgrid(r, z, indexing="ij")
     ur, ut, uz = velocity_at(R, Z, 0.5, p, table)
-    div = (np.gradient(ur, r[1] - r[0], axis=0) + ur / R
-           + np.gradient(uz, z[1] - z[0], axis=1))
-    rel = np.sqrt(np.mean(div ** 2)) / np.sqrt(np.mean(ur ** 2 + ut ** 2 + uz ** 2))
+    div = (
+        np.gradient(ur, r[1] - r[0], axis=0)
+        + ur / R
+        + np.gradient(uz, z[1] - z[0], axis=1)
+    )
+    rel = np.sqrt(np.mean(div**2)) / np.sqrt(np.mean(ur**2 + ut**2 + uz**2))
     assert rel < 0.05, f"不可压残差 {rel:.3f} 偏大"
 
 
@@ -112,8 +115,12 @@ def test_growth_scaling(p, table, tau):
     ref_tau = 0.2
     ref = analyze(p, p.t_blow - ref_tau, table=table, n_r=160, n_z=160)
     # 论文：‖u‖ ≍ τ^(−1/2−h)，而 ‖ω‖ ≍ τ^(−1)（涡量才是真正发散的量）
-    assert stats.u_max / ref.u_max == pytest.approx((tau / ref_tau) ** (-(0.5 + p.h)), rel=0.25)
-    assert stats.omega_max / ref.omega_max == pytest.approx((tau / ref_tau) ** -1.0, rel=0.35)
+    assert stats.u_max / ref.u_max == pytest.approx(
+        (tau / ref_tau) ** (-(0.5 + p.h)), rel=0.25
+    )
+    assert stats.omega_max / ref.omega_max == pytest.approx(
+        (tau / ref_tau) ** -1.0, rel=0.35
+    )
 
 
 def test_elongation_grows_as_tau_power():
@@ -137,7 +144,16 @@ def test_grid_column_undershoots_analytic(p, table):
 def test_diagnostics_fields_are_finite(p, table):
     s = analyze(p, 0.5, table=table, n_r=120, n_z=120)
     d = s.as_dict()
-    for key in ("u_max", "omega_max", "enstrophy", "kinetic", "core_radius",
-                "axial_extent", "elongation", "divergence_rel", "re_theta"):
+    for key in (
+        "u_max",
+        "omega_max",
+        "enstrophy",
+        "kinetic",
+        "core_radius",
+        "axial_extent",
+        "elongation",
+        "divergence_rel",
+        "re_theta",
+    ):
         assert np.isfinite(d[key]), key
         assert d[key] >= 0 or key == "elongation"

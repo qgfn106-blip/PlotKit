@@ -51,7 +51,9 @@ def test_ecdf_is_monotonic():
 
 def test_hexbin_renders():
     rng = np.random.default_rng(3)
-    fig = _fig("hexbin", {"x": rng.normal(size=400), "y": rng.normal(size=400), "gridsize": 12})
+    fig = _fig(
+        "hexbin", {"x": rng.normal(size=400), "y": rng.normal(size=400), "gridsize": 12}
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     assert mpl_fig.axes[0].collections
     assert _colors(fig.render(width=420, height=280)) > 16
@@ -76,7 +78,9 @@ def test_stackplot_stacks_series():
 
 
 def test_step_uses_step_path():
-    fig = _fig("step", {"x": np.arange(5.0), "y": np.array([0.0, 1, 0, 1, 0]), "where": "post"})
+    fig = _fig(
+        "step", {"x": np.arange(5.0), "y": np.array([0.0, 1, 0, 1, 0]), "where": "post"}
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     line = mpl_fig.axes[0].lines[0]
     verts = line.get_xydata()
@@ -95,7 +99,16 @@ def test_stem_renders_stems():
 def test_new_kinds_registered():
     from plotkit.backends import registry as reg
 
-    for kind in ("boxplot", "violinplot", "ecdf", "hexbin", "barh", "stackplot", "step", "stem"):
+    for kind in (
+        "boxplot",
+        "violinplot",
+        "ecdf",
+        "hexbin",
+        "barh",
+        "stackplot",
+        "step",
+        "stem",
+    ):
         assert kind in reg.kinds()
         assert reg.resolve(kind).dimension == 2
 
@@ -123,7 +136,9 @@ def test_stem_does_not_recolor_other_layers():
 
 
 def test_step_rejects_2d_y():
-    fig = _fig("step", {"x": np.arange(6.0), "y": np.vstack([np.arange(6.0), np.arange(6.0)])})
+    fig = _fig(
+        "step", {"x": np.arange(6.0), "y": np.vstack([np.arange(6.0), np.arange(6.0)])}
+    )
     with pytest.raises(ValueError, match="一维"):
         fig.render(width=320, height=220)
 

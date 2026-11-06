@@ -12,7 +12,7 @@ def test_scene_figure_has_volume_and_particles():
     fig = pk.ns.scene.figure(t=0.05, n=12, particles=300)
     kinds = [layer["kind"] for layer in fig.spec["layers"]]
     assert kinds[:2] == ["volume", "particles"]
-    assert "segments" in kinds   # 阶段 4：默认带流线
+    assert "segments" in kinds  # 阶段 4：默认带流线
     assert set(kinds) <= set(pk.kinds())
 
 
@@ -22,24 +22,30 @@ def test_scene_volume_field_is_regular_grid():
     zs = np.asarray(fig.store.values("vz"))
     field = np.asarray(fig.store.values("speed"))
     assert xs.size == zs.size == 10
-    assert field.shape == (10, 10, 10)          # (nz, ny, nx)
+    assert field.shape == (10, 10, 10)  # (nz, ny, nx)
     assert np.isfinite(field).all() and field.max() > 0
 
 
 def test_scene_field_grows_as_tau_shrinks():
     """该解在 t→1 时速度发散：同一个网格上 t 越大峰值越大。"""
-    early = np.asarray(pk.ns.scene.figure(t=0.2, n=10, particles=50).store.values("speed")).max()
-    late = np.asarray(pk.ns.scene.figure(t=0.9, n=10, particles=50).store.values("speed")).max()
+    early = np.asarray(
+        pk.ns.scene.figure(t=0.2, n=10, particles=50).store.values("speed")
+    ).max()
+    late = np.asarray(
+        pk.ns.scene.figure(t=0.9, n=10, particles=50).store.values("speed")
+    ).max()
     assert late > early * 2
 
 
 def test_scene_accepts_physical_params():
     from plotkit.ns.field import PhysicalParams
 
-    weak = pk.ns.scene.figure(t=0.3, n=10, particles=50,
-                              physical=PhysicalParams(gamma=2.0))
-    strong = pk.ns.scene.figure(t=0.3, n=10, particles=50,
-                                physical=PhysicalParams(gamma=8.0))
+    weak = pk.ns.scene.figure(
+        t=0.3, n=10, particles=50, physical=PhysicalParams(gamma=2.0)
+    )
+    strong = pk.ns.scene.figure(
+        t=0.3, n=10, particles=50, physical=PhysicalParams(gamma=8.0)
+    )
     a = np.asarray(weak.store.values("speed")).max()
     b = np.asarray(strong.store.values("speed")).max()
     assert b == pytest.approx(a * 4.0, rel=0.05)
@@ -68,7 +74,9 @@ def test_streamlines_stay_inside_box():
     from plotkit.ns.scene import streamline_segments
 
     f = ns_field.SimilarityField(ns_field.SimilarityParams())
-    sx, sy, sz = streamline_segments(f, 0.05, seeds=4, steps=20, extent=0.4, z_extent=0.9)
+    sx, sy, sz = streamline_segments(
+        f, 0.05, seeds=4, steps=20, extent=0.4, z_extent=0.9
+    )
     assert sx.size == sy.size == sz.size
     assert np.all(np.isfinite(sx)) and np.all(np.isfinite(sz))
     assert np.max(np.hypot(sx, sy)) <= 0.4 * 1.16
@@ -93,6 +101,11 @@ def test_segments_endpoint_serves_pairs():
     body = res.content
     assert body[:4] == b"PK01"
     meta_len = int.from_bytes(body[4:8], "little")
-    assert int.from_bytes(body[8:12], "little") == 4          # 4 个端点 = 2 段
+    assert int.from_bytes(body[8:12], "little") == 4  # 4 个端点 = 2 段
     assert meta_len > 0
-    assert client.get("/api/segments", params={"x": "nope", "y": "sy", "z": "sz"}).status_code == 404
+    assert (
+        client.get(
+            "/api/segments", params={"x": "nope", "y": "sy", "z": "sz"}
+        ).status_code
+        == 404
+    )

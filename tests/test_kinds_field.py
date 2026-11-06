@@ -16,7 +16,9 @@ def _grid(rows: int = 12, cols: int = 16, seed: int = 0) -> np.ndarray:
     rng = np.random.default_rng(seed)
     x = np.linspace(-2, 2, cols)
     y = np.linspace(-1, 1, rows)
-    return np.sin(x[None, :] * 2) * np.cos(y[:, None] * 3) + rng.normal(scale=0.05, size=(rows, cols))
+    return np.sin(x[None, :] * 2) * np.cos(y[:, None] * 3) + rng.normal(
+        scale=0.05, size=(rows, cols)
+    )
 
 
 def _figure(kind: str, cfg: dict) -> pk.Figure:
@@ -31,6 +33,7 @@ def _colors(payload: bytes) -> int:
 
 # ---------------- heatmap ----------------
 
+
 def test_heatmap_renders_with_colorbar():
     fig = _figure("heatmap", {"z": _grid()})
     payload = fig.render(width=480, height=320)
@@ -41,7 +44,10 @@ def test_heatmap_renders_with_colorbar():
 
 
 def test_heatmap_with_explicit_xy_uses_pcolormesh():
-    fig = _figure("heatmap", {"z": _grid(6, 8), "x": np.linspace(0, 1, 8), "y": np.linspace(0, 2, 6)})
+    fig = _figure(
+        "heatmap",
+        {"z": _grid(6, 8), "x": np.linspace(0, 1, 8), "y": np.linspace(0, 2, 6)},
+    )
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=100)
     main = mpl_fig.axes[0]
     assert main.collections, "pcolormesh 应产生 QuadMesh"
@@ -55,6 +61,7 @@ def test_heatmap_requires_z():
 
 
 # ---------------- contour ----------------
+
 
 def test_contour_levels_honoured():
     """传显式 levels 列表时必须逐条生效（传整数只是"建议值"，mpl 会自行取整）。"""
@@ -79,16 +86,21 @@ def test_contourf_is_filled():
 
 
 def test_contour_renders_non_blank():
-    assert _colors(_figure("contour", {"z": _grid()}).render(width=420, height=280)) > 16
+    assert (
+        _colors(_figure("contour", {"z": _grid()}).render(width=420, height=280)) > 16
+    )
 
 
 # ---------------- correlation ----------------
+
 
 def test_correlation_matrix_matches_numpy():
     rng = np.random.default_rng(11)
     cols = [rng.normal(size=50) for _ in range(4)]
     fig = pk.figure(size=(4.5, 3.6))
-    layer = fig.add_correlation({"a": cols[0], "b": cols[1], "c": cols[2], "d": cols[3]})
+    layer = fig.add_correlation(
+        {"a": cols[0], "b": cols[1], "c": cols[2], "d": cols[3]}
+    )
     matrix = np.asarray(fig.store.values(layer["data"]["z"]))
     ref = np.corrcoef(np.vstack(cols))
     assert matrix.shape == (4, 4)
@@ -111,6 +123,7 @@ def test_correlation_aliases_resolve():
 
 
 # ---------------- 注册与校验 ----------------
+
 
 def test_field_kinds_registered():
     from plotkit.backends import registry as reg

@@ -16,7 +16,3 @@ def client(tmp_path: Path) -> TestClient:
     fig = pk.figure()
     fig.add_plot(x=[0, 1, 2], y=[1, 2, 3], label="a")
     return TestClient(create_app(fig, layout_path=tmp_path / "layout.json"))
-
-
-
-

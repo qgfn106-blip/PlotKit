@@ -23,7 +23,10 @@ def _two_slot_figure(**kwargs):
 
 
 def _boxes(mpl_fig):
-    return [tuple(round(float(v), 3) for v in ax.get_position().bounds) for ax in mpl_fig.axes]
+    return [
+        tuple(round(float(v), 3) for v in ax.get_position().bounds)
+        for ax in mpl_fig.axes
+    ]
 
 
 def test_free_layout_places_slots_at_rects_and_allows_overlap() -> None:
@@ -68,7 +71,10 @@ def test_slots_missing_from_layout_fall_back_to_grid() -> None:
         [{"slot": 0, "rect": [0.0, 0.0, 0.5]}],
         [{"slot": -1, "rect": [0.0, 0.0, 0.5, 0.5]}],
         [{"slot": "0", "rect": [0.0, 0.0, 0.5, 0.5]}],
-        [{"slot": 0, "rect": [0.0, 0.0, 0.5, 0.5]}, {"slot": 0, "rect": [0.1, 0.1, 0.2, 0.2]}],
+        [
+            {"slot": 0, "rect": [0.0, 0.0, 0.5, 0.5]},
+            {"slot": 0, "rect": [0.1, 0.1, 0.2, 0.2]},
+        ],
         [{"slot": 0, "rect": [0.9, 0.9, 0.8, 0.8]}],
     ],
 )

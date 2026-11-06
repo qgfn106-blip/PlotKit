@@ -85,7 +85,9 @@ def probe_qt() -> int:
 
 
 def _run(cmd: list[str]) -> dict:
-    proc = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=300)
+    proc = subprocess.run(
+        cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=300
+    )
     for line in reversed(proc.stdout.strip().splitlines()):
         line = line.strip()
         if line.startswith("{"):
@@ -107,9 +109,21 @@ def main(argv: list[str]) -> int:
 
     rows = [
         ("壳", "pywebview + WebView2", "Qt WebEngine"),
-        ("到窗口创建", f"{pywebview.get('window_create_ms')} ms + 导入 {pywebview.get('import_and_figure_ms')} ms", "见导入+服务"),
-        ("到页面 loaded", f"{pywebview.get('page_loaded_ms')} ms", f"{qt.get('page_loaded_ms')} ms"),
-        ("稳态内存（含子进程）", f"{pywebview.get('rss_mb')} MB", f"{qt.get('rss_tree_mb')} MB"),
+        (
+            "到窗口创建",
+            f"{pywebview.get('window_create_ms')} ms + 导入 {pywebview.get('import_and_figure_ms')} ms",
+            "见导入+服务",
+        ),
+        (
+            "到页面 loaded",
+            f"{pywebview.get('page_loaded_ms')} ms",
+            f"{qt.get('page_loaded_ms')} ms",
+        ),
+        (
+            "稳态内存（含子进程）",
+            f"{pywebview.get('rss_mb')} MB",
+            f"{qt.get('rss_tree_mb')} MB",
+        ),
         ("首帧渲染", f"{pywebview.get('render_roundtrip_ms')} ms", "—"),
         ("二次渲染（缓存）", f"{pywebview.get('render_roundtrip_hot_ms')} ms", "—"),
         ("页面标题", str(pywebview.get("page_title")), str(qt.get("page_title"))),

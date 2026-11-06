@@ -25,8 +25,9 @@ def _client():
 
 def test_post_batch_returns_zip_bytes():
     api, fig = _client()
-    data = cli.post_batch(api, {"width": 160, "height": 120,
-                                "frames": [{"spec": fig.spec}]})
+    data = cli.post_batch(
+        api, {"width": 160, "height": 120, "frames": [{"spec": fig.spec}]}
+    )
     with zipfile.ZipFile(io.BytesIO(data)) as bundle:
         assert bundle.namelist() == ["frame_0001.png"]
 
@@ -44,8 +45,10 @@ def test_post_batch_raises_on_error():
 def test_render3d_command_writes_zip(tmp_path, monkeypatch):
     api, fig = _client()
     payload_path = tmp_path / "frames.json"
-    payload_path.write_text(json.dumps({"width": 160, "height": 120,
-                                        "frames": [{"spec": fig.spec}]}), encoding="utf-8")
+    payload_path.write_text(
+        json.dumps({"width": 160, "height": 120, "frames": [{"spec": fig.spec}]}),
+        encoding="utf-8",
+    )
     out = tmp_path / "out.zip"
 
     class _FakeClient:

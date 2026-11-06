@@ -16,7 +16,7 @@ def test_many_pushes_keep_order_and_length():
     data = store.get("y")
     assert data.values.size == 5000
     assert data.meta.length == 5000
-    assert data.meta.version == 501          # add 记 1 次，push 500 次
+    assert data.meta.version == 501  # add 记 1 次，push 500 次
     assert data.values[:10].tolist() == [0.0] * 10
     assert data.values[-10:].tolist() == [499.0] * 10
 
@@ -28,7 +28,7 @@ def test_values_view_tracks_growth():
     assert first.size == 3
     for _ in range(500):
         store.push("y", np.array([1.0, 2.0]))
-    assert first.size == 3                   # 旧视图长度不漂移
+    assert first.size == 3  # 旧视图长度不漂移
     assert store.get("y").values.size == 1003
 
 
@@ -65,7 +65,7 @@ def test_nbytes_counts_reserved_capacity():
     for _ in range(50):
         store.push("y", np.ones(1000))
     data = store.get("y")
-    assert store.nbytes() >= data.values.nbytes          # 含预留容量的实际占用
+    assert store.nbytes() >= data.values.nbytes  # 含预留容量的实际占用
     assert data.capacity_bytes >= data.values.nbytes
     # 预留不至于失控：不超过逻辑长度 2 倍
     assert data.capacity_bytes <= data.values.nbytes * 2 + 64

@@ -44,7 +44,9 @@ def main() -> int:
     handle = serve(app)
     print("url", handle.url, flush=True)
 
-    window = webview.create_window("deco-check", handle.url, width=1000, height=720, hidden=True)
+    window = webview.create_window(
+        "deco-check", handle.url, width=1000, height=720, hidden=True
+    )
     result: dict[str, object] = {}
 
     def probe() -> None:
@@ -117,7 +119,9 @@ def main() -> int:
             if isinstance(shot, str) and shot.startswith("data:image/png;base64,"):
                 import base64
 
-                out = Path(__file__).resolve().parents[1] / "docs" / "_deco_check_gl.png"
+                out = (
+                    Path(__file__).resolve().parents[1] / "docs" / "_deco_check_gl.png"
+                )
                 out.write_bytes(base64.b64decode(shot.split(",", 1)[1]))
                 result["gl_png"] = str(out)
             deco_shot = window.evaluate_js(
@@ -134,10 +138,16 @@ def main() -> int:
                 })()
                 """
             )
-            if isinstance(deco_shot, str) and deco_shot.startswith("data:image/png;base64,"):
+            if isinstance(deco_shot, str) and deco_shot.startswith(
+                "data:image/png;base64,"
+            ):
                 import base64
 
-                out = Path(__file__).resolve().parents[1] / "docs" / "_deco_check_overlay.png"
+                out = (
+                    Path(__file__).resolve().parents[1]
+                    / "docs"
+                    / "_deco_check_overlay.png"
+                )
                 out.write_bytes(base64.b64decode(deco_shot.split(",", 1)[1]))
                 result["deco_png"] = str(out)
         except Exception as exc:  # noqa: BLE001

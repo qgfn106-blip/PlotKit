@@ -38,7 +38,9 @@ def _limits(n: int) -> dict:
     return {"xlim": (0.0, float(n - 1)), "ylim": (-2.0, 2.0)}
 
 
-def _fresh(y: np.ndarray, *, limits: bool, width: int = 400, height: int = 250) -> bytes:
+def _fresh(
+    y: np.ndarray, *, limits: bool, width: int = 400, height: int = 250
+) -> bytes:
     fig = _line_figure(y)
     kw = _limits(y.size) if limits else {}
     return fig.render(width=width, height=height, **kw)
@@ -47,7 +49,7 @@ def _fresh(y: np.ndarray, *, limits: bool, width: int = 400, height: int = 250) 
 def test_hit_produces_pixels_identical_to_full_render():
     y = np.sin(np.arange(500) / 20.0)
     fig = _line_figure(y)
-    fig.render(width=400, height=250, **_limits(y.size))   # 填充缓存
+    fig.render(width=400, height=250, **_limits(y.size))  # 填充缓存
     got = fig.render(width=400, height=250, **_limits(y.size))
     assert livecache.get_cache().hits >= 1
     assert np.array_equal(_pixels(got), _pixels(_fresh(y, limits=True)))
@@ -58,7 +60,9 @@ def test_hit_after_data_change_matches_full_render():
     y2 = np.cos(np.arange(500) / 15.0)
     fig = _line_figure(y1)
     fig.render(width=400, height=250, **_limits(y1.size))
-    fig.store.add("y", y2, role="series", life="replace", overwrite=True)   # spec 不变，只换数据
+    fig.store.add(
+        "y", y2, role="series", life="replace", overwrite=True
+    )  # spec 不变，只换数据
     got = fig.render(width=400, height=250, **_limits(y2.size))
     assert livecache.get_cache().hits >= 1
     assert np.array_equal(_pixels(got), _pixels(_fresh(y2, limits=True)))
@@ -100,4 +104,4 @@ def test_render_still_bytewise_stable_between_identical_calls():
     fig = _line_figure(y)
     a = fig.render(width=400, height=250, **_limits(y.size))
     b = fig.render(width=400, height=250, **_limits(y.size))
-    assert a == b           # 同一 spec + 同一视窗，两次渲染必须逐字节一致
+    assert a == b  # 同一 spec + 同一视窗，两次渲染必须逐字节一致

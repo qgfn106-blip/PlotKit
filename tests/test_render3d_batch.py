@@ -30,10 +30,14 @@ def _names(body: bytes) -> list[str]:
 
 def test_batch_returns_ordered_frames(client):
     api, fig = client
-    res = api.post("/api/render3d/batch", json={
-        "width": 200, "height": 150,
-        "frames": [{"spec": fig.spec}, {"spec": fig.spec}, {"spec": fig.spec}],
-    })
+    res = api.post(
+        "/api/render3d/batch",
+        json={
+            "width": 200,
+            "height": 150,
+            "frames": [{"spec": fig.spec}, {"spec": fig.spec}, {"spec": fig.spec}],
+        },
+    )
     assert res.status_code == 200
     assert res.headers["content-type"] == "application/zip"
     assert res.headers["x-plotkit-frames"] == "3"
@@ -51,26 +55,35 @@ def test_batch_rejects_empty_and_oversized(client):
 
 def test_batch_accepts_inline_data(client):
     api, _ = client
-    res = api.post("/api/render3d/batch", json={
-        "width": 160, "height": 120,
-        "data": {"ax": [0, 1, 2], "ay": [0, 1, 0]},
-        "frames": [{"spec": {"layers": [{"kind": "line", "data": {"x": "ax", "y": "ay"}}]}}],
-    })
+    res = api.post(
+        "/api/render3d/batch",
+        json={
+            "width": 160,
+            "height": 120,
+            "data": {"ax": [0, 1, 2], "ay": [0, 1, 0]},
+            "frames": [
+                {"spec": {"layers": [{"kind": "line", "data": {"x": "ax", "y": "ay"}}]}}
+            ],
+        },
+    )
     assert res.status_code == 200
     assert _names(res.content) == ["frame_0001.png"]
 
 
 def test_batch_defaults_to_the_app_figure(client):
     api, _ = client
-    res = api.post("/api/render3d/batch", json={"width": 160, "height": 120,
-                                                "frames": [{}]})
+    res = api.post(
+        "/api/render3d/batch", json={"width": 160, "height": 120, "frames": [{}]}
+    )
     assert res.status_code == 200
     assert _names(res.content) == ["frame_0001.png"]
 
 
 def test_batch_single_frame_endpoint_still_works(client):
     api, _ = client
-    assert api.get("/api/render", params={"width": 160, "height": 120}).status_code == 200
+    assert (
+        api.get("/api/render", params={"width": 160, "height": 120}).status_code == 200
+    )
 
 
 def test_frames_can_carry_time():
@@ -90,13 +103,19 @@ def test_frames_can_carry_time():
     fig.add_data("v", np.sin(t), role="series")
     fig.add_plot("line", x="t", y="v")
     client = TestClient(create_app(fig))
-    res = client.post("/api/render3d/batch", json={
-        "width": 400, "height": 300,
-        "frames": [{"spec": fig.spec, "t": 1.0}, {"spec": fig.spec, "t": 5.0}],
-    })
+    res = client.post(
+        "/api/render3d/batch",
+        json={
+            "width": 400,
+            "height": 300,
+            "frames": [{"spec": fig.spec, "t": 1.0}, {"spec": fig.spec, "t": 5.0}],
+        },
+    )
     assert res.status_code == 200
-    assert res.headers.get("X-PlotKit-Workers") == "auto" or res.headers.get("X-PlotKit-Workers") == "1"
+    assert (
+        res.headers.get("X-PlotKit-Workers") == "auto"
+        or res.headers.get("X-PlotKit-Workers") == "1"
+    )
     zf = zipfile.ZipFile(io.BytesIO(res.content))
     sizes = [len(zf.read(name)) for name in sorted(zf.namelist())]
     assert len(sizes) == 2 and sizes[0] != sizes[1]
-

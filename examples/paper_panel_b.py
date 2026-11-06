@@ -37,33 +37,46 @@ def build() -> pk.Figure:
         size=(5.6, 4.4),
         dpi=200,
         ncols=1,
-        subplots=2,          # 槽 0 = 主图；槽 1 = 内嵌图
+        subplots=2,  # 槽 0 = 主图；槽 1 = 内嵌图
         theme="default",
         fonts={"title": 13, "axis": 14, "tick": 11, "legend": 10, "annotation": 12},
     )
     fig.add_data("rg", RG, unit="μm", role="coord")
 
     for i, (symbol, color, coeff) in enumerate(SERIES):
-        y = coeff * RG ** -3.0 * (1 + 0.04 * i)
+        y = coeff * RG**-3.0 * (1 + 0.04 * i)
         fig.add_data(f"d_{i}", y, unit="rad2/s", role="series", tags=["D_eff"])
         fig.add_data(f"xerr_{i}", RG * 0.06, unit="μm", role="coord")
         fig.add_data(f"yerr_{i}", y * 0.16, unit="rad2/s", role="series")
         fig.add_plot(
             "scatter",
-            data={"x": "rg", "y": f"d_{i}", "error_x": f"xerr_{i}", "error_y": f"yerr_{i}"},
+            data={
+                "x": "rg",
+                "y": f"d_{i}",
+                "error_x": f"xerr_{i}",
+                "error_y": f"yerr_{i}",
+            },
             legend=False,
             style={
                 "color": color,
-                "marker": {"symbol": symbol, "size": 8, "line": {"color": "white", "width": 1.2}},
+                "marker": {
+                    "symbol": symbol,
+                    "size": 8,
+                    "line": {"color": "white", "width": 1.2},
+                },
                 "error": {"width": 4.0, "thickness": 1.2, "color": color},
             },
         )
         # 幂律拟合虚线（在数据范围外各延伸一点，视觉上更像"拟合线"）
         rx = np.array([1.35, 11.0])
         fig.add_data(f"fit_x_{i}", rx, unit="μm", role="coord")
-        fig.add_data(f"fit_y_{i}", coeff * rx ** -3.0, unit="rad2/s", role="series")
-        fig.add_plot("line", data={"x": f"fit_x_{i}", "y": f"fit_y_{i}"}, legend=False,
-                     style={"color": color, "dash": "dash", "width": 1.6})
+        fig.add_data(f"fit_y_{i}", coeff * rx**-3.0, unit="rad2/s", role="series")
+        fig.add_plot(
+            "line",
+            data={"x": f"fit_x_{i}", "y": f"fit_y_{i}"},
+            legend=False,
+            style={"color": color, "dash": "dash", "width": 1.6},
+        )
 
     # ---- 主图：双对数 + 内侧镜像刻度 + 次刻度 ----
     fig.set_view(
@@ -80,8 +93,12 @@ def build() -> pk.Figure:
     )
 
     # ---- 内嵌子图：⟨Δθ²⟩ vs Δt（三组斜率） ----
-    fig.add_inset(subplot=1, parent=0, rect=(0.575, 0.60, 0.405, 0.365),
-                  fonts={"axis": 9, "tick": 8, "annotation": 8})
+    fig.add_inset(
+        subplot=1,
+        parent=0,
+        rect=(0.575, 0.60, 0.405, 0.365),
+        fonts={"axis": 9, "tick": 8, "annotation": 8},
+    )
     dt = np.linspace(0, 5, 6)
     fig.add_data("dt", dt, unit="s", role="coord")
     for i, slope in enumerate((0.0165, 0.0090, 0.0032)):
@@ -109,16 +126,33 @@ def build() -> pk.Figure:
     )
 
     # ---- 装饰：斜率 −3 参考三角 + ρ_B 箭头 ----
-    fig.add_shape("triangle", subplot=0, anchor=(1.40, 3.0e-4), decades=0.26,
-                  slope=-3, text="−3", color="#1a1a1a", width=1.2)
-    fig.add_shape("arrow", subplot=0, start=(2.62, 6.0e-4), end=(2.62, 8.0e-2),
-                  text="ρ$_B$", color="#4b6b8a", width=1.8)
+    fig.add_shape(
+        "triangle",
+        subplot=0,
+        anchor=(1.40, 3.0e-4),
+        decades=0.26,
+        slope=-3,
+        text="−3",
+        color="#1a1a1a",
+        width=1.2,
+    )
+    fig.add_shape(
+        "arrow",
+        subplot=0,
+        start=(2.62, 6.0e-4),
+        end=(2.62, 8.0e-2),
+        text="ρ$_B$",
+        color="#4b6b8a",
+        width=1.8,
+    )
     return fig
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--serve", action="store_true", help="起浏览器交互页（默认只出 PNG）")
+    parser.add_argument(
+        "--serve", action="store_true", help="起浏览器交互页（默认只出 PNG）"
+    )
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--out", default="docs/paper_panel_b.png")
     parser.add_argument("--dpi", type=int, default=200)

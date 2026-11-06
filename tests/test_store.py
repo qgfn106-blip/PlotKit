@@ -10,7 +10,9 @@ from plotkit.store.reclaim import Reclaimer
 # ---------------- registry ----------------
 def test_add_and_meta():
     store = pk.DataStore()
-    meta = store.add("v", [1, 2, 3], unit="V", role="series", tags=["out"], life="append")
+    meta = store.add(
+        "v", [1, 2, 3], unit="V", role="series", tags=["out"], life="append"
+    )
     assert meta.length == 3
     assert store.meta("v")["unit"] == "V"
     assert store.meta("v")["tags"] == ["out"]

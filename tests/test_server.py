@@ -72,7 +72,6 @@ def test_put_spec_invalid_returns_all_errors(client, fig):
     assert len(body["errors"]) >= 2
 
 
-
 def test_datasets_catalog(client):
     payload = client.get("/api/datasets").json()
     names = [d["name"] for d in payload["datasets"]]
@@ -87,8 +86,8 @@ def test_series_binary_roundtrip(client):
     body = res.content
     assert body[:4] == MAGIC
     meta_len, npoints = struct.unpack("<II", body[4:12])
-    meta = json.loads(body[12:12 + meta_len].decode("utf-8"))
-    pairs = np.frombuffer(body[12 + meta_len:], dtype="<f4").reshape(-1, 2)
+    meta = json.loads(body[12 : 12 + meta_len].decode("utf-8"))
+    pairs = np.frombuffer(body[12 + meta_len :], dtype="<f4").reshape(-1, 2)
     assert npoints == 11 == pairs.shape[0]
     assert meta["y"] == "v"
     assert pairs[0, 0] == pytest.approx(0.0, abs=1e-6)
@@ -147,9 +146,16 @@ def test_timeline_resamples_to_frame_budget():
     figure.add("line3d", {"x": "x", "y": "y", "z": "z", "t": "t"})
     client = TestClient(create_app(figure))
 
-    res = client.get("/api/timeline", params={
-        "x": "x", "y": "y", "z": "z", "t": "t", "frames": 100,
-    })
+    res = client.get(
+        "/api/timeline",
+        params={
+            "x": "x",
+            "y": "y",
+            "z": "z",
+            "t": "t",
+            "frames": 100,
+        },
+    )
     assert res.status_code == 200
     body = res.json()
     assert len(body["t"]) == 100
@@ -168,7 +174,10 @@ def test_timeline_requires_two_points():
     figure.add_data("z", np.zeros(1))
     figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
     client = TestClient(create_app(figure))
-    assert client.get("/api/timeline", params={"x": "x", "y": "y", "z": "z"}).status_code == 400
+    assert (
+        client.get("/api/timeline", params={"x": "x", "y": "y", "z": "z"}).status_code
+        == 400
+    )
 
 
 def test_region_returns_stats_for_selected_box():
@@ -185,10 +194,17 @@ def test_region_returns_stats_for_selected_box():
     figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
     client = TestClient(create_app(figure))
 
-    identity = np.eye(4).ravel().tolist()   # 单位矩阵：NDC 就等于数据坐标
-    res = client.post("/api/region", json={
-        "x": "x", "y": "y", "z": "z", "mvp": identity, "rect": [0.0, 0.0, 0.5, 0.5],
-    })
+    identity = np.eye(4).ravel().tolist()  # 单位矩阵：NDC 就等于数据坐标
+    res = client.post(
+        "/api/region",
+        json={
+            "x": "x",
+            "y": "y",
+            "z": "z",
+            "mvp": identity,
+            "rect": [0.0, 0.0, 0.5, 0.5],
+        },
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["total"] == 21
@@ -206,10 +222,23 @@ def test_region_rejects_bad_payload():
     figure.add_data("z", np.arange(5.0))
     figure.add("scatter3d", {"x": "x", "y": "y", "z": "z"})
     client = TestClient(create_app(figure))
-    assert client.post("/api/region", json={"x": "x", "y": "y", "z": "z"}).status_code == 400
-    assert client.post("/api/region", json={
-        "x": "nope", "y": "y", "z": "z", "mvp": list(np.eye(4).ravel()), "rect": [0, 0, 1, 1],
-    }).status_code == 404
+    assert (
+        client.post("/api/region", json={"x": "x", "y": "y", "z": "z"}).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/api/region",
+            json={
+                "x": "nope",
+                "y": "y",
+                "z": "z",
+                "mvp": list(np.eye(4).ravel()),
+                "rect": [0, 0, 1, 1],
+            },
+        ).status_code
+        == 404
+    )
 
 
 def test_mesh_accepts_grid_coordinates():
@@ -225,7 +254,9 @@ def test_mesh_accepts_grid_coordinates():
     grid_fig.add("surface", {"x": X, "y": Y, "z": Z})
     grid_client = TestClient(create_app(grid_fig))
     d = grid_fig.spec["layers"][0]["data"]
-    grid_res = grid_client.get("/api/mesh", params={"x": d["x"], "y": d["y"], "z": d["z"]})
+    grid_res = grid_client.get(
+        "/api/mesh", params={"x": d["x"], "y": d["y"], "z": d["z"]}
+    )
     assert grid_res.status_code == 200
 
     vec_fig = pk.figure()
@@ -236,10 +267,11 @@ def test_mesh_accepts_grid_coordinates():
     vec_client = TestClient(create_app(vec_fig))
     vec_res = vec_client.get("/api/mesh", params={"x": "xs", "y": "ys", "z": "zs"})
     assert vec_res.status_code == 200
+
     # 元数据里的名字不同（匿名 vs xs/ys/zs），所以比"二进制部分"而不是总长度
     def payload(res):
         meta_len = int.from_bytes(res.content[4:8], "little")
-        return res.content[16 + meta_len:]
+        return res.content[16 + meta_len :]
 
     assert payload(vec_res) == payload(grid_res)
 
@@ -252,10 +284,10 @@ def test_xyz_binary_frame(client, fig):
     body = res.content
     assert body[:4] == MAGIC
     meta_len, n = struct.unpack("<II", body[4:12])
-    meta = json.loads(body[12:12 + meta_len])
+    meta = json.loads(body[12 : 12 + meta_len])
     assert n == 11 and meta["total"] == 11
     assert len(body) == 12 + meta_len + n * 12
-    values = np.frombuffer(body[12 + meta_len:], dtype="<f4").reshape(-1, 3)
+    values = np.frombuffer(body[12 + meta_len :], dtype="<f4").reshape(-1, 3)
     assert np.allclose(values[0], [0.0, 10.0, 0.0], atol=1e-6)
     assert np.allclose(values[-1], [1.0, 0.0, 1.0], atol=1e-6)
 
@@ -302,9 +334,9 @@ def test_mesh_binary_frame(fig):
     assert len(body) == 16 + meta_len + nvert * 12 * 2 + ntri * 12
     import json as _json
 
-    meta = _json.loads(body[16:16 + meta_len])
+    meta = _json.loads(body[16 : 16 + meta_len])
     assert meta["nx"] == 9 and meta["ny"] == 7
-    idx = np.frombuffer(body[16 + meta_len + nvert * 24:], dtype="<u4")
+    idx = np.frombuffer(body[16 + meta_len + nvert * 24 :], dtype="<u4")
     assert idx.size == ntri * 3
     assert idx.max() < nvert
 

@@ -33,8 +33,10 @@ def test_init_defaults_lose_to_explicit_args_but_win_over_presets():
     auto = fig.add_plot("line", x=np.arange(3), y=np.arange(3))
     assert auto["style"]["mode"] == "markers"  # init > KIND_PRESETS
     assert auto["style"]["width"] == 3.0
-    explicit = fig.add_plot("line", x=np.arange(3), y=np.arange(3), width=1.0, mode="lines")
-    assert explicit["style"]["width"] == 1.0   # 显式 > init
+    explicit = fig.add_plot(
+        "line", x=np.arange(3), y=np.arange(3), width=1.0, mode="lines"
+    )
+    assert explicit["style"]["width"] == 1.0  # 显式 > init
     assert explicit["style"]["mode"] == "lines"
 
 
@@ -68,8 +70,13 @@ def _make_custom_kind(name: str, *, passthrough=(), preset=None):
         ax.plot([0, 1], [1, 0])
 
     spec = pk.register_layer(
-        name, 2, builder=_build, passthrough=passthrough, preset=preset,
-        description="测试用自定义 kind", overwrite=True,
+        name,
+        2,
+        builder=_build,
+        passthrough=passthrough,
+        preset=preset,
+        description="测试用自定义 kind",
+        overwrite=True,
     )
     return spec
 
@@ -77,8 +84,11 @@ def _make_custom_kind(name: str, *, passthrough=(), preset=None):
 @pytest.fixture
 def custom_kind():
     name = "test_custom_line"
-    yield name, _make_custom_kind(name, passthrough=("zorder", "rasterized"),
-                                  preset={"style": {"width": 2.5}, "view": {}})
+    yield name, _make_custom_kind(
+        name,
+        passthrough=("zorder", "rasterized"),
+        preset={"style": {"width": 2.5}, "view": {}},
+    )
     reg.LAYER_SPECS.pop(name, None)
     for alias, target in list(reg.ALIASES.items()):
         if target == name:

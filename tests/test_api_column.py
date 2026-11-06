@@ -13,9 +13,9 @@ def _decode_field(resp):
     assert body[:4] == b"PK01"
     meta_len = struct.unpack("<i", body[4:8])[0]
     n = struct.unpack("<i", body[8:12])[0]
-    meta = json.loads(body[12:12 + meta_len].decode("utf-8"))
+    meta = json.loads(body[12 : 12 + meta_len].decode("utf-8"))
     off = 12 + meta_len
-    values = np.frombuffer(body[off:off + n * 4], dtype="<f4")
+    values = np.frombuffer(body[off : off + n * 4], dtype="<f4")
     return meta, values
 
 
@@ -31,10 +31,10 @@ def test_column_endpoint_returns_single_channel():
     assert resp.status_code == 200
     meta, values = _decode_field(resp)
     assert meta["name"] == name
-    assert meta["n"] == 3          # 抽稀到 3 点
-    assert meta["total"] == 4      # 原始点数仍报告
+    assert meta["n"] == 3  # 抽稀到 3 点
+    assert meta["total"] == 4  # 原始点数仍报告
     assert values[0] == pytest.approx(0.0)
-    assert values[-1] == pytest.approx(30.0)   # 保首尾
+    assert values[-1] == pytest.approx(30.0)  # 保首尾
 
 
 def test_column_endpoint_keeps_all_points_when_pixels_large():
@@ -42,7 +42,9 @@ def test_column_endpoint_keeps_all_points_when_pixels_large():
     fig.add_plot("line", x=[0, 1, 2], y=[1, 2, 3], label="small")
     client = TestClient(create_app(fig))
     name = fig.layers()[0]["data"]["y"]
-    meta, values = _decode_field(client.get("/api/column", params={"name": name, "pixels": 5000}))
+    meta, values = _decode_field(
+        client.get("/api/column", params={"name": name, "pixels": 5000})
+    )
     assert meta["n"] == 3
     assert values.tolist() == [1.0, 2.0, 3.0]
 
