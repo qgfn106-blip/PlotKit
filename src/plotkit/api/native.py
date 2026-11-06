@@ -400,7 +400,7 @@ class Figure:
 
     def remove_layer(self, layer_id: str) -> None:
         self.spec["layers"] = [
-            l for l in self.spec["layers"] if l.get("id") != layer_id
+            layer for layer in self.spec["layers"] if layer.get("id") != layer_id
         ]
 
     def clear(self) -> None:

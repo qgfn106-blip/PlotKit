@@ -19,7 +19,6 @@ import json
 import os
 import struct
 import tempfile
-import threading
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Mapping

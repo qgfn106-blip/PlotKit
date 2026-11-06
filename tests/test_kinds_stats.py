@@ -157,4 +157,4 @@ def test_stackplot_labels_for_legend():
     fig = _fig("stackplot", {"x": x, "y": y, "label": "band"})
     mpl_fig = mpl_backend.to_figure(fig.spec, fig.store, dpi=80)
     labels = [p.get_label() for p in mpl_fig.axes[0].collections]
-    assert any("band" in str(l) for l in labels)
+    assert any("band" in str(label) for label in labels)

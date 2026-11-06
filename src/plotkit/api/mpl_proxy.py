@@ -143,4 +143,4 @@ class AxesProxy:
         self._figure.warnings.append(msg)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"AxesProxy(subplot={self.index}, layers={sum(1 for l in self._figure.spec['layers'] if int(l.get('subplot', 0)) == self.index)})"
+        return f"AxesProxy(subplot={self.index}, layers={sum(1 for layer in self._figure.spec['layers'] if int(layer.get('subplot', 0)) == self.index)})"

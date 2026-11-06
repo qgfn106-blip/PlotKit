@@ -89,7 +89,6 @@ class _FakeResult:
             np.linspace(-1, 1, n),
             indexing="ij",
         )
-        r2 = x * x + y * y
         self.frames = (
             np.stack(
                 [

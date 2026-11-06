@@ -156,7 +156,6 @@ def solve(p: SolverParams | None = None, *, progress=None) -> SolverResult:
         return [nl[i] + fh[i] - p.nu * k2 * u[i] for i in range(3)]
 
     # 从**静止**开始
-    u = [np.zeros((n, n, n)) for _ in range(3)]
     uh = [np.zeros((n, n, n), dtype=complex) for _ in range(3)]
 
     times, frames = [], []

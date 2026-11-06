@@ -1874,7 +1874,9 @@ def to_figure(
     for slot, group in by_subplot.items():
         known = reg.known_kind_names()
         dims = {
-            reg.resolve(l["kind"]).dimension for l in group if l.get("kind") in known
+            reg.resolve(layer["kind"]).dimension
+            for layer in group
+            if layer.get("kind") in known
         }
         if 3 in dims and 2 in dims:
             raise ValueError(f"子图 {slot} 里 2D 与 3D 图层不能混排（请拆到不同子图）")

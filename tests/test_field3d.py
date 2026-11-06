@@ -59,10 +59,10 @@ def test_scene_layers_are_selectable():
     only_particles = pk.field3d.scene(
         _Uniform(), layers=("particles",), n=8, particles=200
     )
-    assert [l["kind"] for l in only_particles.spec["layers"]] == ["particles"]
+    assert [layer["kind"] for layer in only_particles.spec["layers"]] == ["particles"]
 
     only_volume = pk.field3d.scene(_Uniform(), layers=("volume",), n=8, particles=0)
-    assert [l["kind"] for l in only_volume.spec["layers"]] == ["volume"]
+    assert [layer["kind"] for layer in only_volume.spec["layers"]] == ["volume"]
 
 
 def test_scene_uses_field_bounds_by_default():

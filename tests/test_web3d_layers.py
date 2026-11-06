@@ -69,7 +69,6 @@ def test_volume_surface_returns_mesh():
     body = res.content
     assert body[:4] == MAGIC
     mlen, nvert, ntri = struct.unpack("<III", body[4:16])
-    meta = json.loads(body[16 : 16 + mlen])
     assert nvert > 20 and ntri > 20
     pos = np.frombuffer(body[16 + mlen : 16 + mlen + nvert * 12], dtype="<f4").reshape(
         -1, 3

@@ -114,7 +114,7 @@ class Anim3D:
         plotter.background_color = str(figure_cfg.get("facecolor") or "white")
 
         # 静态场景：沿用 spec 里的三维图层
-        layers = [l for l in (spec.get("layers") or []) if pyvista_backend.supports(l)]
+        layers = [layer for layer in (spec.get("layers") or []) if pyvista_backend.supports(layer)]
         if layers:
             sub_spec = dict(spec)
             sub_spec["layers"] = layers

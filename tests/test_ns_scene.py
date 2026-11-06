@@ -60,7 +60,7 @@ def test_scene_renders_with_pyvista():
 
 def test_scene_has_segments_layer():
     """R4-3：默认场景要带流线（segments）图层，且端点是点对。"""
-    from plotkit.ns.scene import figure, streamline_segments
+    from plotkit.ns.scene import figure
 
     fig = figure(t=0.05, n=20, particles=500, streamlines=6)
     kinds = [layer["kind"] for layer in fig.spec["layers"]]

@@ -241,7 +241,7 @@ def main(argv: list[str] | None = None) -> int:
             result["overlay"] = json.loads(
                 window.evaluate_js(
                     "JSON.stringify({tau: document.getElementById('tau').textContent,"
-                    " diag: document.getElementById('diag').innerText.replace(/\s+/g,' ').slice(0,200),"
+                    r" diag: document.getElementById('diag').innerText.replace(/\s+/g,' ').slice(0,200),"
                     " formulas: document.querySelectorAll('#fsvg').length,"
                     " legend: !!document.getElementById('legend')})"
                 )

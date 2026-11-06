@@ -310,7 +310,6 @@ def build_segments(layer, store) -> list[_Item]:
     """多段折线 → PolyData lines（每两行点构成一段）。"""
     import pyvista as pv
 
-    data = layer.get("data") or {}
     x = _values(layer, store, "x")
     y = _values(layer, store, "y")
     z = _values(layer, store, "z")
@@ -384,7 +383,6 @@ def build_line3d(layer, store) -> list[_Item]:
 def build_volume(layer, store) -> list[_Item]:
     """三维标量场体渲染：x/y/z 一维坐标 + values 形状 (nz, ny, nx)（x 变化最快）。"""
     pv = _pv()
-    data = _data(layer)
     style = _style(layer)
     xs = np.ravel(_values(layer, store, "x"))
     ys = np.ravel(_values(layer, store, "y"))
@@ -883,7 +881,7 @@ def _render_sync(
         backend=BACKEND_PYVISTA,
         limits=limits,
         meta={
-            "kinds": [str((l.get("kind") or "")) for l in layers],
+            "kinds": [str((layer.get("kind") or "")) for layer in layers],
             "scene_cached": bool(cached),
         },
     )
