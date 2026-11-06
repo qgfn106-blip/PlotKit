@@ -23,8 +23,7 @@ layout.json
 .DS_Store
 Thumbs.db
 
-# Node (TS dev build)
+# Node (TS dev build) -- node_modules excluded, but package-lock.json IS committed for reproducible builds
 node_modules/
-package-lock.json
 # P17.1 纯函数单测的编译产物（不入库）
 .tsbuild/

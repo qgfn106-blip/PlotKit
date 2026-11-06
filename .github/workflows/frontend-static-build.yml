@@ -1,0 +1,40 @@
+name: plotkit-static-build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck (strict, no emit)
+        run: npm run typecheck
+
+      - name: Build (TS -> committed ESM JS artifacts)
+        run: npm run build
+
+      - name: Unit tests (pure utils)
+        run: npm run test:utils
+
+      - name: Artifact drift guard (committed JS must match a fresh build)
+        run: >-
+          git diff --ignore-cr-at-eol --exit-code --
+          src/plotkit/static/app.js
+          src/plotkit/static/render2d.js
+          src/plotkit/static/view3d.js
+          src/plotkit/static/nsview.js
+          src/plotkit/static/plot2d.utils.js
+          src/plotkit/static/plot3d.utils.js

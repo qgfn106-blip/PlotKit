@@ -120,7 +120,7 @@ def test_static_page_exposes_free_layout_controls() -> None:
 
     static = Path(__file__).resolve().parents[1] / "src" / "plotkit" / "static"
     html = (static / "index.html").read_text(encoding="utf-8")
-    js = (static / "app.js").read_text(encoding="utf-8")
+    js = (static / "app.ts").read_text(encoding="utf-8")
 
     assert 'id="btn-free-layout"' in html
     assert 'id="btn-grid-layout"' in html
