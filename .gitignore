@@ -26,3 +26,5 @@ Thumbs.db
 # Node (TS dev build)
 node_modules/
 package-lock.json
+# P17.1 纯函数单测的编译产物（不入库）
+.tsbuild/

@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "description": "Dev-only TypeScript build for PlotKit front-end static scripts (Phase 1: type-only, no runtime deps).",
+  "scripts": {
+    "test:utils": "tsc -p tsconfig.utils.json && node --test \"tests/**/*.test.cjs\""
+  },
   "devDependencies": {
     "typescript": "5.6.3"
   }
