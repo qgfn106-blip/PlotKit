@@ -28,7 +28,7 @@
 1. **场景化**：`src/plotkit/ns/scene.py` 里用 `SimilarityField` / `SolverField` 采样，写成 `fig.add("volume", {...})`、`fig.add("particles", {...})`、`fig.add("surface", ...)`。**不在 scene 里写任何 WebGL**。
 2. **数据回流**：`volume` 图层默认走 `mode=surface`（服务端 marching cubes），粒子走 `/api/particles`；两者都是既有端点，不新增协议。
 3. **物理量映射**：`PhysicalParams.to_similarity()` 已把 (Γ, a, r_core) 映射成 (c_inf, alpha, x0)；页面只负责把三个滑条串成 `phys=Γ,a,r_core`。
-4. **验收靠脚本**：`tools/verify_ns_scene.py` 造 Figure → 起服务 → 点 3D → 抓图 → 回读 `probe`，输出 JSON。
+4. **验收靠脚本**：`tools/verify_volume3d.py` 造 Figure → 起服务 → 点 3D → 抓图 → 回读 `probe`，输出 JSON。
 
 ## 4. 规范
 
@@ -50,7 +50,7 @@
 | 编号 | 判据 | 验证方式 |
 | --- | --- | --- |
 | A3-1 | `scene.figure()` 返回的 spec 含 `volume` 与 `particles` 两个图层，且 `pk.kinds()` 全覆盖 | `tests/test_ns_scene.py` |
-| A3-2 | 主查看器里三维视图出现等值面 + 粒子，`window.__err == null` | `tools/verify_ns_scene.py` 截图 |
+| A3-2 | 主查看器里三维视图出现等值面 + 粒子，`window.__err == null` | `tools/verify_volume3d.py` 截图 |
 | A3-3 | 默认路径 `particles == 120000`，与旧版一致 | 同一脚本的 `probe` |
 | A3-4 | `phys` 路径：Γ 2→8 时 `u_max` 比值 ∈ [3.6, 4.4] | TestClient + 页面 probe |
 | A3-5 | 全量 pytest 绿；工作区干净并已 push | `pytest -q` + `git status` |

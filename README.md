@@ -11,7 +11,7 @@
 - **零 CDN**：渲染在后端完成，前端不引任何外部脚本，断网可用
 - **三种展示出口**：Jupyter 内联 → PySide6 原生窗口 → 系统浏览器（自动探测，可强制）
 
-> 设计口径见 [docs/DESIGN_v0.md](docs/DESIGN_v0.md)（早期 D1–D23）与 [docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md)（现行 D1–D36，含 D33 架构变更）。
+> 设计口径见 [docs/DESIGN_v0.md](docs/DESIGN_v0.md)（早期 D1–D23）与 [docs/REQUIREMENTS_AND_PROGRESS.md](docs/REQUIREMENTS_AND_PROGRESS.md)（现行 D1–D38，含 D33 架构变更）。
 
 ## 安装
 
@@ -78,7 +78,7 @@ src/plotkit/
 ├─ server/      app（REST + 二进制序列） / live（后台线程 uvicorn） / assets（静态资源定位）
 ├─ runtime/     sink（三出口探测） / window（QtWebEngine 窗口）
 ├─ desktop/     pywebview + WebView2 桌面壳（D39）
-└─ static/      index.html / app.css / app.js（零依赖手写）
+└─ static/      index.html / app.css / app.js（由 app.ts 经 esbuild 构建，产物已提交）
 ```
 
 ## 数据层约定
@@ -92,7 +92,7 @@ src/plotkit/
 ## 测试
 
 ```bash
-PYTHONPATH=src python -m pytest -q     # 105 passed
+PYTHONPATH=src python -m pytest -q     # 470 passed
 ```
 
 真实渲染自检（需要本机 Edge/Chrome 或 PySide6）：

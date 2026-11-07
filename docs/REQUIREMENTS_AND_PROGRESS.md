@@ -23,7 +23,7 @@
 | **PK-R08** | 「新功能完全实现，就要能准确将原方法删去」「UI 与软件 UI 相兼容，并且可自定义 UI」 | 完成即删旧的等价迁移；外观级 + 布局级可自定义（`theme` + `layout.json`） | 部分：能力已对齐中；**旧 canvas 与分析面板不删**（2026-10-31 用户决定，D37） |
 | **PK-R09** | 「我在 vs code 运行程序时，能弹出窗口，而不是直接跳到浏览器去」 | `show()` 三级 sink：inline → window（PySide6 + QtWebEngine）→ browser | 完成（`runtime/sink.py`、`runtime/window.py`） |
 | **PK-R10** | 「netlab 内部做可分离的内嵌窗口」「补齐老画布能力」 | 停靠 ⇄ 浮出两种形态；时间窗/回放/播放/清空/信号筛选对齐老 canvas | 完成（P12-05、P12-06） |
-| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **完成**：`registry.kinds()` **18 种核心全部完成**（11×2D + 7×3D，见 §3.3），另有扩展 kind（`contourf` / `correlation` / `barbs` / 信号族 / 三角族 / voxels 等），registry 共 **54** 种（P13-09 时 50，其后 NS `volume`/`particles`/`segments` 增至 54；`tools/coverage.py --check` 全绿） |
+| **PK-R11** | 「在 plotkit 中实现 multiplotter 的所有绘图功能」 | 18 种 kind（11×2D + 7×3D）+ `correlation` 聚合全部可用，同一份 spec 出图 | **完成**：`registry.kinds()` **18 种核心全部完成**（11×2D + 7×3D，见 §3.3），另有扩展 kind（`contourf` / `correlation` / `barbs` / 信号族 / 三角族 / voxels 等），registry 共 **54** 种（P13-09 时 50，其后新增 `lic`、`volume`、`particles`、`segments` 四种共 54；`tools/coverage.py --check` 全绿） |
 | **PK-R12** | 「以及 matplotlib API 中所有的绘图功能」 | 以 `Axes` 绘图方法为全集（约 55 个），逐个给出归属：独立 kind / 复用 kind / shapes / 轴级 / 不做 | **完成**：83 个 Axes/Axes3D 绘图方法全部归属，`tools/mpl_method_audit.py --check` 机器校验通过；归属表见 §3.4 |
 | **PK-R13** | 「按照 multiplotter 中的逻辑进行预设计与编写程序」 | 预设表、分发别名、透传白名单、严格模式、`init()` 全局样式、`style_scope`、`register_layer` 契约 | **完成**：presets / 分发别名 / 透传白名单 / 严格模式 / `pk.init()` / `pk.style_scope()` / `pk.register_layer()` 全部落地（`src/plotkit/__init__.py`、`tests/test_pk_init.py`） |
 | **PK-R14** | 「并且可自己优化」 | 允许偏离原实现：服务端分箱/相关矩阵、重绘缓存与 ETag、按像素宽度抽稀、节流刷新 | 部分已有（D22 缓存、min-max 抽稀） |
@@ -37,7 +37,7 @@
 | **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化；二期（P17）改原生 ES Modules（`app.js` 为模块入口，抽 `plot2d.utils`/`plot3d.utils`），由 esbuild 构建（`npm run build`） | **已完成（P16 一期 + P17 二期，2026-11-06）**：四文件全部严格类型化、tsc strict 0、AST 行为等价（verify_*_parity.js）；P17 原生 ESM 化、`plot2d.utils`/`plot3d.utils` 单测 19 passed；pytest 470 全绿；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76 |
 | **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **已完成**（2026-11-06，`black` 规范化 92 文件、AST 等价校验通过（3 处仅 docstring 缩进差）、`pytest` 470 passed、`node test:utils` 19 passed；commit `32587c4`；详见 netlab R42 / P18） |
 
-## 2. 决策台账（D1–D36，摘录结论）
+## 2. 决策台账（D1–D38，摘录结论）
 
 | 号 | 决策 | 一句话理由 |
 | --- | --- | --- |
@@ -311,9 +311,9 @@
 | P16-04 | 浏览器 3D 图层：`volume`（标量场 + 等值面）与 `particles`（时空点云） | ✅ 完成：`/api/volume`（field/surface 两种载荷）、`/api/particles`、view3d 的 mesh/点精灵渲染；`tests/test_web3d_layers.py` 5 条；`tools/verify_volume3d.py` 真机截图 `docs/web3d_volume.png` |
 | P16-03 | GPU 粒子推进（实验，`?gpu=1`） | ⏸ **暂缓（2026-11-01 用户决定「先收手」）**：20 万粒子 GPU 58–79 fps 且可见（CPU 同条件 40–50）；50 万/100 万整层不可见，已排除链接/uniform/纹理单元/混合深度/历史 blit/uStride/冻结 advect，关键证据是位置纹理尾部全 0 → 疑在初始上传或取点映射。默认仍走 CPU 路径（12 万 41–49 fps）；证据见 [NS_VORTEX.md](NS_VORTEX.md) §19.1 |
 
-**测试基线：PlotKit **421 passed**（2026-11-02，新增 field3d 8 条 + 批量渲染 5 条 + CLI 4 条）。
+**测试基线：PlotKit **470 passed**（2026-11-06，P16–P18 完成后；P16 各票入场时为 405/436 passed，早期 2026-11-02 为 421 passed）。
 
-**性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms。
+**性能实测（28 数据集 / 11 图层 / ~1.4k 点）**：冷启动首帧 862 ms、热重绘 13.7–83 ms、`figure.json` miss 6.8 ms / hit 4.8 ms（该端点已随 P14-01 删除，数字仅存史）。
 
 **原删旧前置（P12-07，已取消）**：① 图例点击切换显隐；② 示波器 / 李萨如 / 相图三块画布；③ 「预计算 0→T」；④ 探针勾选树。
 

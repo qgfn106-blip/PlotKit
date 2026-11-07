@@ -29,7 +29,7 @@ fig.add("particles", {"x": "x", "y": "y", "z": "z", "c": "c"})     # 时空点�
 | --- | --- | --- |
 | `volume`（默认） | `GET /api/volume?x=&y=&z=&values=` | `PK01 + meta_len + n + meta + float32`（(nz,ny,nx)） |
 | `volume`（等值面） | `GET /api/volume?...&mode=surface&level=` | 与 `/api/mesh` 同构：`PK01 + meta_len + nvert + ntri + meta + 顶点 + 法线 + 索引` |
-| `particles` | `GET /api/particles?x=&y=&y=&c=` | `PK01 + meta_len + n + meta + xyz(f32) + 标量(f32)` |
+| `particles` | `GET /api/particles?x=&y=&z=&c=` | `PK01 + meta_len + n + meta + xyz(f32) + 标量(f32)` |
 
 `mode=surface` 用服务端 marching cubes（VTK `contour`）抽等值面，**复用浏览器已验证的 mesh 渲染路径**——比在着色器里做 raymarch 稳得多，而且带光照。
 

@@ -17,7 +17,7 @@
 ## 2. 现状与实测基线
 
 当前 3D 链路：`spec.layers` → `mpl_backend.to_figure()`（`projection="3d"` 的 `Axes3D`）→ Agg 栅格化 → PNG。
-相关代码：`src/plotkit/backends/mpl_backend.py:474`（`_surface_grid`）、`:493`（`_draw_surface`）、`:916`（`_draw_voxels`）、`:611`（`stream3d` 的 RK2）。
+相关代码：`src/plotkit/backends/mpl_backend.py:637`（`_surface_grid`）、`:658`（`_draw_surface`）、`:1280`（`_draw_voxels`）、`:852`（`stream3d` 的 RK2，实为 `stream3d_paths()`）。
 
 本机实测（800×600，`PLOTKIT_RENDER_CACHE=0`，冷渲染，p50）：
 
@@ -72,7 +72,7 @@
 ## 5. 三个必须先定死的兼容边界
 
 1. **`LayerSpec` 的单 builder 撑不住三后端**
-   现在 `backends/registry.py:18` 是 `builder: Builder | None`，签名为 `(layer, store)`，产出 matplotlib artist。
+   评估时（D38 前）`LayerSpec` 只有单个 `builder: Builder | None`（签名 `(layer, store)`，产出 matplotlib artist）；D38 后已改为 `builders: Mapping[str, Builder]`（见 §10.1）。
    多后端需改成 `builders: Mapping[str, Builder]`（键 `mpl` / `pyvista` / `vispy`），或另设"后端能力表"。**不要伪造一个假 ax 去复用 mpl drawer**——这正是当年拒绝 MultiPlotter `draw_handler(ax, config)` 契约的理由。
 
 2. **float32 不能被悄悄升成 float64**
@@ -142,7 +142,7 @@ PlotKit spec + DataStore            （公共语义，不动）
 |---|---|
 | `src/plotkit/backends/registry.py` | `LayerSpec.builders: Mapping[str, Builder]`（`builder` 属性保留为 `builders["mpl"]` 的向后兼容视图）；`register(builder=…)` 等价 `builders={"mpl": …}`；新增 `attach_builder(kind, backend, builder)` 供可选后端把自己挂到已注册的 kind 上 |
 | `src/plotkit/backends/dispatch.py` | 后端调度：`RenderResult`、`available_backends()`、`choose()`/`choose_backend()`、`render_result()`；异常 `BackendUnavailable`（没装）/ `BackendUnsupported`（装了但不支持该 kind）；`auto` 时三维走 pyvista、失败回退 mpl 并在 `meta["fallback"]` 留痕 |
-| `src/plotkit/backends/pyvista_backend.py` | 11 种三维 kind 的 builder + 离屏渲染；Plotter 复用缓存；专用 VTK 线程 |
+| `src/plotkit/backends/pyvista_backend.py` | 11 种三维 kind 的 builder + 离屏渲染（现 `SUPPORTED_KINDS` 共 14 种，另含 `volume`/`particles`/`segments`）；Plotter 复用缓存；专用 VTK 线程 |
 | `src/plotkit/backends/mpl_backend.py` | 新增 `as_float_keep()`（float32 不再被悄悄升 float64，硬边界 §5.2）；`stream3d_paths()` 抽成公共函数（硬边界 §5.3） |
 | `src/plotkit/api/native.py` | `Figure.render(..., backend=)`、`Figure.render_result()`；`limits` 里带 `backend`/`fallback` |
 | `src/plotkit/server/app.py` | `/api/render?backend=mpl\|pyvista\|auto`，响应头 `X-PlotKit-Backend` |
