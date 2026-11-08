@@ -31,10 +31,23 @@ def _version_tuple(version: str) -> tuple[int, ...]:
 
 
 def probe() -> dict[str, Any]:
-    """返回 PlotKit 侧可用性判定（available / incompatible）。"""
+    """返回 PlotKit 侧可用性判定（available / missing / incompatible）。
+
+    missing 表示运行环境缺少 PlotKit 的必需后端（当前为 matplotlib）；宿主应把
+    它映射为「未安装/不可用」而不是 500。三态是 C-4 契约的一部分。
+    """
     from . import __version__
 
     version = str(__version__)
+    try:
+        import matplotlib  # noqa: F401
+    except Exception as exc:  # pragma: no cover - 依赖缺失时走这里
+        return {
+            "state": "missing",
+            "version": version,
+            "api_version": API_VERSION,
+            "detail": f"缺少 matplotlib 后端：{exc}",
+        }
     if _MIN_VERSION <= _version_tuple(version)[:2] < _MAX_VERSION:
         return {
             "state": "available",
