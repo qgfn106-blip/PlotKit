@@ -1,10 +1,10 @@
 # PlotKit
 
 <!-- UPDATE:LATEST:BEGIN -->
-- 日期：2026-11-09
-- 版本/ref：p0-freeze-2026-11-09
-- 更新内容：P0 裁定书 11 项收口：capabilities 四字段拆分、X3 迁移接线、G0 collected 常量门禁、12 票入仓、README 更新记录机制、bench 数字表删除
-- 证据：docs/specs/2026-11-09-p0-contract-freeze.md §实测
+- 日期：2026-11-10
+- 版本/ref：e2a526e
+- 更新内容：N0–N6 串行完成：分支+main 远端 CI 首绿（python-tests/static-build 双绿）；contrib 拆分(G1)、PATCH 推迟(方案B)、test:ui、docs 资产逐行标注、G3 薄适配(advisory_only)、跨仓版本契约只读诊断；测试 544→556、六门禁零 violations
+- 证据：docs/N0_REMOTE_FIRST_GREEN_2026-11-09.md §13–§14、docs/N6_CROSS_REPO_CONTRACT_2026-11-10.md
 - 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
 <!-- UPDATE:LATEST:END -->
 
