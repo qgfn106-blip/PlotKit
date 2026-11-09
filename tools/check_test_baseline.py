@@ -83,7 +83,7 @@ def _collected(text: str) -> int | None:
 
 def _skipped_entries(text: str) -> list[tuple[str, int]]:
     """返回 (path:line, n)：n 是该位置跳过的用例数（参数化同处多行共享一个位置）。"""
-    return [(loc, int(n)) for n, loc in _SKIPPED_RE.findall(text)]
+    return [(loc.replace("\\", "/"), int(n)) for n, loc in _SKIPPED_RE.findall(text)]
 
 
 def _skipped_ids(text: str) -> list[str]:
@@ -282,6 +282,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     for item in violations:
         print("  " + item, file=sys.stderr)
+        # GitHub Actions 注解：无需 token 也能从 check-runs annotations 读到具体违规
+        print(f"::error::{item}")
     return code
 
 

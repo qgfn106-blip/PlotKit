@@ -207,6 +207,7 @@ PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o a
 - **门禁 v2（`tools/check_test_baseline.py`）**：判据 = `collected==pinned`、`failed==0`、`collected==passed+failed+skipped`（计入 failed，修掉旧公式伪 violation）、`skipped_ids` 集合与 `skipped_total` 均与 profile 一致、禁 xfail/xpass/deselected、pytest exit 0；环境指纹（python/os/五 extras find_spec）不匹配 → 红。另修 `_SKIPPED_RE` 同时取「位置 + 用例数」，解决 path:line 去重集合与用例数量口径打架。
 - **自查抓到的门禁缺陷（已修）**：`evaluate()` 的早期错误分支（读基线失败 / schema 不符 / collected 非法 / 指纹不匹配）原先误 `return 0`（假绿），经反向验证 V3 抓出，已全部改为 `return 1`。
 - **验证结果**：dev（全 extras）`544 collected / 544 passed / 0 failed`，`profile=dev_full ... ok=True`；无 extras 仿真（faithful shim：`importlib.util.find_spec` 与真实 import 双屏蔽）`544 collected / 517 passed / 27 skipped / 0 failed`，ci profile `evaluate` → OK。四张反向验证 V1（collected 钉 545 vs 544→红）/V2（skipped 集合不符→红）/V3（伪造指纹→红）/V4（无 extras 下 `level=5.0`→400，1 passed）全部符合预期；篡改后 baseline 复原 `cmp` 一致。
+- **跨 OS 修正（第一次推送后补）**：`skipped` 位置路径归一化（`\`→`/`），使 Windows 上生成的 `ci_no_extras` profile 能在 Linux CI 精确匹配（首次推送因 `tests\...` vs `tests/...` 集合比对失败，已定位并修）；门禁失败时额外输出 `::error::<违规>`，便于无 token 从 check-runs annotations 读具体原因。
 
 ## 12. 交付与后续
 
