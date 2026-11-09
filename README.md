@@ -2,9 +2,9 @@
 
 <!-- UPDATE:LATEST:BEGIN -->
 - 日期：2026-11-10
-- 版本/ref：e2a526e
-- 更新内容：N0–N6 串行完成：分支+main 远端 CI 首绿（python-tests/static-build 双绿）；contrib 拆分(G1)、PATCH 推迟(方案B)、test:ui、docs 资产逐行标注、G3 薄适配(advisory_only)、跨仓版本契约只读诊断；测试 544→556、六门禁零 violations
-- 证据：docs/N0_REMOTE_FIRST_GREEN_2026-11-09.md §13–§14、docs/N6_CROSS_REPO_CONTRACT_2026-11-10.md
+- 版本/ref：p0-freeze-2026-11-09 + N0–N6/2026-11-10 治理口径收口
+- 更新内容：N0–N6 串行完成：分支+main 远端 CI 首绿（python-tests/static-build 双绿）；contrib 拆分(G1)、PATCH 推迟(方案B)、test:ui、docs 资产逐行标注、G3 薄适配(advisory_only)、跨仓版本契约只读诊断；测试 544→546→556、六门禁零 violations；准确状态：N0–N6 六阶段交付完毕、远端 CI 稳定双绿，G3 / C-4 / G4 未达成、签字表待签（不是「修复完了」）；治理口径收口（W-002 / SSOT / 归档指针）见 docs/GOVERNANCE_SSOT_2026-11-10.md
+- 证据：docs/GOVERNANCE_SSOT_2026-11-10.md、docs/N0_REMOTE_FIRST_GREEN_2026-11-09.md §13–§14、docs/N6_CROSS_REPO_CONTRACT_2026-11-10.md
 - 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
 <!-- UPDATE:LATEST:END -->
 
