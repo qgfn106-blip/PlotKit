@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: decided
 date: 2026-11-09
 evidence_head: 1cf2570844c533cb2eb3ef44f352caa7d82fe764
 ruling: docs/PLOTKIT_P0_DECISIONS_2026-11-09.md §二②
@@ -167,3 +167,16 @@ PATCH」，因为「只读 PATCH」本身是矛盾措辞。两段下文按 A / B
 - 待用户拍板「写回 v0 还是 v1」并复核本评审稿后，才进入实施票；
   实施票须自带 7 个白名单 op 的行为测试、409 冲突索引测试、
   `replace_doc` 拒绝测试、成功 revision/ETag 测试、双入口 parity 测试。
+
+## 6. 裁定结论（2026-11-09 用户拍板 = 方案 B）
+
+- **用户选择：方案 B**（只读、推迟 PATCH）。维持 `GET /api/doc` 为
+  `cls.migrate(figure.spec)` 的只读现场视图；**本轮不开放写 PATCH**；
+  `PUT /api/spec` 按 §4 保留；v1 文档存储、`to_v0()` 派生规则、
+  `PUT /api/spec`/`PATCH /api/doc` 双入口写序作为**独立议题另批**。
+- **理由**：方案 A 是存储模型切换（唯一 v1 存储 + 派生视图 + 双入口写序 +
+  7 op parity），工作量大、回归面大，超出「纯新增 PATCH」范围；B 风险最小、
+  不改现有 outward behavior，符合裁定书 §二② 与「写回目标必须唯一」前置。
+- **状态变更**：`status: proposed` → `status: decided`（方案 B）。
+- **对闸门的影响**：G2（PATCH /api/doc）**不实施、留白**；不因本轮推进而标记达成。
+  后续若要启动，须先单独审批「写回 v0 还是 v1」并完成本稿 §2/§3 前置。
