@@ -35,8 +35,8 @@
 | **PK-R20** | 「没法方便做到自行拖拽子图到合适区域，即子图能够相互重叠」 | 子图从网格改为自由矩形、可重叠、可拖拽缩放 | **已完成**（2026-11-03，`figure.layout` 自由矩形可重叠；spec P4） |
 | **PK-R21** | 「不能自行放置文字框，数据标注，箭头等类似于笔记功能」 | 笔记级批注：文字框/箭头/框选/数据标注，存进 `figure.notes` | 已完成（2026-11-03，3.16.10；spec P5） |
 | **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化；二期（P17）改原生 ES Modules（`app.js` 为模块入口，抽 `plot2d.utils`/`plot3d.utils`），由 esbuild 构建（`npm run build`） | **已完成（P16 一期 + P17 二期，2026-11-06）**：四文件全部严格类型化、tsc strict 0、AST 行为等价（verify_*_parity.js）；P17 原生 ESM 化、`plot2d.utils`/`plot3d.utils` 单测 19 passed；pytest 470 全绿；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76 |
-| **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **已完成**（2026-11-06，`black` 规范化 92 文件、AST 等价校验通过（3 处仅 docstring 缩进差）、`pytest` 470 passed、`node test:utils` 19 passed；commit `32587c4`；详见 netlab R42 / P18） |
-| **PK-R24** | 用户原话（2026-11-09）：「@docs\PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md 请就这个文档对plotkit项目进行复核，然后按照文档提出的规划进行代码优化 请遵守代码规范与文档规范 /to-spec /to-tickets 然后自行按照任务，开始完成任务，之间不要反复找我批准，只留下需要审批复核决策的操作」 | 复核 `docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` 的基线与证据，按 §8 P0「冻结契约」实施：L0 四份契约 JSON + 能力矩阵 8 行、L1 `FigureDocument` v1 与 0.1→v1 双向 golden、L2 `Frame` v1 wire、L3 `Selector` 唯一决策点与 `Decision`、X3 UI 状态不再落 cwd、三层测试与 CI 门禁；全部为纯新增或等价改进，P1–P5 的搬运/删接口/改宿主列为需审批决策项 | **P0 已实施（2026-11-09）**：复核报告 `docs/PLOTKIT_ORIGIN_REFACTOR_REVIEW_2026-11-09.md`；/to-spec 规格 `docs/specs/2026-11-09-p0-contract-freeze.md`；/to-tickets 票单 `.scratch/plotkit-origin-refactor/issues/01..12`；签字表 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0；基线 `pytest 470 passed`（HEAD c563707）；本轮回归数字见签字表 G0 |
+| **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **已完成**（2026-11-06，`black` 规范化 92 文件、AST 等价校验通过（3 处仅 docstring 缩进差）、`pytest` 470 passed（当时历史数；当前基线 556）、`node test:utils` 19 passed；commit `32587c4`；详见 netlab R42 / P18） |
+| **PK-R24** | 用户原话（2026-11-09）：「@docs\PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md 请就这个文档对plotkit项目进行复核，然后按照文档提出的规划进行代码优化 请遵守代码规范与文档规范 /to-spec /to-tickets 然后自行按照任务，开始完成任务，之间不要反复找我批准，只留下需要审批复核决策的操作」 | 复核 `docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` 的基线与证据，按 §8 P0「冻结契约」实施：L0 四份契约 JSON + 能力矩阵 8 行、L1 `FigureDocument` v1 与 0.1→v1 双向 golden、L2 `Frame` v1 wire、L3 `Selector` 唯一决策点与 `Decision`、X3 UI 状态不再落 cwd、三层测试与 CI 门禁；全部为纯新增或等价改进，P1–P5 的搬运/删接口/改宿主列为需审批决策项 | **P0 已实施（2026-11-09）**：复核报告 `docs/PLOTKIT_ORIGIN_REFACTOR_REVIEW_2026-11-09.md`；/to-spec 规格 `docs/specs/2026-11-09-p0-contract-freeze.md`；/to-tickets 票单 `.scratch/plotkit-origin-refactor/issues/01..12`；签字表 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0；基线 `pytest 470 passed`（HEAD c563707，当时历史数；当前基线 556）；本轮回归数字见签字表 G0 |
 | **PK-R25** | 用户原话（2026-11-09，m01327）：「现在开始每次github上传更新都在readme中显示最近一次更新更新了什么，并且保留最近十次的更新记录可查阅」 | 每次 GitHub 上传前用 `tools/record_update.py --add` 把「日期/版本ref/更新内容/证据」写入 README 唯一 `<!-- UPDATE:LATEST:BEGIN/END -->` 标记块，并在 `docs/UPDATE_LOG.md` 滚动保留最近 10 条；`--check` 供 CI 校验两处逐字一致 | **已实施（2026-11-09）**：`record_update.py --check` → `entries=10 ok=True`，`tests/contract/test_record_update.py` 4 条全绿；工单 11 与 README 更新记录机制同批入 `docs/tickets/`。规则已写入全局长期记忆 |
 
 ## 2. 决策台账（D1–D41，摘录结论）
@@ -89,11 +89,11 @@
 
 > 目标：从 3 种图层补齐到 MultiPlotter 的 18 种，并覆盖 matplotlib `Axes` 的约 55 个绘图方法。
 > **架构（2026-10-31 用户定，D33）**：**渲染只用 matplotlib，网页前端只做集中呈现与编辑**；plotly 退役（新功能一律走 mpl）；netlab 的旧 canvas 与分析面板**不删**（D37）。
-> 状态：规划完成，代码零改动；待确认实时刷新档位后从 P13-00 开工。
+> 状态：P13 已完成（2026-10-31 立项的历史计划段落；当前 `plotkit.kinds()` 为 54 种，详见 §4 与 README）。
 
 ### 3.1 现状（实测，非转述）
 
-- `registry.kinds()` = `('bar','line','marker')` → **3/18**；`spec/validate.py` 的 `REQUIRED_DATA` 也只有这三个 kind。
+- 2026-10-31 立项时快照：`registry.kinds()` = `('bar','line','marker')` → **3/18**；`spec/validate.py` 的 `REQUIRED_DATA` 也只有这三个 kind。当前 `plotkit.kinds()` 为 **54 kinds**（以代码为准）。
 - （P13 前基线，plotly 已随 D33/P14-01 退役）前端当时走 plotly：`app.js:377` 用 `Plotly.react()`，数据取 `/api/figure.json`；vendored `plotly-basic.min.js` 1,102,006 B（分部包 cartesian 1,405,670 B / gl3d 1,678,645 B 原计划按 caps 懒加载）。
 - `/api/png` 已存在但只接受 `dpi`，**没有视窗参数**（xlim/ylim/宽高），也还没有重绘缓存。
 
@@ -161,7 +161,7 @@
 
 **每个 kind 四件套（D32，按 mpl 单后端修订）**：① spec 往返字节相等、未知字段保留；② PNG 像素快照（固定 `metadata`，逐像素比对或 SSIM > 0.995）；③ 视窗重绘一致性（改 xlim/ylim 后轴刻度与数据位置符合预期）；④ CDP 截图 + 轴/图例/色条存在性断言。
 
-**通用门槛**：PlotKit 测试只增不减（250 起）；改前端跑 `npm run build`（esbuild：TS→ESM）、`npm run typecheck`，utils 单测 `npm run test:utils`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
+**通用门槛**：PlotKit 测试只增不减（当前基线 556 passed，见 README/测试输出）；改前端跑 `npm run build`（esbuild：TS→ESM）、`npm run typecheck`，utils 单测 `npm run test:utils`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
 
 **量化**：hist 与 `np.histogram` 逐箱相等；correlation 与 `np.corrcoef` 差 < 1e-12；contour levels 与 mpl 默认一致；3D 的 `elev/azim` 写入 spec 后可复现；动画 60 帧；对流传热 Nu 与 de Vahl Davis 差 1–2%。
 
@@ -182,7 +182,7 @@
 本文（PK-R 现状 / D 台账 / 进度表 / 经验）→ `../README.md` 的「当前状态」→ netlab 侧**只在 R32 留一行指针**，不复制结论。
 
 
-### 3.9 覆盖率表（`tools/coverage.py` 生成，250 passed 时）
+### 3.9 覆盖率表（`tools/coverage.py` 历史生成，250 passed 时快照；当前基线 556 passed）
 
 | kind | 维 | mpl 绘制器 | 数据键 | 预设 | 说明 |
 | --- | --- | --- | --- | --- | --- |

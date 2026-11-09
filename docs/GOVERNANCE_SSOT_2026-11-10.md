@@ -6,8 +6,8 @@
 
 > **N0–N6 六阶段任务交付完毕、远端 CI 稳定双绿；G3 / C-4 / G4 未达成，签字表待签**——而不是「修复完了」。
 
-- 远端 CI：`plotkit-python-tests` 与 `plotkit-static-build` 在分支与 `main` 上均稳定 success；终局双绿 run `42662171282` / `42662171298`（`main`=`f5fd9b3`）。
-- `main` = `f5fd9b39d644e9054cd5398fe37624c05a5009be`（本轮治理口径收口前钉桩）；轻量 tag `p0-freeze-2026-11-09` → `116ec67be9163aac54f7f4ed33d4d6a00ba8e2e5`（冻结标签不可变；全程未 amend / rebase / force-push / reset / 删移 tag）。
+- 远端 CI：`plotkit-python-tests` 与 `plotkit-static-build` 在分支与 `main` 上均稳定 success；终局双绿 run `42662171282` / `42662171298`（当时 `origin/main`=`f5fd9b3`）。
+- `origin/main` = `f5fd9b39d644e9054cd5398fe37624c05a5009be`（当时钉桩）；本地 `main` = `c605da9`（ahead 3，未推送）；轻量 tag `p0-freeze-2026-11-09` → `116ec67be9163aac54f7f4ed33d4d6a00ba8e2e5`（冻结标签不可变；全程未 amend / rebase / force-push / reset / 删移 tag）。
 
 ## 2. 闸门真实状态（G0–G4 / C-4）
 
@@ -20,7 +20,7 @@
 | G4 docs 资产 | **留白** | `docs/ASSET_INVENTORY_2026-11-09.md` 102 行 / 29,930,760 字节仅逐行标注；未删除 / 迁移 / LFS；`docs<1MB` 判据未碰（用户 m03409 裁定「仅逐行标注」，X10 禁止擅自删资产 / 改 `.gitattributes` / 启 LFS） |
 | C-4 跨仓版本契约 | **未达成** | `docs/N6_CROSS_REPO_CONTRACT_2026-11-10.md` 只读诊断列全 8 处 `0.2/0.3`；`NetlabHome/pyproject.toml:26` 与 `netlab/plotkit_bridge.py:129/:191` 是手写拷贝、不被 `gen_contracts.py --check` / `test_compat_matrix.py` 覆盖；单一主人未落地 |
 
-C-4 前置条件（用户 m04076 称「已解除」）复核：`cd NetlabHome` → HEAD `2ce0b8e4c1f7a297148827fcc4fe3a3f1ab4e10a`，`## main...origin/main`（本地=远端，这一点与用户说法一致），但 `git status --porcelain` 仍有 ` M netlab/docs/specs/2026-11-09-g0-g4-signoff.md`（并行会话未提交改动）→ **工作树并非 clean**，X12「NetlabHome status 非空或与并行会话冲突时禁改 `plotkit_bridge.py`」仍生效。故 C-4 本轮仍只做只读诊断、列为排期 / 审批项。
+C-4 前置条件（用户 m04076 称「已解除」）复核：`cd NetlabHome` → HEAD `67e01c55c1aea516d2ae0663f65d907d885e6081`（2026-11-10 实测），`git status --porcelain` 为空 → 工作树 clean；此前 2ce0b8e 期间的未提交 signoff 已由后续提交收口。
 
 ## 3. 豁免记录（W-001 / W-002）
 
