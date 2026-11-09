@@ -16,8 +16,8 @@
         "python": "3.11"
       },
       "skipped_ids": [
-        "tests/test_anim.py:125",
         "tests/test_anim.py:139",
+        "tests/test_anim.py:153",
         "tests/test_anim3d.py:105",
         "tests/test_anim3d.py:41",
         "tests/test_anim3d.py:50",
