@@ -138,13 +138,9 @@ def _unsupported_layers(spec: Mapping[str, Any], backend: str) -> list[str]:
     return missing
 
 
-def choose(spec: Mapping[str, Any], requested: str | None = None) -> str:
-    """决定用哪个后端；不改变默认行为（默认 matplotlib）。"""
-    want = (
-        (requested or os.environ.get("PLOTKIT_BACKEND") or _figure_backend(spec) or "")
-        .strip()
-        .lower()
-    )
+def _choose_impl(spec: Mapping[str, Any], requested: str | None = None) -> str:
+    """后端选择实际算法（**不读环境变量**；环境解析在 choose() 适配层完成）。"""
+    want = (requested or _figure_backend(spec) or "").strip().lower()
     if not want:
         want = BACKEND_MPL
 
@@ -174,6 +170,19 @@ def choose(spec: Mapping[str, Any], requested: str | None = None) -> str:
             f"后端 {want} 暂不支持图层：{', '.join(sorted(set(missing)))}"
         )
     return want
+
+
+def choose(spec: Mapping[str, Any], requested: str | None = None) -> str:
+    """决定用哪个后端；不改变默认行为（默认 matplotlib）。
+
+    N5：收敛到 ``Selector.select_backend`` 的薄适配层——本函数只负责把环境变量
+    ``PLOTKIT_BACKEND`` 解析进 ``requested``；真实选择算法在 ``_choose_impl``（不读环境）。
+    """
+    if not requested:
+        requested = os.environ.get("PLOTKIT_BACKEND")
+    from .selector import Selector
+
+    return Selector().select_backend(spec, requested).backend
 
 
 def _hybrid_3d(fmt: str) -> bool:

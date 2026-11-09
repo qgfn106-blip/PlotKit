@@ -4,6 +4,7 @@
     {
       "acceptance": "SVG 中文字为 <text> 而非 <image>；轴刻度可选中",
       "decision": {
+        "advisory_only": true,
         "backend": "mpl",
         "capabilities_used": [
           "mpl2d",
@@ -29,6 +30,7 @@
     {
       "acceptance": "轴文字与刻度可选中；场景位图与轴矢量分层",
       "decision": {
+        "advisory_only": true,
         "backend": "hybrid3d",
         "capabilities_used": [
           "3d-scene",
@@ -52,6 +54,7 @@
     {
       "acceptance": "未安装 three extra 时 Decision.degraded=True 且不抛异常",
       "decision": {
+        "advisory_only": true,
         "backend": "pyvista",
         "capabilities_used": [
           "3d-scene",
@@ -76,6 +79,7 @@
     {
       "acceptance": "抽稀前后包络误差 ≤ 阈值；首帧耗时 CI 记录但不设硬阈值",
       "decision": {
+        "advisory_only": true,
         "backend": "canvas",
         "capabilities_used": [
           "canvas-timeseries",
@@ -101,6 +105,7 @@
     {
       "acceptance": "LIC 对同一 seed 逐字节可复现",
       "decision": {
+        "advisory_only": true,
         "backend": "lic",
         "capabilities_used": [
           "lic",
@@ -125,6 +130,7 @@
     {
       "acceptance": "并发 push/render 1000 次无长度不一致；golden vector 往返一致",
       "decision": {
+        "advisory_only": true,
         "backend": "frame-v1",
         "capabilities_used": [
           "frame-v1",
@@ -148,6 +154,7 @@
     {
       "acceptance": "只在该 extra 安装时注册 CLI 子命令",
       "decision": {
+        "advisory_only": true,
         "backend": "anim3d",
         "capabilities_used": [
           "animation",
@@ -171,6 +178,7 @@
     {
       "acceptance": "主包 import plotkit 不触发 ns 导入；probe().capabilities 随 extra 变化",
       "decision": {
+        "advisory_only": true,
         "backend": "ns",
         "capabilities_used": [
           "ns-solver",

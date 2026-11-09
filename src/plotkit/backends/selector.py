@@ -1,12 +1,15 @@
-"""渲染策略选择：Decision / RenderTarget / Backend / Selector（P0 骨架，纯新增）。
+"""渲染策略选择：Decision / RenderTarget / Backend / Selector。
 
-本模块是能力矩阵唯一的「判断点」。它**不替换** ``backends/dispatch.py`` 的
-choose()：旧 ``/api/render`` 路径保持原样，新的 ``/api/capabilities`` 与
-``X-PlotKit-Decision`` 只读本模块，从而在不动现有绘制语义的前提下把「选择」
-变成可声明、可枚举、可回归的一等公民。P3 才把旧 dispatch 收敛到这里。
+能力矩阵是「可声明、可枚举、可回归」的首选判断点。
 
-约束（计划 §10 X6）：不读任何环境变量；显式 backend 仅用于调试且强制
-``degraded=True``；所有状况判断只发生在 ``Selector.select()``。
+N5（G3 单一决策点，行为保持型薄适配）：``backends/dispatch.choose()`` 已收敛为
+``Selector.select_backend()`` 的薄适配层——真实算法仍在 dispatch ``_choose_impl``，
+但对外唯一边界是 Selector。**G3 仍不达成**：``RendererSelector.render`` / hybrid3d /
+pyvista pool 等渲染路径尚未证明全部经此单点，故 ``Selector`` 的矩阵结论目前仅作
+advisory（见 ``decision_report`` 的 ``advisory_only=True``）。
+
+约束（计划 §10 X6）：Selector 自身不读任何环境变量（``PLOTKIT_BACKEND`` 等解析留在
+dispatch.choose() 适配层）；显式 backend 仅用于调试且强制 ``degraded=True``。
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ class Decision:
     fallback: str | None = None
     capabilities_used: tuple[str, ...] = ()
     degraded: bool = False
+    advisory_only: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -49,6 +53,7 @@ class Decision:
             "fallback": self.fallback,
             "capabilities_used": list(self.capabilities_used),
             "degraded": self.degraded,
+            "advisory_only": self.advisory_only,
         }
 
     def to_header(self) -> str:
@@ -249,6 +254,26 @@ class Selector:
             degraded=False,
         )
 
+    def select_backend(
+        self, spec: Mapping[str, Any], requested: str | None = None
+    ) -> Decision:
+        """薄适配：把 dispatch 既有的后端选择算法收敛到 Selector 这一唯一入口。
+
+        - **不改变任何后端选择语义**：内部委托 ``dispatch._choose_impl``。
+        - 遵守本模块约束：本方法**不读环境变量**；``PLOTKIT_BACKEND`` 等环境解析
+          留在 ``dispatch.choose()`` 适配层完成后作为 ``requested`` 传入。
+        - **G3 仍不达成**：``RendererSelector.render`` / hybrid3d / pyvista pool 等
+          路径尚未证明全部经此单点，故本决策仅作统一入口，不做矩阵驱动的真实切换。
+        """
+        from . import dispatch
+
+        backend = dispatch._choose_impl(spec, requested)
+        return Decision(
+            backend=backend,
+            reason="由 Selector.select_backend 统一决策（薄适配 dispatch 既有算法）",
+            advisory_only=False,
+        )
+
 
 def select(
     doc: Any,
@@ -294,7 +319,7 @@ def decision_report(
                     "quality": target.quality,
                 },
                 "doc_features": doc["features"],
-                "decision": decision.to_dict(),
+                "decision": {**decision.to_dict(), "advisory_only": True},
                 "acceptance": row.get("acceptance"),
             }
         )
