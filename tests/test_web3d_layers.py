@@ -14,6 +14,17 @@ from plotkit.server.app import create_app
 MAGIC = b"PK01"
 
 
+def _has_pyvista() -> bool:
+    try:
+        __import__("pyvista")
+        return True
+    except Exception:  # noqa: BLE001 - 未安装可选依赖
+        return False
+
+
+requires_pyvista = pytest.mark.skipif(not _has_pyvista(), reason="未安装 pyvista")
+
+
 def _grid_figure(n: int = 16) -> pk.Figure:
     xv = np.linspace(-1.0, 1.0, n)
     yv = np.linspace(-1.0, 1.0, n)
@@ -52,6 +63,7 @@ def test_volume_field_frame_layout():
     assert vals.max() > 0.9  # 偶数网格不落原点，峰值略小于 1
 
 
+@requires_pyvista
 def test_volume_surface_returns_mesh():
     client = _client(_grid_figure())
     res = client.get(

@@ -469,6 +469,16 @@ def create_app(
         vmin = float(finite.min()) if finite.size else 0.0
         vmax = float(finite.max()) if finite.size else 1.0
         if mode == "surface":
+            # 可选依赖导入必须晚于参数取值范围校验（R-b′）：level 落在 [vmin, vmax]
+            # 之外时等值面必然为空，直接 400；这样缺 three/vtk extra 的环境也能得到
+            # 正确的参数语义，而不是在 import 处抛 ImportError/500。
+            lv = (
+                float(level)
+                if level is not None
+                else float(vmin + 0.25 * (vmax - vmin))
+            )
+            if level is not None and (lv < vmin or lv > vmax):
+                raise HTTPException(400, "该等值面在数据范围内没有交点，换一个 level")
             import pyvista as pv
 
             grid = pv.ImageData(
@@ -481,11 +491,6 @@ def create_app(
                 origin=(float(xv.min()), float(yv.min()), float(zv.min())),
             )
             grid.point_data["value"] = field.ravel(order="C")
-            lv = (
-                float(level)
-                if level is not None
-                else float(vmin + 0.25 * (vmax - vmin))
-            )
             surf = grid.contour([lv], scalars="value")
             surf = surf.triangulate()
             if surf.n_points == 0:

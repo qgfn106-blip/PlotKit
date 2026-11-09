@@ -55,7 +55,9 @@ def isosurface(
     """返回等值面的 (顶点, 三角形索引, 顶点法线)，供前端直接上传 GPU。"""
     idx = frame_index(result, t)
     frame = np.asarray(result.frames[idx], dtype=np.float64)
-    grid, n, dx = _image_data(result, idx)
+    # 先做纯 numpy 的有效性判定（不依赖 pyvista）：全零/非有限涡量直接返回空，
+    # 避免在无需几何时导入可选依赖（R-b′ 校验顺序）。
+    n, dx, _length = _grid_info(result)
     mag = _vorticity(frame, dx)
     top = float(mag.max())
     if not np.isfinite(top) or top <= 0.0:
@@ -66,6 +68,7 @@ def isosurface(
             "level": 0.0,
             "t": float(t),
         }
+    grid, n, dx = _image_data(result, idx)
     lvl = float(frac * top) if level is None else float(level)
     grid["w"] = mag.ravel(order="F")  # x 变化最快
     surf = grid.contour([lvl], scalars="w")

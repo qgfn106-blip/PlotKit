@@ -1,6 +1,66 @@
 {
   "collected": 544,
   "generated_by": "python -m pytest -o addopts= --collect-only -q",
-  "schema": "plotkit.test_baseline/v1",
+  "profiles": {
+    "ci_no_extras": {
+      "environment_fingerprint": {
+        "extras": {
+          "h5py": false,
+          "psutil": false,
+          "pyvista": false,
+          "pywebview": false,
+          "vtk": false
+        },
+        "os": "Linux",
+        "python": "3.11"
+      },
+      "skipped_ids": [
+        "tests\\test_anim3d.py:105",
+        "tests\\test_anim3d.py:41",
+        "tests\\test_anim3d.py:50",
+        "tests\\test_anim3d.py:60",
+        "tests\\test_anim3d.py:69",
+        "tests\\test_anim3d.py:79",
+        "tests\\test_anim3d.py:88",
+        "tests\\test_anim3d.py:96",
+        "tests\\test_field3d.py:209",
+        "tests\\test_lic_volume.py:106",
+        "tests\\test_lic_volume.py:94",
+        "tests\\test_multibackend.py:174",
+        "tests\\test_multibackend.py:185",
+        "tests\\test_multibackend.py:198",
+        "tests\\test_multibackend.py:210",
+        "tests\\test_multibackend.py:223",
+        "tests\\test_multibackend.py:241",
+        "tests\\test_multibackend.py:263",
+        "tests\\test_multibackend.py:321",
+        "tests\\test_multibackend.py:333",
+        "tests\\test_ns_physical.py:146",
+        "tests\\test_ns_physical.py:168",
+        "tests\\test_ns_scene.py:55",
+        "tests\\test_pyvista_pool.py:35",
+        "tests\\test_pyvista_pool.py:55",
+        "tests\\test_pyvista_pool.py:59",
+        "tests\\test_web3d_layers.py:66"
+      ],
+      "skipped_total": 27
+    },
+    "dev_full": {
+      "environment_fingerprint": {
+        "extras": {
+          "h5py": true,
+          "psutil": true,
+          "pyvista": true,
+          "pywebview": false,
+          "vtk": true
+        },
+        "os": "Windows",
+        "python": "3.13"
+      },
+      "skipped_ids": [],
+      "skipped_total": 0
+    }
+  },
+  "schema": "plotkit.test_baseline/v2",
   "skipped": []
 }

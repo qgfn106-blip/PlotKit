@@ -14,6 +14,17 @@ from plotkit.ns.field import PhysicalParams, profile_table, velocity_at
 from fastapi.testclient import TestClient
 
 
+def _has_pyvista() -> bool:
+    try:
+        __import__("pyvista")
+        return True
+    except Exception:  # noqa: BLE001 - 未安装可选依赖
+        return False
+
+
+requires_pyvista = pytest.mark.skipif(not _has_pyvista(), reason="未安装 pyvista")
+
+
 def test_physical_mapping_hits_reference_amplitude():
     """默认 Γ=4.26 / a=0.6 / r_core=0.775 应当正好还原之前的调参结果（c∞≈1）。"""
     p = PhysicalParams().to_similarity()
@@ -132,6 +143,7 @@ def with_fake_solver():
     ns._SOLVER.update(old)
 
 
+@requires_pyvista
 def test_iso_returns_triangles(with_fake_solver):
     c = TestClient(create_app())
     r = c.get("/api/ns/iso", params={"t": 0.5, "frac": 0.2})
@@ -153,6 +165,7 @@ def test_iso_and_streamlines_reject_analytic():
     )
 
 
+@requires_pyvista
 def test_streamlines_returns_polylines(with_fake_solver):
     c = TestClient(create_app())
     r = c.get("/api/ns/streamlines", params={"t": 0.5, "seeds": 8, "steps": 40})

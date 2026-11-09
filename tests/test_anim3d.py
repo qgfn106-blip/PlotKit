@@ -5,8 +5,19 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pk = pytest.importorskip("plotkit")
-pv = pytest.importorskip("pyvista")
+import plotkit as pk  # 主包导入失败必须报错，不得静默跳过（R-b′）
+
+
+def _has_pyvista() -> bool:
+    try:
+        __import__("pyvista")
+        return True
+    except Exception:  # noqa: BLE001 - 未安装可选依赖
+        return False
+
+
+requires_pyvista = pytest.mark.skipif(not _has_pyvista(), reason="未安装 pyvista")
+pytestmark = requires_pyvista  # 8 个用例全部依赖 pyvista；仍被收集、缺 extra 时逐个 skip
 
 
 def _figure():

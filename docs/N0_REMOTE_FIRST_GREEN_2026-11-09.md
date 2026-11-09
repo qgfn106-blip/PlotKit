@@ -197,3 +197,19 @@ PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o a
   - **R-c** 维持 544 基线，把 CI 换成「装全 extras 且可无头渲染」的镜像；或把 3D/NS 用例在 CI 明确标 skip（需改测试）。
 - **需你拍板**：选 R-a / R-b / R-c 或其他；若选 R-b/R-c（涉及改测试或基线），请显式解除 step5 禁令并给出允许改动边界（可改哪些文件、`collected` 常量新值如何认定）。
 - 本报告更新**仅文档**：未改任何 test / baseline / CI / 配置；未 push（新 commit 只落本地，X1 授权不跨 HEAD）。
+
+## 11. R-b′ 执行与验证（2026-11-09，用户批准 W-001 后）
+
+- **裁定**：用户否决 R-a、批准修正版 R-b′（m02485）；W-001 事前豁免见 `docs/waivers.md`（§七 已签署批准、§八 记录实现与验证）。
+- **生产修复（2 处）**：`src/plotkit/server/app.py` 的 `/api/volume`（`mode=="surface"`）先算 `lv` 并在 `level` 越界时 `raise HTTPException(400, ...)`，之后才 `import pyvista as pv`；`src/plotkit/ns/iso.py` 的 `isosurface()` 先 `_grid_info`（纯 numpy）+ 空结果早返回，之后才 `_image_data`（内部 import pyvista）。无纯 numpy 几何回退。
+- **测试守卫（逐用例化）**：`test_anim3d.py`（`import plotkit as pk` + `pytestmark=requires_pyvista`，8 例）、`test_pyvista_pool.py`（3 例）、`test_multibackend.py`（删模块级 importorskip + 8 例 `@requires_pyvista`）、`test_ns_physical.py`（2 例）、`test_web3d_layers.py`（1 例）——共 22 例 pyvista 用例改为「仍被收集、无依赖时运行时 skip」。
+- **基线 v2**：`reports/test_baseline.json` → `schema: plotkit.test_baseline/v2`，`collected=544`；profile `dev_full`（Windows/3.13，全 extras，skipped=0）与 `ci_no_extras`（Linux/3.11，五 extras 全 false，`skipped_total=27 / skipped_locations=27`），均 `--write` 机器生成、断言 `failed==0`。**544 常量不变、不放宽为 `>=`。**
+- **门禁 v2（`tools/check_test_baseline.py`）**：判据 = `collected==pinned`、`failed==0`、`collected==passed+failed+skipped`（计入 failed，修掉旧公式伪 violation）、`skipped_ids` 集合与 `skipped_total` 均与 profile 一致、禁 xfail/xpass/deselected、pytest exit 0；环境指纹（python/os/五 extras find_spec）不匹配 → 红。另修 `_SKIPPED_RE` 同时取「位置 + 用例数」，解决 path:line 去重集合与用例数量口径打架。
+- **自查抓到的门禁缺陷（已修）**：`evaluate()` 的早期错误分支（读基线失败 / schema 不符 / collected 非法 / 指纹不匹配）原先误 `return 0`（假绿），经反向验证 V3 抓出，已全部改为 `return 1`。
+- **验证结果**：dev（全 extras）`544 collected / 544 passed / 0 failed`，`profile=dev_full ... ok=True`；无 extras 仿真（faithful shim：`importlib.util.find_spec` 与真实 import 双屏蔽）`544 collected / 517 passed / 27 skipped / 0 failed`，ci profile `evaluate` → OK。四张反向验证 V1（collected 钉 545 vs 544→红）/V2（skipped 集合不符→红）/V3（伪造指纹→红）/V4（无 extras 下 `level=5.0`→400，1 passed）全部符合预期；篡改后 baseline 复原 `cmp` 一致。
+
+## 12. 交付与后续
+
+- 上述改动（生产 2 文件、测试 5 文件、`tools/check_test_baseline.py`、`reports/test_baseline.json`、`docs/waivers.md`、本报告）将作**本地 commit**（X1 允许本地提交，禁止 push/force-push/rebase/amend/reset）。
+- **push 需对新的 HEAD/ref 单独书面授权**：前次授权仅覆盖 `af16001`（指向旧分支头），授权不跨 HEAD 复用（X1）。
+- 真 CI 双绿仍需 push 后由 GitHub Actions 确认；**G0 在远端双绿前不自签「达成」**；N1–N6 仍锁。

@@ -9,6 +9,17 @@ import plotkit as pk
 from plotkit.backends import dispatch, registry
 
 
+def _has_pyvista() -> bool:
+    try:
+        __import__("pyvista")
+        return True
+    except Exception:  # noqa: BLE001 - 未安装可选依赖
+        return False
+
+
+requires_pyvista = pytest.mark.skipif(not _has_pyvista(), reason="未安装 pyvista")
+
+
 def _surface_figure(points: int = 24):
     x = np.linspace(-2, 2, points)
     y = np.linspace(-2, 2, points)
@@ -157,11 +168,10 @@ def test_as_float_keep_preserves_float32():
 
 
 # ---------------------------------------------------------------- 可选后端
+# 逐用例守卫：无 pyvista 时用例仍被收集、运行时 skip（R-b′）。
 
 
-pyvista = pytest.importorskip("pyvista", reason="未安装 pyvista")
-
-
+@requires_pyvista
 def test_pyvista_renders_surface():
     fig = _surface_figure()
     result = fig.render_result(
@@ -172,6 +182,7 @@ def test_pyvista_renders_surface():
     assert result.limits and "xlim" in result.limits and "zlim" in result.limits
 
 
+@requires_pyvista
 def test_hybrid_svg_is_raster_scene_plus_vector_overlay(monkeypatch):
     """默认三维矢量出口 = 混合：一张位图 + 真矢量坐标轴/刻度/标题。"""
     monkeypatch.delenv("PLOTKIT_3D_SVG", raising=False)
@@ -184,6 +195,7 @@ def test_hybrid_svg_is_raster_scene_plus_vector_overlay(monkeypatch):
     assert 'id="text' in text  # 标题与刻度是文字对象，可检索
 
 
+@requires_pyvista
 def test_hybrid_can_be_disabled_with_env(monkeypatch):
     monkeypatch.setenv("PLOTKIT_3D_SVG", "mpl")
     fig = _surface_figure()
@@ -195,6 +207,7 @@ def test_hybrid_can_be_disabled_with_env(monkeypatch):
     assert text.count("<path") > 50
 
 
+@requires_pyvista
 def test_pyvista_svg_falls_back_to_mpl_when_hybrid_disabled(monkeypatch):
     """关掉混合后，SVG 走 mpl 纯矢量：VTK 9.x 的 GL2PS 在 OpenGL2 后端只会塞位图。"""
     monkeypatch.setenv("PLOTKIT_3D_SVG", "mpl")
@@ -207,6 +220,7 @@ def test_pyvista_svg_falls_back_to_mpl_when_hybrid_disabled(monkeypatch):
     assert result.meta.get("fallback") == "mpl"
 
 
+@requires_pyvista
 def test_pyvista_backend_rejects_svg_directly():
     """直接调后端（不经 dispatch）仍应明确拒绝，而不是悄悄出位图。"""
     from plotkit.backends import pyvista_backend
@@ -224,6 +238,7 @@ def test_pyvista_auto_fallback_for_two_dimensional():
     assert result.backend == "mpl"
 
 
+@requires_pyvista
 def test_pyvista_renders_from_foreign_thread():
     """离屏 OpenGL 上下文是线程亲和的：从别的线程调用必须也成功（内部会转到 VTK 线程）。"""
     import threading
@@ -245,6 +260,7 @@ def test_pyvista_renders_from_foreign_thread():
     assert box.get("size", 0) > 1000
 
 
+@requires_pyvista
 def test_close_plotters_is_safe():
     from plotkit.backends import pyvista_backend
 
@@ -314,6 +330,7 @@ def test_renderer_selector_three_dimensional_auto():
     assert selector.backend == "pyvista"
 
 
+@requires_pyvista
 def test_pyvista_scene_cache_separates_stores():
     """不同 DataStore 的版本号都从 0 开始；场景缓存不能把内容不同的图判成同一场景。"""
 
