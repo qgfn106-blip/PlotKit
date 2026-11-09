@@ -10,6 +10,8 @@ date: 2026-11-09
 - 来源：用户原话（见下，不改写）
 - 关联：`PlotKit/docs/REQUIREMENTS_AND_PROGRESS.md`（PK-R24、D39 为本轮新分配编号，既有上限 PK-R23 / D38）、`docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` §8 P0
 
+> **裁定书覆盖声明（2026-11-09 收口追加）**：`docs/PLOTKIT_P0_DECISIONS_2026-11-09.md` §二 第 11 项已**否决**本文正文（Problem Statement / Solution / User Story 20 / Testing Decisions / Further Notes）中出现的 `>= 473 passed` 放行判据（X7 镜像漏洞：测试数量上升本身不能当放行条件）。正文是 P0 第一轮 `/to-spec` 原始合成文本，**保留原样不改写以留痕**；其中一切 `>= 473 passed` / `>= 470 passed` / `451→470→473` 数字链均**不再作为放行依据**。**现行唯一放行判据**以本文件 §实测、`PlotKit/reports/test_baseline.json`（`collected == 常量 544`）与 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0 行为准：`pytest exit 0 AND collected == 常量 544 AND failed == 0 AND skipped 显式 AND 门禁 violations == 0 AND reports 二次生成 sha256 不变`。正文中对 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` / 签字表的引用指向**工作区根** `E:\Python\MyPython\ProjectPoint\docs\` 的治理文档（非 git 仓库、不随 PlotKit 仓提交），仓内随 commit 冻结的机器证据是 `PlotKit/reports/*.json`；`/to-tickets` 12 张票已由 `.scratch/plotkit-origin-refactor/issues/` 移入 `PlotKit/docs/tickets/`。
+
 ## 用户原话（不改写）
 
 > @docs\PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md 请就这个文档对plotkit项目进行复核，然后按照文档提出的规划进行代码优化 请遵守代码规范与文档规范 /to-spec /to-tickets 然后自行按照任务，开始完成任务，之间不要反复找我批准，只留下需要审批复核决策的操作
