@@ -5,6 +5,9 @@
 import './view3d.js';
 import './render2d.js';
 import type { Spec, RenderOptions, RenderResult, Axis } from './render2d.js';
+import { normalizeLayout, clampPanelWidth } from './ui/state.js';
+import { clampRect } from './ui/layout.js';
+import { kindChoices } from './ui/inspector.js';
 
 /* ================= TypeScript 类型（Phase-1 迁移：仅编译期存在，emit 后即原 JS） ================= */
 type PkNumRange = number[] | null;
@@ -684,12 +687,7 @@ function makeLayerCard(layer: PkLayer, index: number) {
   const fields = document.createElement("div");
   fields.className = "fields";
   const allMeta = (state.meta && state.meta.kinds) || [];
-  const flat = allMeta.filter((k) => k.dimension !== 3).map((k) => ({ value: k.kind, label: `${k.description || k.kind} · ${k.kind}` }));
-  const deep = allMeta.filter((k) => k.dimension === 3).map((k) => ({ value: k.kind, label: `${k.description || k.kind} · ${k.kind}（3D）` }));
-  const kindPairs = flat.concat(deep);
-  if (layer.kind && !kindPairs.some((p) => p.value === layer.kind)) {
-    kindPairs.unshift({ value: layer.kind, label: layer.kind });
-  }
+  const kindPairs = kindChoices(allMeta, layer.kind).pairs;
   fields.appendChild(selectPairs("图型", kindPairs, layer.kind, (v) => {
     layer.kind = v;
     commit("改图型");
@@ -1240,7 +1238,7 @@ const PANEL_MIN = 300;
 const PANEL_MAX = 620;
 const PANEL_KEY = "pk.panelWidth";
 function applyPanelWidth(width: number) {
-  const clamped = Math.max(PANEL_MIN, Math.min(PANEL_MAX, Math.round(width)));
+  const clamped = clampPanelWidth(width, PANEL_MIN, PANEL_MAX);
   document.documentElement.style.setProperty("--panel-w", `${clamped}px`);
   return clamped;
 }
@@ -1306,11 +1304,7 @@ function clampLayerWinRect(rect: PkRect) {
   const wrap = layerWinWrap();
   const maxW = Math.max(LAYERWIN_MIN_W, wrap.clientWidth - 8);
   const maxH = Math.max(LAYERWIN_MIN_H, wrap.clientHeight - 8);
-  const width = Math.max(LAYERWIN_MIN_W, Math.min(maxW, Math.round(rect.width)));
-  const height = Math.max(LAYERWIN_MIN_H, Math.min(maxH, Math.round(rect.height)));
-  const left = Math.max(0, Math.min(maxW - width, Math.round(rect.left)));
-  const top = Math.max(0, Math.min(maxH - height, Math.round(rect.top)));
-  return { left, top, width, height };
+  return clampRect(rect, { minW: LAYERWIN_MIN_W, minH: LAYERWIN_MIN_H, maxW, maxH });
 }
 
 function defaultLayerWinRect() {
@@ -2369,9 +2363,7 @@ function startPolling(intervalMs: number) {
  * 归属规则：spec 决定"图长什么样"，layout 决定"软件怎么摆"（D14）。
  */
 function applyLayout(layout: Partial<PkLayout>) {
-  state.layout = Object.assign({ panelWidth: 380, sections: {}, expanded: [], groups: [] }, layout || {});
-  if (!Array.isArray(state.layout.groups)) state.layout.groups = [];
-  if (!Array.isArray(state.layout.expanded)) state.layout.expanded = [];
+  state.layout = normalizeLayout(layout) as unknown as PkLayout;
   state.expanded = new Set(state.layout.expanded);
   applyPanelWidth(state.layout.panelWidth || 380);
   Object.entries(state.layout.sections || {}).forEach(([id, open]) => {

@@ -29,6 +29,9 @@ jobs:
       - name: Unit tests (pure utils)
         run: npm run test:utils
 
+      - name: UI behavior tests (state, inspector, layout)
+        run: npm run test:ui
+
       - name: Artifact drift guard (committed JS must match a fresh build)
         run: >-
           git diff --ignore-cr-at-eol --exit-code --
@@ -38,3 +41,6 @@ jobs:
           src/plotkit/static/nsview.js
           src/plotkit/static/plot2d.utils.js
           src/plotkit/static/plot3d.utils.js
+          src/plotkit/static/ui/state.js
+          src/plotkit/static/ui/layout.js
+          src/plotkit/static/ui/inspector.js

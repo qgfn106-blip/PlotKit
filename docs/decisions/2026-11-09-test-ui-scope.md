@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: decided
 date: 2026-11-09
 evidence_head: 1cf2570844c533cb2eb3ef44f352caa7d82fe764
 ruling: docs/PLOTKIT_P0_DECISIONS_2026-11-09.md §二⑤
@@ -213,3 +213,23 @@ drift guard，否决「TS/JS 产物不入库」；**双份 13990 行真正解法
   `tests/**` / `src/**` / `docs/specs/**`；不运行全量 pytest。
 - 后续实施票须先完成 §7.5 的模块拆分（或至少把三个纯函数导出到 committed JS），
   再带齐三个真实测试函数接入工作流；接入仍须单独审批。
+
+## 6. 实施记录（2026-11-09，按方案 1 落地）
+
+- **范围**：按 §6「或至少把三个纯函数导出到 committed JS」的退路实施（不做 3042 行 `app.ts`
+  的六模块 ≤500 行大拆分，那留作独立后续）。
+- **新增纯函数模块（committed JS + TS 源）**：
+  - `src/plotkit/static/ui/state.ts` → `ui/state.js`：`normalizeLayout` / `clampPanelWidth` /
+    `serializeLayout` / `restoreLayout`（UiState 序列化/还原）。
+  - `src/plotkit/static/ui/inspector.ts` → `ui/inspector.js`：`kindChoices`（Inspector schema 驱动字段生成）。
+  - `src/plotkit/static/ui/layout.ts` → `ui/layout.js`：`clampRect`（rect 像素归一化）/
+    `normalizeGridRect`（0..1 网格 rect 校验）。
+- **接线（行为保持）**：`app.ts` 的 `applyLayout` 用 `normalizeLayout`；`applyPanelWidth` 用
+  `clampPanelWidth`；`makeLayerCard` 的图型选项用 `kindChoices`；`clampLayerWinRect` 用 `clampRect`。
+  `app.ts` 净 diff 仅约 7+/15−，无行尾/空白假 diff。
+- **测试**：新增 `tests/ui/{state,inspector,layout}.uitest.cjs`（node:test，导入 committed `.js`），
+  共 7 个真实用例，覆盖三个被测对象；`npm run test:ui` = `node --test` 显式列三文件。
+- **接线位置**：`package.json` 增 `test:ui`；`frontend-static-build.yml` 在 `test:utils` 之后、
+  drift guard 之前加 `npm run test:ui`，并把 `ui/*.js` 纳入 drift guard 文件清单。
+- **验证**：`npm run build` OK；`npm run typecheck` OK；`npm run test:ui` 7 pass / 0 fail；
+  `npm run test:utils` 19 pass / 0 fail。

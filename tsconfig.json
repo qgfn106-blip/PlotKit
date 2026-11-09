@@ -16,6 +16,9 @@
     "src/plotkit/static/app.ts",
     "src/plotkit/static/nsview.ts",
     "src/plotkit/static/plot2d.utils.ts",
-    "src/plotkit/static/plot3d.utils.ts"
+    "src/plotkit/static/plot3d.utils.ts",
+    "src/plotkit/static/ui/state.ts",
+    "src/plotkit/static/ui/layout.ts",
+    "src/plotkit/static/ui/inspector.ts"
   ]
 }

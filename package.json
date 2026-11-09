@@ -7,9 +7,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild src/plotkit/static/app.ts src/plotkit/static/render2d.ts src/plotkit/static/view3d.ts src/plotkit/static/nsview.ts src/plotkit/static/plot2d.utils.ts src/plotkit/static/plot3d.utils.ts --format=esm --target=es2020 --outdir=src/plotkit/static --log-level=warning",
+    "build": "esbuild src/plotkit/static/app.ts src/plotkit/static/render2d.ts src/plotkit/static/view3d.ts src/plotkit/static/nsview.ts src/plotkit/static/plot2d.utils.ts src/plotkit/static/plot3d.utils.ts src/plotkit/static/ui/state.ts src/plotkit/static/ui/layout.ts src/plotkit/static/ui/inspector.ts --format=esm --target=es2020 --outdir=src/plotkit/static --log-level=warning",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:utils": "tsc -p tsconfig.utils.json && node --test \"tests/**/*.test.cjs\""
+    "test:utils": "tsc -p tsconfig.utils.json && node --test \"tests/**/*.test.cjs\"",
+    "test:ui": "node --test tests/ui/state.uitest.cjs tests/ui/inspector.uitest.cjs tests/ui/layout.uitest.cjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",
