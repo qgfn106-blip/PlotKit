@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 import plotkit.server.ns_app as ns
-from plotkit.ns.app import create_app
-from plotkit.ns.field import PhysicalParams, profile_table, velocity_at
+from plotkit.contrib.ns.app import create_app
+from plotkit.contrib.ns.field import PhysicalParams, profile_table, velocity_at
 from fastapi.testclient import TestClient
 
 
@@ -180,7 +180,7 @@ def test_slice_umax_scales_with_gamma():
 
     from fastapi.testclient import TestClient
 
-    from plotkit.ns.app import create_app
+    from plotkit.contrib.ns.app import create_app
 
     client = TestClient(create_app())
 

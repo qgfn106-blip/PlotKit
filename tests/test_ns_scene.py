@@ -38,7 +38,7 @@ def test_scene_field_grows_as_tau_shrinks():
 
 
 def test_scene_accepts_physical_params():
-    from plotkit.ns.field import PhysicalParams
+    from plotkit.contrib.ns.field import PhysicalParams
 
     weak = pk.ns.scene.figure(
         t=0.3, n=10, particles=50, physical=PhysicalParams(gamma=2.0)
@@ -60,7 +60,7 @@ def test_scene_renders_with_pyvista():
 
 def test_scene_has_segments_layer():
     """R4-3：默认场景要带流线（segments）图层，且端点是点对。"""
-    from plotkit.ns.scene import figure
+    from plotkit.contrib.ns.scene import figure
 
     fig = figure(t=0.05, n=20, particles=500, streamlines=6)
     kinds = [layer["kind"] for layer in fig.spec["layers"]]
@@ -70,8 +70,8 @@ def test_scene_has_segments_layer():
 
 
 def test_streamlines_stay_inside_box():
-    from plotkit.ns import field as ns_field
-    from plotkit.ns.scene import streamline_segments
+    from plotkit.contrib.ns import field as ns_field
+    from plotkit.contrib.ns.scene import streamline_segments
 
     f = ns_field.SimilarityField(ns_field.SimilarityParams())
     sx, sy, sz = streamline_segments(

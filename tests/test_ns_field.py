@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from plotkit.ns import (
+from plotkit.contrib.ns import (
     SimilarityField,
     SimilarityParams,
     analyze,

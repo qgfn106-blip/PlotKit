@@ -1,5 +1,5 @@
 {
-  "collected": 544,
+  "collected": 546,
   "generated_by": "python -m pytest -o addopts= --collect-only -q",
   "profiles": {
     "ci_no_extras": {

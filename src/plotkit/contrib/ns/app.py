@@ -1,4 +1,4 @@
-"""NS 涡旋可视化应用入口：`python -m plotkit.ns.app [--port 8760] [--shot out.png]`。
+"""NS 涡旋可视化应用入口：`python -m plotkit.contrib.ns.app [--port 8760] [--shot out.png]`。
 
 页面是纯静态的 `static/ns.html` + `static/nsview.js`，数据全部走 `/api/ns/*`
 （二进制帧，见 `plotkit.server.ns_app`）。`--shot` 会开一个 pywebview 窗口，
@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from ..server.ns_app import router
+from ...server.ns_app import router
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
 
@@ -133,7 +133,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.figure:
-        from ..server.app import create_app as main_app
+        from ...server.app import create_app as main_app
 
         from . import scene
 

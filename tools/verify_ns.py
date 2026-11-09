@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from plotkit.desktop.server import serve  # noqa: E402
-from plotkit.ns.app import create_app  # noqa: E402
+from plotkit.contrib.ns.app import create_app  # noqa: E402
 
 READ_FPS = "JSON.stringify({fps: (window.__ns && __ns.S.fps) || 0, n: __ns.S.particles, err: (window.__nsErr||[]).join('|')})"
 READ_DIAG = "JSON.stringify({t: __ns.S.t, diag: document.getElementById('diag').innerText.replace(/\\s+/g, ' ').trim()})"

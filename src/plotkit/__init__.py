@@ -22,7 +22,6 @@ from contextlib import contextmanager
 from typing import Any, Iterator, Mapping, Sequence
 
 from . import presets as _presets
-from . import field3d, ns  # noqa: F401  (三维涡旋场景)
 from .quick import quick, show
 from .api.native import Figure, default_store, figure, set_default_store, subplots
 from .backends import dispatch as _dispatch
@@ -203,3 +202,18 @@ __all__ = [
     "store_lock",
     "__version__",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    """惰性暴露可选扩展（P1 / G1）：``pk.field3d`` 与 ``pk.ns`` 只在首次访问时导入。
+
+    这样 ``import plotkit`` 不加载 ``plotkit.contrib``，与
+    ``tools/check_layers.py`` 的「__init__.py 不得导入 contrib」规则一致。
+    """
+    if name in ("field3d", "ns"):
+        import importlib
+
+        module = importlib.import_module(f"{__name__}.contrib.{name}")
+        globals()[name] = module
+        return module
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

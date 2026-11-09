@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from plotkit.ns.app import create_app as create_ns_app
-from plotkit.ns.field import SimilarityParams, profile_table, velocity_at
+from plotkit.contrib.ns.app import create_app as create_ns_app
+from plotkit.contrib.ns.field import SimilarityParams, profile_table, velocity_at
 from plotkit.server.ns_app import MAGIC
 
 

@@ -1,6 +1,6 @@
 """NS 涡旋可视化：HTTP 接口（模式 A-prime：前导阶自相似解）。
 
-只做「算 + 传」：场由 plotkit.ns 计算，前端用 WebGL2 渲染。
+只做「算 + 传」：场由 plotkit.contrib.ns 计算，前端用 WebGL2 渲染。
 二进制帧统一为 magic(4) + meta_len(4) + meta(json) + float32 payload。
 """
 
@@ -16,10 +16,16 @@ import numpy as np
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import Response
 
-from ..ns import SimilarityParams, analyze, convergence, profile_table, velocity_at
-from ..ns.solver import MODE_LABEL as SOLVER_LABEL
-from ..ns.solver import SolverField, SolverParams
-from ..ns.solver import solve as solve_ns
+from ..contrib.ns import (
+    SimilarityParams,
+    analyze,
+    convergence,
+    profile_table,
+    velocity_at,
+)
+from ..contrib.ns.solver import MODE_LABEL as SOLVER_LABEL
+from ..contrib.ns.solver import SolverField, SolverParams
+from ..contrib.ns.solver import solve as solve_ns
 
 __all__ = ["router", "MODE_LABEL"]
 
@@ -79,7 +85,7 @@ def _resolve(phys: str, h: float, x0: float, eta0: float):
             g, a, rc = (float(v) for v in phys.split(","))
         except ValueError as exc:
             raise HTTPException(400, "phys 需为 'gamma,a,r_core'") from exc
-        from ..ns.field import PhysicalParams
+        from ..contrib.ns.field import PhysicalParams
 
         p = PhysicalParams(gamma=g, a=a, r_core=rc, h=h, eta0=eta0).to_similarity()
         return p, profile_table(p)
@@ -327,7 +333,7 @@ def diagnostics(
     analytic = analyze(p, t, table=table, n_r=200, n_z=200).as_dict()
     out: dict = {"analytic": analytic, "mode": "A-prime", "label": MODE_LABEL}
     if grid:
-        from ..ns import grid_stats
+        from ..contrib.ns import grid_stats
 
         out["grid"] = grid_stats(p, t, table=table, n=n).as_dict()
     return out
@@ -542,7 +548,7 @@ def iso(
     source: str = Query("solver"),
 ) -> Response:
     """涡量等值面（B 模式）：marching cubes 在服务端算，前端只上传三角形。"""
-    from ..ns.iso import isosurface
+    from ..contrib.ns.iso import isosurface
 
     if source != "solver":
         raise HTTPException(400, "等值面只支持数值解（source=solver）")
@@ -574,7 +580,7 @@ def streamlines_(
     source: str = Query("solver"),
 ) -> Response:
     """流线束（B 模式）：VTK 积分器在服务端跑，返回折线点 + 每条线的点数。"""
-    from ..ns.iso import streamlines
+    from ..contrib.ns.iso import streamlines
 
     if source != "solver":
         raise HTTPException(400, "流线只支持数值解（source=solver）")

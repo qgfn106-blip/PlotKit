@@ -166,7 +166,7 @@ def _cmd_demo(args: argparse.Namespace) -> int:
 
 
 def _cmd_ns(args: argparse.Namespace) -> int:
-    from plotkit.ns import app as ns_app
+    from plotkit.contrib.ns import app as ns_app
 
     argv = ["--port", str(args.port)]
     if args.shot:
