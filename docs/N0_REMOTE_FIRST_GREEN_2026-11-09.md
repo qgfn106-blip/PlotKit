@@ -222,3 +222,9 @@ PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o a
 - 提交：`d38b609`（测试）、`96e5a80`（基线行号）。
 - 远端 `p0-freeze-2026-11-09 @ 96e5a80`：`plotkit-static-build` success（run 42635485654）、`plotkit-python-tests` **success**（run 42635485655，https://github.com/qgfn106-blip/PlotKit/actions/runs/42635485655）。首次远端全绿，step 1–14（三层 contract/parity/render、能力矩阵、doc sync、reports 漂移门）全部执行并通过。
 - 仍待：合并 main 并取 main 首绿（main 现 30779d2，与本地 1cf2570 树等价；需 X1 授权后 merge + FF push）。
+## 14. main 首绿（2026-11-09 22:47 +0800）
+
+- 合并：`git merge -s ours --no-ff 30779d2` 生成 `103023a5abb888a4a667fff5b99aff55bc408f49`（parents `606fecce` + `30779d2`；因 30779d2 树 ≡ 本地 1cf2570 树、内容为本地超集，normal merge 在 docs/BENCHMARKS.md 与 src/plotkit/host_api.py 冲突，改用 -s ours 保本地绿树并留第二父以支持快进）。
+- 推送：`git push origin main:refs/heads/main` → `30779d2..103023a`（fast-forward；远端 main 从 30779d2 更新到 103023a）。
+- main @ `103023a` 远端 CI：`plotkit-static-build` success（run 42638205477）、`plotkit-python-tests` **success**（run 42638205435，https://github.com/qgfn106-blip/PlotKit/actions/runs/42638205435）——**main 首次远端全绿**，step 1–14 全部执行通过。
+- 分支 `p0-freeze-2026-11-09 @ 96e5a80` 亦绿（run 42635485655）。至此 N0「远端首绿」在**分支与 main 同时达成**。
