@@ -54,3 +54,13 @@
 1. 授权后推送分支 `p1-contrib-split`，取远端 python-tests 首绿。
 2. 绿后合并 main 并取 main 首绿（再次授权）。
 3. 回填本报告与签字表、更新 PROGRESS；进入 N2。
+
+## 6. 远端 CI 首绿证据（2026-11-09）
+
+- 分支 `p1-contrib-split @ f30b593`：
+  - `plotkit-python-tests` **success**（run 42647489113，https://github.com/qgfn106-blip/PlotKit/actions/runs/42647489113）
+  - `plotkit-static-build` success
+- main `f30b593`（本地 `git merge --ff-only` 快进，无 merge commit；`2dad952..f30b593`）：
+  - `plotkit-python-tests` **success**（run 42648513045，run_number 11，https://github.com/qgfn106-blip/PlotKit/actions/runs/42648513045）
+  - `plotkit-static-build` **success**（run 42648513118）
+- 结论：**G1 分支与 main 双双远端首绿**，两 workflow step 1–14 全部真跑通过。
