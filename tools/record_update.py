@@ -281,10 +281,19 @@ def add(
     stop = readme_text.index(END, start)
     readme_text = readme_text[:start] + _block_text(values) + readme_text[stop:]
 
-    readme_path.write_text(readme_text, encoding="utf-8", newline="\n")
-    log_path.write_text(log_text, encoding="utf-8", newline="\n")
+    _write_preserving_newlines(readme_path, readme_text)
+    _write_preserving_newlines(log_path, log_text)
     print(f"record_update: add=ok entries={len(merged)}")
     return 0
+
+
+def _write_preserving_newlines(path, text: str) -> None:
+    """写回 README/台账时保留原文件换行风格，避免 CRLF 被静默改成 LF。"""
+    raw = path.read_bytes()
+    if b"\r\n" in raw:
+        path.write_bytes(text.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))
+    else:
+        path.write_text(text, encoding="utf-8", newline="\n")
 
 
 def main(argv: list[str] | None = None) -> int:
