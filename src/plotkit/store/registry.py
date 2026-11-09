@@ -75,9 +75,11 @@ class DataSet:
 
     @property
     def values(self) -> np.ndarray:
-        if self._len == self._buf.shape[0]:
-            return self._buf
-        return self._buf[: self._len]
+        view = self._buf if self._len == self._buf.shape[0] else self._buf[: self._len]
+        # 只读视图：调用方原地改数组会绕过 meta.version 与 DATA_LOCK，
+        # 使金字塔/前端缓存陈旧；写入口必须走 DataStore.push/overwrite。
+        view.setflags(write=False)
+        return view
 
     def __len__(self) -> int:
         return self._len

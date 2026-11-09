@@ -77,9 +77,11 @@ class FrameColumn:
     encoding: str = "f4"
     offset: int = 0
     count: int = 0
+    #: JSON 列的实际字节长度；非 JSON 列由 encoding/count 推出，保持旧 wire 不变。
+    byte_length: int = 0
 
     def descriptor(self) -> dict[str, Any]:
-        return {
+        item = {
             "name": self.name,
             "unit": self.unit,
             "role": self.role,
@@ -88,6 +90,9 @@ class FrameColumn:
             "offset": self.offset,
             "count": self.count,
         }
+        if self.byte_length:
+            item["byte_length"] = self.byte_length
+        return item
 
 
 @dataclass(frozen=True)
@@ -172,6 +177,7 @@ def encode_frame(
                 values=(),
                 offset=offset,
                 count=len(column.values),
+                byte_length=len(blob) if column.encoding == "json" else 0,
             )
         )
         blobs.append(blob)
@@ -217,11 +223,14 @@ def decode_frame(data: bytes) -> Frame:
             raise ValueError("Frame column 描述必须是对象")
         offset = int(raw.get("offset", 0))
         count = int(raw.get("count", 0))
+        byte_length = int(raw.get("byte_length", 0) or 0)
         encoding = str(raw.get("encoding", "f4"))
         if offset < 0 or count < 0:
             raise ValueError("Frame column 的 offset/count 不能为负")
         if offset > len(payload):
             raise ValueError("Frame column 的 offset 超出 payload")
+        if byte_length < 0:
+            raise ValueError("Frame column 的 byte_length 不能为负")
         if encoding != "json":
             dtype = _ENCODINGS.get(encoding)
             if dtype is None:
@@ -231,7 +240,12 @@ def decode_frame(data: bytes) -> Frame:
                 raise ValueError("Frame column 的数据长度与 count 不一致")
             blob = payload[offset : offset + size]
         else:
-            blob = payload[offset:]
+            if byte_length:
+                if offset + byte_length > len(payload):
+                    raise ValueError("Frame column 的 JSON byte_length 超出 payload")
+                blob = payload[offset : offset + byte_length]
+            else:
+                blob = payload[offset:]
         values = _decode_values(blob, encoding, count)
         columns.append(
             FrameColumn(
@@ -243,6 +257,7 @@ def decode_frame(data: bytes) -> Frame:
                 encoding=encoding,
                 offset=offset,
                 count=count,
+                byte_length=byte_length,
             )
         )
     return Frame(
