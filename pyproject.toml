@@ -60,7 +60,11 @@ plotkit = "plotkit.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-plotkit = ["static/*.html", "static/*.js", "static/*.css", "static/vendor/*.js"]
+plotkit = [
+  "static/*.html", "static/*.js", "static/*.css", "static/vendor/*.js",
+  # P0 契约冻结：schema/*.json 必须随 wheel 分发，否则运行时 probe()/Selector 找不到声明
+  "schema/*.json",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

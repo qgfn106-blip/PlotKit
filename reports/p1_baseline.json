@@ -1,0 +1,2934 @@
+{
+  "deliverables": [
+    "PlotKit/reports/p1_baseline.json",
+    "PlotKit/docs/decisions/2026-11-09-p1-measurement.md",
+    "PlotKit/docs/decisions/2026-11-09-patch-api-design.md",
+    "PlotKit/docs/decisions/2026-11-09-test-ui-scope.md"
+  ],
+  "dependency_closure": {
+    "find_spec": {
+      "raw_stdout": "{\"plotkit.contrib.ns\": {\"error\": \"ModuleNotFoundError: No module named 'plotkit.contrib'\", \"found\": false, \"origin\": null, \"submodule_search_locations\": []}, \"plotkit.field3d\": {\"error\": null, \"found\": true, \"origin\": \"E:\\\\Python\\\\MyPython\\\\ProjectPoint\\\\PlotKit\\\\src\\\\plotkit\\\\field3d.py\", \"submodule_search_locations\": []}, \"plotkit.ns\": {\"error\": null, \"found\": true, \"origin\": \"E:\\\\Python\\\\MyPython\\\\ProjectPoint\\\\PlotKit\\\\src\\\\plotkit\\\\ns\\\\__init__.py\", \"submodule_search_locations\": [\"E:\\\\Python\\\\MyPython\\\\ProjectPoint\\\\PlotKit\\\\src\\\\plotkit\\\\ns\"]}, \"pyvista\": {\"error\": null, \"found\": true, \"origin\": \"E:\\\\anaconda3\\\\Lib\\\\site-packages\\\\pyvista\\\\__init__.py\", \"submodule_search_locations\": [\"E:\\\\anaconda3\\\\Lib\\\\site-packages\\\\pyvista\"]}, \"pywebview\": {\"error\": null, \"found\": false, \"origin\": null, \"submodule_search_locations\": []}, \"scipy\": {\"error\": null, \"found\": true, \"origin\": \"E:\\\\anaconda3\\\\Lib\\\\site-packages\\\\scipy\\\\__init__.py\", \"submodule_search_locations\": [\"E:\\\\anaconda3\\\\Lib\\\\site-packages\\\\scipy\"]}, \"vtk\": {\"error\": null, \"found\": true, \"origin\": \"E:\\\\anaconda3\\\\Lib\\\\site-packages\\\\vtk.py\", \"submodule_search_locations\": []}}\n",
+      "results": {
+        "plotkit.contrib.ns": {
+          "error": "ModuleNotFoundError: No module named 'plotkit.contrib'",
+          "found": false,
+          "origin": null,
+          "submodule_search_locations": []
+        },
+        "plotkit.field3d": {
+          "error": null,
+          "found": true,
+          "origin": "E:\\Python\\MyPython\\ProjectPoint\\PlotKit\\src\\plotkit\\field3d.py",
+          "submodule_search_locations": []
+        },
+        "plotkit.ns": {
+          "error": null,
+          "found": true,
+          "origin": "E:\\Python\\MyPython\\ProjectPoint\\PlotKit\\src\\plotkit\\ns\\__init__.py",
+          "submodule_search_locations": [
+            "E:\\Python\\MyPython\\ProjectPoint\\PlotKit\\src\\plotkit\\ns"
+          ]
+        },
+        "pyvista": {
+          "error": null,
+          "found": true,
+          "origin": "E:\\anaconda3\\Lib\\site-packages\\pyvista\\__init__.py",
+          "submodule_search_locations": [
+            "E:\\anaconda3\\Lib\\site-packages\\pyvista"
+          ]
+        },
+        "pywebview": {
+          "error": null,
+          "found": false,
+          "origin": null,
+          "submodule_search_locations": []
+        },
+        "scipy": {
+          "error": null,
+          "found": true,
+          "origin": "E:\\anaconda3\\Lib\\site-packages\\scipy\\__init__.py",
+          "submodule_search_locations": [
+            "E:\\anaconda3\\Lib\\site-packages\\scipy"
+          ]
+        },
+        "vtk": {
+          "error": null,
+          "found": true,
+          "origin": "E:\\anaconda3\\Lib\\site-packages\\vtk.py",
+          "submodule_search_locations": []
+        }
+      },
+      "returncode": 0,
+      "stderr": ""
+    },
+    "metadata_requires": {
+      "raw_stdout": "{\"plotkit\": [\"numpy>=1.23\", \"matplotlib>=3.6\", \"pillow>=9.0\", \"fastapi>=0.110; extra == \\\"web\\\"\", \"uvicorn>=0.27; extra == \\\"web\\\"\", \"pywebview>=5.0; extra == \\\"desktop\\\"\", \"pyvista>=0.44; extra == \\\"three\\\"\", \"psutil>=5.9; extra == \\\"metrics\\\"\", \"pytest>=7; extra == \\\"dev\\\"\", \"httpx>=0.24; extra == \\\"dev\\\"\", \"ruff>=0.4; extra == \\\"dev\\\"\", \"fastapi>=0.110; extra == \\\"all\\\"\", \"uvicorn>=0.27; extra == \\\"all\\\"\", \"pywebview>=5.0; extra == \\\"all\\\"\", \"pyvista>=0.44; extra == \\\"all\\\"\", \"psutil>=5.9; extra == \\\"all\\\"\", \"fastapi>=0.110; extra == \\\"server\\\"\", \"uvicorn>=0.27; extra == \\\"server\\\"\", \"matplotlib>=3.6; extra == \\\"mpl\\\"\"], \"pyvista\": [\"cyclopts>=4.0.0\", \"matplotlib>=3.0.1\", \"numpy>=1.21.0\", \"pillow\", \"pooch\", \"pyobjc-framework-Cocoa; sys_platform == \\\"darwin\\\"\", \"pyvista-validation==0.2.2\", \"scooby>=0.5.1\", \"typing-extensions>=4.10\", \"vtk!=9.4.0\", \"vtk!=9.4.1\", \"vtk<9.8.0\", \"vtk>=9.3.1\", \"pyvista[colormaps,io,io-override,jupyter]; extra == \\\"all\\\"\", \"cmcrameri; extra == \\\"colormaps\\\"\", \"cmocean; extra == \\\"colormaps\\\"\", \"colorcet; extra == \\\"colormaps\\\"\", \"cvista[all]<9.8.0,>=9.7.0.2; extra == \\\"cvista\\\"\", \"fsspec; extra == \\\"io\\\"\", \"imageio; extra == \\\"io\\\"\", \"meshio>=5.2; extra == \\\"io\\\"\", \"pyvista-frd-reader>=0.2.1; extra == \\\"io\\\"\", \"pyvista-zstd>=0.3.1; extra == \\\"io\\\"\", \"pyvista-miniply>=0.5.2; extra == \\\"io-override\\\"\", \"pyvista-stl>=0.5.3; extra == \\\"io-override\\\"\", \"trame-pyvista[jupyter]; extra == \\\"jupyter\\\"\"], \"pywebview\": [\"pythonnet; sys_platform == \\\"win32\\\"\", \"pyobjc-core>=9.0; sys_platform == \\\"darwin\\\"\", \"pyobjc-framework-Cocoa>=9.0; sys_platform == \\\"darwin\\\"\", \"pyobjc-framework-Quartz>=9.0; sys_platform == \\\"darwin\\\"\", \"pyobjc-framework-WebKit>=9.0; sys_platform == \\\"darwin\\\"\", \"pyobjc-framework-security>=9.0; sys_platform == \\\"darwin\\\"\", \"pyobjc-framework-UniformTypeIdentifiers>=9.0; sys_platform == \\\"darwin\\\"\", \"QtPy; sys_platform == \\\"openbsd6\\\"\", \"importlib_resources; python_version < \\\"3.9\\\"\", \"proxy_tools\", \"bottle\", \"typing_extensions\", \"cefpython3; extra == \\\"cef\\\"\", \"PyGObject==3.50.0; extra == \\\"gtk\\\"\", \"PyGObject-stubs; extra == \\\"gtk\\\"\", \"QtPy; extra == \\\"pyside2\\\"\", \"PySide2; extra == \\\"pyside2\\\"\", \"QtPy; extra == \\\"pyside6\\\"\", \"PySide6; extra == \\\"pyside6\\\"\", \"QtPy; extra == \\\"qt\\\"\", \"PyQt6; extra == \\\"qt\\\"\", \"PyQt6-WebEngine; extra == \\\"qt\\\"\", \"QtPy; extra == \\\"qt5\\\"\", \"PyQt5; extra == \\\"qt5\\\"\", \"pyqtwebengine; extra == \\\"qt5\\\"\", \"QtPy; extra == \\\"qt6\\\"\", \"PyQt6; extra == \\\"qt6\\\"\", \"PyQt6-WebEngine; extra == \\\"qt6\\\"\", \"jnius; extra == \\\"android\\\"\", \"cryptography; extra == \\\"ssl\\\"\", \"ruff; extra == \\\"dev\\\"\", \"pre-commit; extra == \\\"dev\\\"\", \"pytest; extra == \\\"dev\\\"\", \"build; extra == \\\"dev\\\"\", \"twine; extra == \\\"dev\\\"\"], \"scipy\": [\"numpy<2.6,>=1.25.2\", \"pytest>=8.0.0; extra == \\\"test\\\"\", \"pytest-cov; extra == \\\"test\\\"\", \"pytest-timeout; extra == \\\"test\\\"\", \"pytest-xdist; extra == \\\"test\\\"\", \"asv; extra == \\\"test\\\"\", \"mpmath; extra == \\\"test\\\"\", \"gmpy2; extra == \\\"test\\\"\", \"threadpoolctl; extra == \\\"test\\\"\", \"scikit-umfpack; extra == \\\"test\\\"\", \"pooch; extra == \\\"test\\\"\", \"hypothesis>=6.30; extra == \\\"test\\\"\", \"array-api-strict>=2.3.1; extra == \\\"test\\\"\", \"Cython; extra == \\\"test\\\"\", \"meson; extra == \\\"test\\\"\", \"ninja; sys_platform != \\\"emscripten\\\" and extra == \\\"test\\\"\", \"sphinx<8.2.0,>=5.0.0; extra == \\\"doc\\\"\", \"intersphinx_registry; extra == \\\"doc\\\"\", \"pydata-sphinx-theme>=0.15.2; extra == \\\"doc\\\"\", \"sphinx-copybutton; extra == \\\"doc\\\"\", \"sphinx-design>=0.4.0; extra == \\\"doc\\\"\", \"matplotlib>=3.5; extra == \\\"doc\\\"\", \"numpydoc; extra == \\\"doc\\\"\", \"jupytext; extra == \\\"doc\\\"\", \"myst-nb>=1.2.0; extra == \\\"doc\\\"\", \"pooch; extra == \\\"doc\\\"\", \"jupyterlite-sphinx>=0.19.1; extra == \\\"doc\\\"\", \"jupyterlite-pyodide-kernel; extra == \\\"doc\\\"\", \"linkify-it-py; extra == \\\"doc\\\"\", \"mypy==1.10.0; extra == \\\"dev\\\"\", \"typing_extensions; extra == \\\"dev\\\"\", \"types-psutil; extra == \\\"dev\\\"\", \"pycodestyle; extra == \\\"dev\\\"\", \"ruff>=0.0.292; extra == \\\"dev\\\"\", \"cython-lint>=0.12.2; extra == \\\"dev\\\"\", \"rich-click; extra == \\\"dev\\\"\", \"doit>=0.36.0; extra == \\\"dev\\\"\", \"pydevtool; extra == \\\"dev\\\"\"], \"vtk\": [\"matplotlib>=2.0.0\", \"numpy>=1.9; extra == \\\"numpy\\\"\", \"wslink>=1.0.4; extra == \\\"web\\\"\"]}\n",
+      "results": {
+        "plotkit": [
+          "numpy>=1.23",
+          "matplotlib>=3.6",
+          "pillow>=9.0",
+          "fastapi>=0.110; extra == \"web\"",
+          "uvicorn>=0.27; extra == \"web\"",
+          "pywebview>=5.0; extra == \"desktop\"",
+          "pyvista>=0.44; extra == \"three\"",
+          "psutil>=5.9; extra == \"metrics\"",
+          "pytest>=7; extra == \"dev\"",
+          "httpx>=0.24; extra == \"dev\"",
+          "ruff>=0.4; extra == \"dev\"",
+          "fastapi>=0.110; extra == \"all\"",
+          "uvicorn>=0.27; extra == \"all\"",
+          "pywebview>=5.0; extra == \"all\"",
+          "pyvista>=0.44; extra == \"all\"",
+          "psutil>=5.9; extra == \"all\"",
+          "fastapi>=0.110; extra == \"server\"",
+          "uvicorn>=0.27; extra == \"server\"",
+          "matplotlib>=3.6; extra == \"mpl\""
+        ],
+        "pyvista": [
+          "cyclopts>=4.0.0",
+          "matplotlib>=3.0.1",
+          "numpy>=1.21.0",
+          "pillow",
+          "pooch",
+          "pyobjc-framework-Cocoa; sys_platform == \"darwin\"",
+          "pyvista-validation==0.2.2",
+          "scooby>=0.5.1",
+          "typing-extensions>=4.10",
+          "vtk!=9.4.0",
+          "vtk!=9.4.1",
+          "vtk<9.8.0",
+          "vtk>=9.3.1",
+          "pyvista[colormaps,io,io-override,jupyter]; extra == \"all\"",
+          "cmcrameri; extra == \"colormaps\"",
+          "cmocean; extra == \"colormaps\"",
+          "colorcet; extra == \"colormaps\"",
+          "cvista[all]<9.8.0,>=9.7.0.2; extra == \"cvista\"",
+          "fsspec; extra == \"io\"",
+          "imageio; extra == \"io\"",
+          "meshio>=5.2; extra == \"io\"",
+          "pyvista-frd-reader>=0.2.1; extra == \"io\"",
+          "pyvista-zstd>=0.3.1; extra == \"io\"",
+          "pyvista-miniply>=0.5.2; extra == \"io-override\"",
+          "pyvista-stl>=0.5.3; extra == \"io-override\"",
+          "trame-pyvista[jupyter]; extra == \"jupyter\""
+        ],
+        "pywebview": [
+          "pythonnet; sys_platform == \"win32\"",
+          "pyobjc-core>=9.0; sys_platform == \"darwin\"",
+          "pyobjc-framework-Cocoa>=9.0; sys_platform == \"darwin\"",
+          "pyobjc-framework-Quartz>=9.0; sys_platform == \"darwin\"",
+          "pyobjc-framework-WebKit>=9.0; sys_platform == \"darwin\"",
+          "pyobjc-framework-security>=9.0; sys_platform == \"darwin\"",
+          "pyobjc-framework-UniformTypeIdentifiers>=9.0; sys_platform == \"darwin\"",
+          "QtPy; sys_platform == \"openbsd6\"",
+          "importlib_resources; python_version < \"3.9\"",
+          "proxy_tools",
+          "bottle",
+          "typing_extensions",
+          "cefpython3; extra == \"cef\"",
+          "PyGObject==3.50.0; extra == \"gtk\"",
+          "PyGObject-stubs; extra == \"gtk\"",
+          "QtPy; extra == \"pyside2\"",
+          "PySide2; extra == \"pyside2\"",
+          "QtPy; extra == \"pyside6\"",
+          "PySide6; extra == \"pyside6\"",
+          "QtPy; extra == \"qt\"",
+          "PyQt6; extra == \"qt\"",
+          "PyQt6-WebEngine; extra == \"qt\"",
+          "QtPy; extra == \"qt5\"",
+          "PyQt5; extra == \"qt5\"",
+          "pyqtwebengine; extra == \"qt5\"",
+          "QtPy; extra == \"qt6\"",
+          "PyQt6; extra == \"qt6\"",
+          "PyQt6-WebEngine; extra == \"qt6\"",
+          "jnius; extra == \"android\"",
+          "cryptography; extra == \"ssl\"",
+          "ruff; extra == \"dev\"",
+          "pre-commit; extra == \"dev\"",
+          "pytest; extra == \"dev\"",
+          "build; extra == \"dev\"",
+          "twine; extra == \"dev\""
+        ],
+        "scipy": [
+          "numpy<2.6,>=1.25.2",
+          "pytest>=8.0.0; extra == \"test\"",
+          "pytest-cov; extra == \"test\"",
+          "pytest-timeout; extra == \"test\"",
+          "pytest-xdist; extra == \"test\"",
+          "asv; extra == \"test\"",
+          "mpmath; extra == \"test\"",
+          "gmpy2; extra == \"test\"",
+          "threadpoolctl; extra == \"test\"",
+          "scikit-umfpack; extra == \"test\"",
+          "pooch; extra == \"test\"",
+          "hypothesis>=6.30; extra == \"test\"",
+          "array-api-strict>=2.3.1; extra == \"test\"",
+          "Cython; extra == \"test\"",
+          "meson; extra == \"test\"",
+          "ninja; sys_platform != \"emscripten\" and extra == \"test\"",
+          "sphinx<8.2.0,>=5.0.0; extra == \"doc\"",
+          "intersphinx_registry; extra == \"doc\"",
+          "pydata-sphinx-theme>=0.15.2; extra == \"doc\"",
+          "sphinx-copybutton; extra == \"doc\"",
+          "sphinx-design>=0.4.0; extra == \"doc\"",
+          "matplotlib>=3.5; extra == \"doc\"",
+          "numpydoc; extra == \"doc\"",
+          "jupytext; extra == \"doc\"",
+          "myst-nb>=1.2.0; extra == \"doc\"",
+          "pooch; extra == \"doc\"",
+          "jupyterlite-sphinx>=0.19.1; extra == \"doc\"",
+          "jupyterlite-pyodide-kernel; extra == \"doc\"",
+          "linkify-it-py; extra == \"doc\"",
+          "mypy==1.10.0; extra == \"dev\"",
+          "typing_extensions; extra == \"dev\"",
+          "types-psutil; extra == \"dev\"",
+          "pycodestyle; extra == \"dev\"",
+          "ruff>=0.0.292; extra == \"dev\"",
+          "cython-lint>=0.12.2; extra == \"dev\"",
+          "rich-click; extra == \"dev\"",
+          "doit>=0.36.0; extra == \"dev\"",
+          "pydevtool; extra == \"dev\""
+        ],
+        "vtk": [
+          "matplotlib>=2.0.0",
+          "numpy>=1.9; extra == \"numpy\"",
+          "wslink>=1.0.4; extra == \"web\""
+        ]
+      },
+      "returncode": 0,
+      "stderr": ""
+    },
+    "pyproject_extras": {
+      "all": [
+        "fastapi>=0.110",
+        "uvicorn>=0.27",
+        "pywebview>=5.0",
+        "pyvista>=0.44",
+        "psutil>=5.9"
+      ],
+      "desktop": [
+        "pywebview>=5.0"
+      ],
+      "dev": [
+        "pytest>=7",
+        "httpx>=0.24",
+        "ruff>=0.4"
+      ],
+      "metrics": [
+        "psutil>=5.9"
+      ],
+      "mpl": [
+        "matplotlib>=3.6"
+      ],
+      "server": [
+        "fastapi>=0.110",
+        "uvicorn>=0.27"
+      ],
+      "three": [
+        "pyvista>=0.44"
+      ],
+      "web": [
+        "fastapi>=0.110",
+        "uvicorn>=0.27"
+      ]
+    },
+    "source_imports": {
+      "raw_stdout": "{\"anim3d.py\": [\"PIL\", \"__future__\", \"dataclasses\", \"io\", \"math\", \"numpy\", \"pathlib\", \"shutil\", \"subprocess\", \"tempfile\", \"typing\"], \"backends/hybrid3d.py\": [\"__future__\", \"io\", \"math\", \"matplotlib\", \"numpy\", \"typing\"], \"backends/pyvista_backend.py\": [\"PIL\", \"__future__\", \"atexit\", \"dataclasses\", \"hashlib\", \"io\", \"itertools\", \"json\", \"math\", \"matplotlib\", \"numpy\", \"os\", \"pyvista\", \"queue\", \"threading\", \"typing\", \"weakref\"], \"backends/pyvista_pool.py\": [\"__future__\", \"concurrent\", \"os\", \"typing\"], \"cli.py\": [\"__future__\", \"argparse\", \"httpx\", \"json\", \"matplotlib\", \"numpy\", \"pathlib\", \"plotkit\", \"shutil\", \"sys\", \"uvicorn\"], \"desktop/app.py\": [\"__future__\", \"argparse\", \"json\", \"numpy\", \"pathlib\", \"plotkit\", \"psutil\", \"subprocess\", \"sys\", \"threading\", \"time\", \"urllib\", \"webview\"], \"desktop/server.py\": [\"__future__\", \"dataclasses\", \"socket\", \"threading\", \"time\", \"uvicorn\"], \"field3d.py\": [\"__future__\", \"numpy\", \"plotkit\", \"typing\"], \"ns/__init__.py\": [], \"ns/app.py\": [\"__future__\", \"argparse\", \"base64\", \"fastapi\", \"json\", \"pathlib\", \"sys\", \"threading\", \"time\", \"uvicorn\", \"webview\"], \"ns/diagnostics.py\": [\"__future__\", \"dataclasses\", \"numpy\"], \"ns/field.py\": [\"__future__\", \"dataclasses\", \"h5py\", \"numpy\", \"typing\"], \"ns/iso.py\": [\"__future__\", \"numpy\", \"pyvista\", \"typing\"], \"ns/scene.py\": [\"__future__\", \"typing\"], \"ns/solver.py\": [\"__future__\", \"dataclasses\", \"numpy\"], \"server/ns_app.py\": [\"PIL\", \"__future__\", \"base64\", \"fastapi\", \"functools\", \"io\", \"json\", \"matplotlib\", \"numpy\", \"shutil\", \"struct\", \"subprocess\", \"tempfile\", \"threading\"]}\n",
+      "results": {
+        "anim3d.py": [
+          "PIL",
+          "__future__",
+          "dataclasses",
+          "io",
+          "math",
+          "numpy",
+          "pathlib",
+          "shutil",
+          "subprocess",
+          "tempfile",
+          "typing"
+        ],
+        "backends/hybrid3d.py": [
+          "__future__",
+          "io",
+          "math",
+          "matplotlib",
+          "numpy",
+          "typing"
+        ],
+        "backends/pyvista_backend.py": [
+          "PIL",
+          "__future__",
+          "atexit",
+          "dataclasses",
+          "hashlib",
+          "io",
+          "itertools",
+          "json",
+          "math",
+          "matplotlib",
+          "numpy",
+          "os",
+          "pyvista",
+          "queue",
+          "threading",
+          "typing",
+          "weakref"
+        ],
+        "backends/pyvista_pool.py": [
+          "__future__",
+          "concurrent",
+          "os",
+          "typing"
+        ],
+        "cli.py": [
+          "__future__",
+          "argparse",
+          "httpx",
+          "json",
+          "matplotlib",
+          "numpy",
+          "pathlib",
+          "plotkit",
+          "shutil",
+          "sys",
+          "uvicorn"
+        ],
+        "desktop/app.py": [
+          "__future__",
+          "argparse",
+          "json",
+          "numpy",
+          "pathlib",
+          "plotkit",
+          "psutil",
+          "subprocess",
+          "sys",
+          "threading",
+          "time",
+          "urllib",
+          "webview"
+        ],
+        "desktop/server.py": [
+          "__future__",
+          "dataclasses",
+          "socket",
+          "threading",
+          "time",
+          "uvicorn"
+        ],
+        "field3d.py": [
+          "__future__",
+          "numpy",
+          "plotkit",
+          "typing"
+        ],
+        "ns/__init__.py": [],
+        "ns/app.py": [
+          "__future__",
+          "argparse",
+          "base64",
+          "fastapi",
+          "json",
+          "pathlib",
+          "sys",
+          "threading",
+          "time",
+          "uvicorn",
+          "webview"
+        ],
+        "ns/diagnostics.py": [
+          "__future__",
+          "dataclasses",
+          "numpy"
+        ],
+        "ns/field.py": [
+          "__future__",
+          "dataclasses",
+          "h5py",
+          "numpy",
+          "typing"
+        ],
+        "ns/iso.py": [
+          "__future__",
+          "numpy",
+          "pyvista",
+          "typing"
+        ],
+        "ns/scene.py": [
+          "__future__",
+          "typing"
+        ],
+        "ns/solver.py": [
+          "__future__",
+          "dataclasses",
+          "numpy"
+        ],
+        "server/ns_app.py": [
+          "PIL",
+          "__future__",
+          "base64",
+          "fastapi",
+          "functools",
+          "io",
+          "json",
+          "matplotlib",
+          "numpy",
+          "shutil",
+          "struct",
+          "subprocess",
+          "tempfile",
+          "threading"
+        ]
+      },
+      "returncode": 0,
+      "stderr": "",
+      "third_party_roots": [
+        "PIL",
+        "__future__",
+        "argparse",
+        "atexit",
+        "base64",
+        "concurrent",
+        "dataclasses",
+        "fastapi",
+        "functools",
+        "h5py",
+        "hashlib",
+        "httpx",
+        "io",
+        "itertools",
+        "json",
+        "math",
+        "matplotlib",
+        "numpy",
+        "os",
+        "pathlib",
+        "plotkit",
+        "psutil",
+        "pyvista",
+        "queue",
+        "shutil",
+        "socket",
+        "struct",
+        "subprocess",
+        "sys",
+        "tempfile",
+        "threading",
+        "time",
+        "typing",
+        "urllib",
+        "uvicorn",
+        "weakref",
+        "webview"
+      ]
+    },
+    "synthetic_probe": {
+      "method": "subprocess monkeypatch plotkit.host_api._module_available",
+      "note": "two environments are simulated; no real pip install was performed. flags for vtk/scipy/pywebview describe the scenario but only pyvista and plotkit.contrib.ns affect probe().optional.",
+      "raw_stdout": "{\"all_extras_available_(synthetic)\": {\"flags\": {\"ns\": true, \"pyvista\": true, \"pywebview\": true, \"scipy\": true, \"vtk\": true}, \"probe\": {\"api_version\": \"1\", \"capabilities\": [\"static_png\", \"static_svg\", \"interactive_html\", \"live_frame\", \"capability_matrix\", \"document_roundtrip\", \"migration\", \"host_probe\", \"three\", \"ns\"], \"optional\": {\"ns\": true, \"three\": true}, \"package_version\": \"0.2.1\", \"state\": \"available\"}}, \"dev_web_only_(synthetic)\": {\"flags\": {\"ns\": false, \"pyvista\": false, \"pywebview\": false, \"scipy\": false, \"vtk\": false}, \"probe\": {\"api_version\": \"1\", \"capabilities\": [\"static_png\", \"static_svg\", \"interactive_html\", \"live_frame\", \"capability_matrix\", \"document_roundtrip\", \"migration\", \"host_probe\"], \"optional\": {\"ns\": false, \"three\": false}, \"package_version\": \"0.2.1\", \"state\": \"available\"}}}\n",
+      "results": {
+        "all_extras_available_(synthetic)": {
+          "flags": {
+            "ns": true,
+            "pyvista": true,
+            "pywebview": true,
+            "scipy": true,
+            "vtk": true
+          },
+          "probe": {
+            "api_version": "1",
+            "capabilities": [
+              "static_png",
+              "static_svg",
+              "interactive_html",
+              "live_frame",
+              "capability_matrix",
+              "document_roundtrip",
+              "migration",
+              "host_probe",
+              "three",
+              "ns"
+            ],
+            "optional": {
+              "ns": true,
+              "three": true
+            },
+            "package_version": "0.2.1",
+            "state": "available"
+          }
+        },
+        "dev_web_only_(synthetic)": {
+          "flags": {
+            "ns": false,
+            "pyvista": false,
+            "pywebview": false,
+            "scipy": false,
+            "vtk": false
+          },
+          "probe": {
+            "api_version": "1",
+            "capabilities": [
+              "static_png",
+              "static_svg",
+              "interactive_html",
+              "live_frame",
+              "capability_matrix",
+              "document_roundtrip",
+              "migration",
+              "host_probe"
+            ],
+            "optional": {
+              "ns": false,
+              "three": false
+            },
+            "package_version": "0.2.1",
+            "state": "available"
+          }
+        }
+      },
+      "returncode": 0,
+      "stderr": "",
+      "synthetic": true
+    }
+  },
+  "evidence": {
+    "commands": {
+      "date": "python -c \"import datetime; print(datetime.datetime.now().astimezone().isoformat())\"",
+      "head": "git rev-parse HEAD",
+      "plotkit_file": "PYTHONPATH=src python -c \"import plotkit; print(plotkit.__file__)\"",
+      "python_version": "python -V",
+      "temp_writability": "python -c \"import os; print(os.access('C:/Windows/Temp', os.W_OK))\""
+    },
+    "cwd": "E:\\Python\\MyPython\\ProjectPoint\\PlotKit",
+    "date": "2026-11-09T12:35:33.027529+08:00",
+    "env_guards": {
+      "MPLCONFIGDIR": "C:/Windows/Temp",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYVISTA_USERDATA_PATH": "C:/Windows/Temp",
+      "TEMP": "C:/Windows/Temp",
+      "TMP": "C:/Windows/Temp",
+      "XDG_CACHE_HOME": "C:/Windows/Temp"
+    },
+    "executable": "E:\\anaconda3\\python.exe",
+    "head": "1cf2570844c533cb2eb3ef44f352caa7d82fe764",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "plotkit_file": "E:\\Python\\MyPython\\ProjectPoint\\PlotKit\\src\\plotkit\\__init__.py",
+    "python_version": "Python 3.13.9",
+    "pythonpath_absolute": "E:\\Python\\MyPython\\ProjectPoint\\PlotKit\\src",
+    "temp_writable": true
+  },
+  "expand_contract_batches": {
+    "batches": [
+      {
+        "commit_convention": "独立 commit：P1-1: add contrib/ns dual-import shims",
+        "executed_this_round": false,
+        "id": "P1-1",
+        "involved_files": [
+          "src/plotkit/contrib/__init__.py",
+          "src/plotkit/contrib/ns/__init__.py",
+          "src/plotkit/contrib/ns/*.py（旧 ns 模块的再导出/等价实现）",
+          "src/plotkit/contrib/field3d.py（或等价再导出）"
+        ],
+        "name": "先建 contrib/ 双导入保持旧路径",
+        "preconditions": [
+          "P1-0 测量轮交付并复核通过",
+          "用户/lead 审批实际搬运，钉定 HEAD 与签字表 G1 行",
+          "与并行会话确认无同文件写冲突"
+        ],
+        "verification_commands": [
+          "PYTHONPATH=src python -c \"import plotkit.contrib.ns as n; import plotkit.ns as old; print(n.__name__, old.__name__)\"",
+          "python -m pytest -o addopts= -q tests/contract --disable-warnings",
+          "python tools/check_layers.py"
+        ]
+      },
+      {
+        "commit_convention": "独立 commit：P1-2: stop eager ns/three imports",
+        "executed_this_round": false,
+        "id": "P1-2",
+        "involved_files": [
+          "src/plotkit/__init__.py（去掉 from . import field3d, ns）",
+          "src/plotkit/host_api.py（optional ns 探测改为 contrib 路径）",
+          "pyproject.toml（新增 ns extra，见 ns_extra_naming）"
+        ],
+        "name": "切 __init__.py 顶层导入",
+        "preconditions": [
+          "P1-1 独立 commit 通过且旧路径仍可导入",
+          "api/native.py 不改（裁定书 §二④ 明确 P1/P2 均不得改）"
+        ],
+        "verification_commands": [
+          "PYTHONPATH=src python -c \"import sys; before=set(sys.modules); import plotkit; print(sorted(set(sys.modules)-before))\"",
+          "PYTHONPATH=src python -X importtime -c \"import plotkit\" 2>&1",
+          "python -c \"from plotkit.host_api import probe; print(probe()['optional'])\"",
+          "python -m pytest -o addopts= -q tests/contract --disable-warnings"
+        ]
+      },
+      {
+        "commit_convention": "独立 commit：P1-3: remove legacy ns/field3d paths",
+        "executed_this_round": false,
+        "id": "P1-3",
+        "involved_files": [
+          "src/plotkit/ns/（旧包，观察期后删除）",
+          "src/plotkit/field3d.py（旧顶层模块，观察期后删除）",
+          "src/plotkit/server/ns_app.py 等引用按 P1-2 结果收敛"
+        ],
+        "name": "删旧顶层导入/删旧路径",
+        "preconditions": [
+          "P1-2 独立 commit 通过",
+          "双导入观察一个发布周期且 parity/回归无旧路径依赖",
+          "单独审批删除，不与 P1-2 混在同一 commit"
+        ],
+        "verification_commands": [
+          "PYTHONPATH=src python -c \"import plotkit; print('ok')\"",
+          "python -m pytest -o addopts= -q tests/contract --disable-warnings",
+          "python -m pytest -o addopts= -q tests/parity --disable-warnings"
+        ]
+      }
+    ],
+    "executed_this_round": false,
+    "independent_commit_convention": "P1-1 / P1-2 / P1-3 各自独立 commit；每批只含该批文件；P1-3 删除旧路径须单独审批，不与 P1-2 混合。"
+  },
+  "file_baselines": {
+    "anim3d.py": {
+      "ast_sha256": "70cbc6a4e51edebcaffbff029fcdbfa48cb60564a6919738aa8ed319f8a9a260",
+      "bytes_sha256": "dbb223f00066ee38d3e14ad4b9e6831bb151d099875415bf9b3ca435135bd961",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 13888
+    },
+    "backends/hybrid3d.py": {
+      "ast_sha256": "92a3fbf5b7de40ca730cf7a5e88d23c3d69092a4e9e16f01e53eaf2a0cfd63e6",
+      "bytes_sha256": "4f0f64d2adb6a1e85dbf643274aa9c7aa4ec83ec305928bf38a6fc7b9a152057",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 12427
+    },
+    "backends/pyvista_backend.py": {
+      "ast_sha256": "ef397cae0f2735be634fd7d211ea0e87c3f49557b5ecba1d52a1b43c8dc85c28",
+      "bytes_sha256": "d26961eb12f260147b5ba6e5a3cef95cad517b962b1c0a4fcca9cf525a8135d9",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 36310
+    },
+    "backends/pyvista_pool.py": {
+      "ast_sha256": "3d330638621a69c2eabe8a0b32c160d92aa2724a8311d9117ed2944e4aa20f37",
+      "bytes_sha256": "d4ef8659c4001e6b9b543309ba556c3b9af79cc8a96eda97e86c2f5182e30960",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 3550
+    },
+    "cli.py": {
+      "ast_sha256": "efa9d67cd66b09087962cd9ba9542f689d67a0a15b731c94212aa1613bfdba9f",
+      "bytes_sha256": "4e0fc036babde9087c614e8f7a99dd5f12a80e8551ddecb299c14556b78f42d1",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 9311
+    },
+    "desktop/app.py": {
+      "ast_sha256": "1addbfded763b0a67ce3bd2ca761f589676bda8cb361e4d56ea468fa7af49cc2",
+      "bytes_sha256": "5252d3c50c3ca381cda3609253cd9bf29a6aec15fb42cf45fd30ac9da5cafd78",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 7892
+    },
+    "desktop/server.py": {
+      "ast_sha256": "47aaca2ef47ca1d1ad5778c1a1b2a1bedaa876b795d701be68c7139810d13e2a",
+      "bytes_sha256": "df907ca04cfc25f9395b754784b3aeb00c5990a20f8d91e1bdae38108c524aff",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 1801
+    },
+    "field3d.py": {
+      "ast_sha256": "446454e2fbd65624d627a5a18d00d792ff354dd92b4c6d42781b26bb4adea8b3",
+      "bytes_sha256": "7957b7cdecc9aef4cc3d72e8539b2f7f9b13df8a4a346d3574eb1044324f7b90",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 11891
+    },
+    "ns/__init__.py": {
+      "ast_sha256": "cf1626752e02013e2637f0c29a09e4dcaa47f8350ed6f7a4eba31110fdbad9a9",
+      "bytes_sha256": "9d4d0add633c058ece9e0c843b33a92d1111ac470eab92762b8fdb70282f5c5b",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 1043
+    },
+    "ns/app.py": {
+      "ast_sha256": "48e97732bbad8bf95662498c3e799cf8373785afe61e0a4d67393a6b26f78a8c",
+      "bytes_sha256": "f6bc279b1e0b4865655f311f3c01da0f7cebba51b6ade5857f662d6f20f5708f",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 10795
+    },
+    "ns/diagnostics.py": {
+      "ast_sha256": "7ffa2f4af2379a07c6839f51710dbfcda538eefb3c1db97ae409704f72c83c18",
+      "bytes_sha256": "fad8a3efc0232656921ac70dafecc1cbbf5410ca0e970cbccd9d394c4b8f6649",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 7956
+    },
+    "ns/field.py": {
+      "ast_sha256": "896dc40a14e8306efd8a294ff107cb9b85b387e04fbe13506987d6b48da1e933",
+      "bytes_sha256": "6c678bfbe3913f3da7457a4797d6e0389432030116ee3f77780e4f6f17c1f058",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 20848
+    },
+    "ns/iso.py": {
+      "ast_sha256": "255a133e737a2f6ad4e86a655345c511de1c73adc1e6219dcba18215bd17f352",
+      "bytes_sha256": "f5a093f2b17bb8e06e33c1e61d6051ad4f8a3f5e59571f7fa2d091745dca592a",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 5751
+    },
+    "ns/scene.py": {
+      "ast_sha256": "3e3990cd27b927c2bef2ed29f49fb27a9c200217440f3ac79cb896591de744da",
+      "bytes_sha256": "1e958a842f20c1cf1aaeecc45cedd6443dbc40a35b0508974ef0f28e0d068f32",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 1732
+    },
+    "ns/solver.py": {
+      "ast_sha256": "0ec9ccce7771f1a04c25ab3545882091e11e50e0322a304b74bc36c38db94031",
+      "bytes_sha256": "f8b2991d84761b3e70eea4bdece1eb5af0015400b36469713f695e1ada29961c",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 11234
+    },
+    "server/ns_app.py": {
+      "ast_sha256": "4e17a9fbe077432b13362c042c63ba03fb2a380da35f564b45d43b5b4803084c",
+      "bytes_sha256": "75b5b6b62275674276b79be02c5c4f3d648721fd5e6a89eb04e8a177de274557",
+      "has_bom": false,
+      "kind": "python",
+      "size_bytes": 23095
+    },
+    "static/ns.html": {
+      "ast_sha256": null,
+      "bytes_sha256": "9be8201afc1a83d232f14ed9d6ad8cc34b5461a799da56c9c1bc05c76f242fa8",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 28479
+    },
+    "static/nsview.js": {
+      "ast_sha256": null,
+      "bytes_sha256": "d72c4f3e101c8ad7f0aa1ed41525dc167d0d219ce335634677f311e512ef4ee5",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 65123
+    },
+    "static/nsview.ts": {
+      "ast_sha256": null,
+      "bytes_sha256": "b32237677164e53ce65069b24a38a01c4037216f1e67e0976f67d1cd79d496d6",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 73308
+    },
+    "static/plot3d.utils.js": {
+      "ast_sha256": null,
+      "bytes_sha256": "a0ec24b4ce97f45edc48b4a8576534424164ad8d31c452639a60fdfbf3932176",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 4146
+    },
+    "static/plot3d.utils.ts": {
+      "ast_sha256": null,
+      "bytes_sha256": "4ba627022230f53c3bf42fdc5dbda0049560abdf0fc42d076be3d07d20614eb8",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 4878
+    },
+    "static/view3d.js": {
+      "ast_sha256": null,
+      "bytes_sha256": "f40fd2ac9b9d7d9af639568b984a40dc287cc89dbb6d6c44dffa315c1c166f63",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 31371
+    },
+    "static/view3d.ts": {
+      "ast_sha256": null,
+      "bytes_sha256": "3ae2c12e3aac09d595cdc6ed5869147a24c061043da24c10905702f2ee3dca46",
+      "has_bom": false,
+      "kind": "asset",
+      "size_bytes": 34920
+    }
+  },
+  "file_baselines_count": 23,
+  "file_baselines_meta": {
+    "asset_file_count": 7,
+    "ast_hash": "sha256(ast.dump(ast.parse(source, type_comments=False), include_attributes=False).encode('utf-8')) for .py only",
+    "bytes_hash": "sha256(raw file bytes)",
+    "count": 23,
+    "python_file_count": 16,
+    "python_version": "3.13.9",
+    "root": "src/plotkit",
+    "x2_equivalent_evidence": true
+  },
+  "frontend_line_counts": {
+    "all_ts_js_files_in_plotkit": 18,
+    "all_ts_js_per_file": {
+      ".tsbuild/plot2d.utils.js": 126,
+      ".tsbuild/plot3d.utils.js": 138,
+      "scripts/verify_app_parity.js": 44,
+      "scripts/verify_nsview_parity.js": 44,
+      "scripts/verify_render2d_parity.js": 112,
+      "scripts/verify_view3d_parity.js": 129,
+      "src/plotkit/static/app.js": 2713,
+      "src/plotkit/static/app.ts": 3042,
+      "src/plotkit/static/nsview.js": 1476,
+      "src/plotkit/static/nsview.ts": 1535,
+      "src/plotkit/static/plot2d.utils.js": 111,
+      "src/plotkit/static/plot2d.utils.ts": 105,
+      "src/plotkit/static/plot3d.utils.js": 148,
+      "src/plotkit/static/plot3d.utils.ts": 130,
+      "src/plotkit/static/render2d.js": 795,
+      "src/plotkit/static/render2d.ts": 876,
+      "src/plotkit/static/view3d.js": 812,
+      "src/plotkit/static/view3d.ts": 881
+    },
+    "all_ts_js_total_lines_in_plotkit": 13217,
+    "app_js_lines": 2713,
+    "app_ts_lines": 3042,
+    "decision_doc_dual_13990_note": "裁定书 §二⑤ 以「双份 13990 行」描述现状；本轮实读 static 6 对 TS/JS 共 12624 行，全仓 TS/JS 共 13217 行，数字差异不在此稿裁定。",
+    "js_files": 6,
+    "js_total_lines": 6055,
+    "per_file": {
+      "app.js": 2713,
+      "app.ts": 3042,
+      "nsview.js": 1476,
+      "nsview.ts": 1535,
+      "plot2d.utils.js": 111,
+      "plot2d.utils.ts": 105,
+      "plot3d.utils.js": 148,
+      "plot3d.utils.ts": 130,
+      "render2d.js": 795,
+      "render2d.ts": 876,
+      "view3d.js": 812,
+      "view3d.ts": 881
+    },
+    "ts_files": 6,
+    "ts_plus_js_total_lines": 12624,
+    "ts_total_lines": 6569
+  },
+  "g1_readiness": {
+    "criterion": "import plotkit 不加载 ns/three",
+    "next_gate": "P1-0 交付并复核后，才审批实际搬运（裁定书 §二④ / §四步骤 5）",
+    "reasons": [
+      "X2 等价留痕此前没有：逐文件 SHA256 + AST dump 基线在本轮才产出",
+      "签字表 G1 行整行为空",
+      "本轮 importtime / sys.modules 差集仍命中 ns/three 模块",
+      "本轮只测量、不搬文件、不执行任何 expand_contract_batches"
+    ],
+    "status": "not_ready"
+  },
+  "importtime": {
+    "command": "PYTHONPATH=src python -X importtime -c \"import plotkit\" 2>&1",
+    "line_count": 244,
+    "max_cumulative_us": 153260,
+    "module_list": [
+      "winreg",
+      "_io",
+      "marshal",
+      "nt",
+      "_frozen_importlib_external",
+      "time",
+      "zipimport",
+      "_codecs",
+      "codecs",
+      "encodings.aliases",
+      "encodings",
+      "encodings.utf_8",
+      "_signal",
+      "_abc",
+      "abc",
+      "io",
+      "_stat",
+      "stat",
+      "_collections_abc",
+      "genericpath",
+      "_winapi",
+      "ntpath",
+      "os",
+      "_sitebuiltins",
+      "errno",
+      "encodings.utf_8_sig",
+      "__future__",
+      "importlib",
+      "importlib.machinery",
+      "importlib._abc",
+      "types",
+      "importlib.util",
+      "itertools",
+      "keyword",
+      "_operator",
+      "operator",
+      "reprlib",
+      "_collections",
+      "collections",
+      "_functools",
+      "functools",
+      "contextlib",
+      "enum",
+      "_sre",
+      "re._constants",
+      "re._parser",
+      "re._casefix",
+      "re._compiler",
+      "copyreg",
+      "re",
+      "posix",
+      "posix",
+      "posixpath",
+      "fnmatch",
+      "glob",
+      "pathlib._abc",
+      "warnings",
+      "pwd",
+      "grp",
+      "pathlib._local",
+      "pathlib",
+      "__editable___netlab_3_20_1_finder",
+      "_distutils_hack",
+      "sitecustomize",
+      "usercustomize",
+      "site",
+      "linecache",
+      "_typing",
+      "typing",
+      "_weakrefset",
+      "weakref",
+      "copy",
+      "plotkit.presets",
+      "numpy.version",
+      "numpy._expired_attrs_2_0",
+      "numpy._utils._convertions",
+      "numpy._utils",
+      "numpy._globals",
+      "mkl._init_helper",
+      "_ctypes",
+      "_struct",
+      "struct",
+      "ctypes._endian",
+      "ctypes",
+      "mkl._mklinit",
+      "numbers",
+      "mkl._py_mkl_service",
+      "mkl._version",
+      "mkl",
+      "numpy._distributor_init",
+      "_datetime",
+      "datetime",
+      "math",
+      "numpy.exceptions",
+      "numpy._core._exceptions",
+      "_contextvars",
+      "contextvars",
+      "numpy._core.printoptions",
+      "numpy.dtypes",
+      "numpy._core._multiarray_umath",
+      "numpy._utils._inspect",
+      "numpy._core.overrides",
+      "numpy._core.multiarray",
+      "numpy._core.umath",
+      "numpy._core._dtype",
+      "numpy._core._string_helpers",
+      "numpy._core._type_aliases",
+      "numpy._core.numerictypes",
+      "numpy._core._ufunc_config",
+      "_compat_pickle",
+      "_pickle",
+      "pickle",
+      "numpy._core._methods",
+      "numpy._core.fromnumeric",
+      "numpy._core._machar",
+      "numpy._core.shape_base",
+      "numpy._core._asarray",
+      "numpy._core.arrayprint",
+      "numpy._core.numeric",
+      "numpy._core.einsumfunc",
+      "numpy._core.function_base",
+      "numpy._core.getlimits",
+      "numpy._core.memmap",
+      "numpy._core.records",
+      "numpy._core._add_newdocs",
+      "numpy._core._add_newdocs_scalars",
+      "numpy._core._dtype_ctypes",
+      "_ast",
+      "ast",
+      "numpy._core._internal",
+      "numpy._pytesttester",
+      "numpy._core",
+      "numpy._core._multiarray_umath",
+      "numpy.__config__",
+      "numpy._typing._nbit_base",
+      "numpy._typing._nested_sequence",
+      "numpy._typing._shape",
+      "numpy._typing._array_like",
+      "numpy._typing._char_codes",
+      "numpy._typing._dtype_like",
+      "numpy._typing._nbit",
+      "numpy._typing._scalars",
+      "numpy._typing._ufunc",
+      "numpy._typing",
+      "numpy.lib._stride_tricks_impl",
+      "numpy.lib._twodim_base_impl",
+      "numpy.lib._array_utils_impl",
+      "numpy.lib.array_utils",
+      "numpy.linalg._umath_linalg",
+      "numpy.linalg._linalg",
+      "numpy.linalg.linalg",
+      "numpy.linalg",
+      "numpy.matrixlib.defmatrix",
+      "numpy.matrixlib",
+      "numpy.lib._histograms_impl",
+      "numpy.lib._function_base_impl",
+      "numpy.lib.stride_tricks",
+      "numpy.lib._index_tricks_impl",
+      "numpy.lib._arraypad_impl",
+      "numpy.lib._arraysetops_impl",
+      "numpy.lib._arrayterator_impl",
+      "numpy.lib._nanfunctions_impl",
+      "_wmi",
+      "platform",
+      "textwrap",
+      "numpy.lib._utils_impl",
+      "numpy.lib._format_impl",
+      "numpy.lib.format",
+      "numpy.lib._datasource",
+      "numpy.lib._iotools",
+      "numpy.lib._npyio_impl",
+      "numpy.lib._ufunclike_impl",
+      "numpy.lib._type_check_impl",
+      "numpy.lib._polynomial_impl",
+      "numpy.lib._shape_base_impl",
+      "numpy.lib._version",
+      "numpy.lib.introspect",
+      "numpy.lib.mixins",
+      "numpy.lib.npyio",
+      "numpy.lib._scimath_impl",
+      "numpy.lib.scimath",
+      "numpy.lib",
+      "numpy._array_api_info",
+      "numpy",
+      "plotkit.field3d",
+      "_opcode",
+      "_opcode_metadata",
+      "opcode",
+      "dis",
+      "token",
+      "_tokenize",
+      "tokenize",
+      "inspect",
+      "dataclasses",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.ns",
+      "zlib",
+      "_compression",
+      "_bz2",
+      "bz2",
+      "_lzma",
+      "lzma",
+      "shutil",
+      "_bisect",
+      "bisect",
+      "_random",
+      "random",
+      "tempfile",
+      "plotkit.quick",
+      "plotkit.api",
+      "_hashlib",
+      "_blake2",
+      "hashlib",
+      "_uuid",
+      "uuid",
+      "plotkit.spec.model",
+      "plotkit.spec.validate",
+      "plotkit.spec",
+      "plotkit.spec.model",
+      "plotkit.store.downsample",
+      "_csv",
+      "csv",
+      "threading",
+      "plotkit.store.registry",
+      "plotkit.store.reclaim",
+      "plotkit.store",
+      "plotkit.store.registry",
+      "plotkit.backends.registry",
+      "plotkit.backends.series",
+      "plotkit.backends.mpl_backend",
+      "plotkit.backends",
+      "plotkit.backends.dispatch",
+      "_json",
+      "json.scanner",
+      "json.decoder",
+      "json.encoder",
+      "json",
+      "plotkit.spec.io",
+      "plotkit.api.native",
+      "plotkit.host_api",
+      "plotkit"
+    ],
+    "ns_or_three_modules_present": [
+      "plotkit.ns",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.field3d"
+    ],
+    "parsed_entries": [
+      {
+        "cumulative_us": 106,
+        "module": "winreg",
+        "self_us": 106
+      },
+      {
+        "cumulative_us": 187,
+        "module": "_io",
+        "self_us": 187
+      },
+      {
+        "cumulative_us": 33,
+        "module": "marshal",
+        "self_us": 33
+      },
+      {
+        "cumulative_us": 180,
+        "module": "nt",
+        "self_us": 180
+      },
+      {
+        "cumulative_us": 944,
+        "module": "_frozen_importlib_external",
+        "self_us": 546
+      },
+      {
+        "cumulative_us": 649,
+        "module": "time",
+        "self_us": 649
+      },
+      {
+        "cumulative_us": 843,
+        "module": "zipimport",
+        "self_us": 195
+      },
+      {
+        "cumulative_us": 47,
+        "module": "_codecs",
+        "self_us": 47
+      },
+      {
+        "cumulative_us": 475,
+        "module": "codecs",
+        "self_us": 429
+      },
+      {
+        "cumulative_us": 856,
+        "module": "encodings.aliases",
+        "self_us": 856
+      },
+      {
+        "cumulative_us": 3379,
+        "module": "encodings",
+        "self_us": 2048
+      },
+      {
+        "cumulative_us": 448,
+        "module": "encodings.utf_8",
+        "self_us": 448
+      },
+      {
+        "cumulative_us": 44,
+        "module": "_signal",
+        "self_us": 44
+      },
+      {
+        "cumulative_us": 28,
+        "module": "_abc",
+        "self_us": 28
+      },
+      {
+        "cumulative_us": 165,
+        "module": "abc",
+        "self_us": 137
+      },
+      {
+        "cumulative_us": 286,
+        "module": "io",
+        "self_us": 122
+      },
+      {
+        "cumulative_us": 60,
+        "module": "_stat",
+        "self_us": 60
+      },
+      {
+        "cumulative_us": 149,
+        "module": "stat",
+        "self_us": 89
+      },
+      {
+        "cumulative_us": 771,
+        "module": "_collections_abc",
+        "self_us": 771
+      },
+      {
+        "cumulative_us": 90,
+        "module": "genericpath",
+        "self_us": 90
+      },
+      {
+        "cumulative_us": 86,
+        "module": "_winapi",
+        "self_us": 86
+      },
+      {
+        "cumulative_us": 366,
+        "module": "ntpath",
+        "self_us": 190
+      },
+      {
+        "cumulative_us": 1699,
+        "module": "os",
+        "self_us": 415
+      },
+      {
+        "cumulative_us": 81,
+        "module": "_sitebuiltins",
+        "self_us": 81
+      },
+      {
+        "cumulative_us": 67,
+        "module": "errno",
+        "self_us": 67
+      },
+      {
+        "cumulative_us": 543,
+        "module": "encodings.utf_8_sig",
+        "self_us": 543
+      },
+      {
+        "cumulative_us": 596,
+        "module": "__future__",
+        "self_us": 596
+      },
+      {
+        "cumulative_us": 669,
+        "module": "importlib",
+        "self_us": 669
+      },
+      {
+        "cumulative_us": 741,
+        "module": "importlib.machinery",
+        "self_us": 72
+      },
+      {
+        "cumulative_us": 622,
+        "module": "importlib._abc",
+        "self_us": 622
+      },
+      {
+        "cumulative_us": 735,
+        "module": "types",
+        "self_us": 735
+      },
+      {
+        "cumulative_us": 1517,
+        "module": "importlib.util",
+        "self_us": 160
+      },
+      {
+        "cumulative_us": 111,
+        "module": "itertools",
+        "self_us": 111
+      },
+      {
+        "cumulative_us": 559,
+        "module": "keyword",
+        "self_us": 559
+      },
+      {
+        "cumulative_us": 67,
+        "module": "_operator",
+        "self_us": 67
+      },
+      {
+        "cumulative_us": 755,
+        "module": "operator",
+        "self_us": 688
+      },
+      {
+        "cumulative_us": 608,
+        "module": "reprlib",
+        "self_us": 608
+      },
+      {
+        "cumulative_us": 71,
+        "module": "_collections",
+        "self_us": 71
+      },
+      {
+        "cumulative_us": 3329,
+        "module": "collections",
+        "self_us": 1337
+      },
+      {
+        "cumulative_us": 54,
+        "module": "_functools",
+        "self_us": 54
+      },
+      {
+        "cumulative_us": 4347,
+        "module": "functools",
+        "self_us": 965
+      },
+      {
+        "cumulative_us": 921,
+        "module": "contextlib",
+        "self_us": 921
+      },
+      {
+        "cumulative_us": 1508,
+        "module": "enum",
+        "self_us": 1508
+      },
+      {
+        "cumulative_us": 80,
+        "module": "_sre",
+        "self_us": 80
+      },
+      {
+        "cumulative_us": 574,
+        "module": "re._constants",
+        "self_us": 574
+      },
+      {
+        "cumulative_us": 1410,
+        "module": "re._parser",
+        "self_us": 836
+      },
+      {
+        "cumulative_us": 478,
+        "module": "re._casefix",
+        "self_us": 478
+      },
+      {
+        "cumulative_us": 2869,
+        "module": "re._compiler",
+        "self_us": 903
+      },
+      {
+        "cumulative_us": 653,
+        "module": "copyreg",
+        "self_us": 653
+      },
+      {
+        "cumulative_us": 6090,
+        "module": "re",
+        "self_us": 1062
+      },
+      {
+        "cumulative_us": 447,
+        "module": "posix",
+        "self_us": 447
+      },
+      {
+        "cumulative_us": 398,
+        "module": "posix",
+        "self_us": 398
+      },
+      {
+        "cumulative_us": 996,
+        "module": "posixpath",
+        "self_us": 152
+      },
+      {
+        "cumulative_us": 1616,
+        "module": "fnmatch",
+        "self_us": 620
+      },
+      {
+        "cumulative_us": 9561,
+        "module": "glob",
+        "self_us": 934
+      },
+      {
+        "cumulative_us": 14717,
+        "module": "pathlib._abc",
+        "self_us": 810
+      },
+      {
+        "cumulative_us": 781,
+        "module": "warnings",
+        "self_us": 781
+      },
+      {
+        "cumulative_us": 425,
+        "module": "pwd",
+        "self_us": 425
+      },
+      {
+        "cumulative_us": 374,
+        "module": "grp",
+        "self_us": 374
+      },
+      {
+        "cumulative_us": 2452,
+        "module": "pathlib._local",
+        "self_us": 873
+      },
+      {
+        "cumulative_us": 17833,
+        "module": "pathlib",
+        "self_us": 665
+      },
+      {
+        "cumulative_us": 22749,
+        "module": "__editable___netlab_3_20_1_finder",
+        "self_us": 1953
+      },
+      {
+        "cumulative_us": 884,
+        "module": "_distutils_hack",
+        "self_us": 884
+      },
+      {
+        "cumulative_us": 1370,
+        "module": "sitecustomize",
+        "self_us": 1370
+      },
+      {
+        "cumulative_us": 564,
+        "module": "usercustomize",
+        "self_us": 564
+      },
+      {
+        "cumulative_us": 32824,
+        "module": "site",
+        "self_us": 4871
+      },
+      {
+        "cumulative_us": 875,
+        "module": "linecache",
+        "self_us": 875
+      },
+      {
+        "cumulative_us": 51,
+        "module": "_typing",
+        "self_us": 51
+      },
+      {
+        "cumulative_us": 2593,
+        "module": "typing",
+        "self_us": 2542
+      },
+      {
+        "cumulative_us": 705,
+        "module": "_weakrefset",
+        "self_us": 705
+      },
+      {
+        "cumulative_us": 1558,
+        "module": "weakref",
+        "self_us": 854
+      },
+      {
+        "cumulative_us": 2206,
+        "module": "copy",
+        "self_us": 648
+      },
+      {
+        "cumulative_us": 2947,
+        "module": "plotkit.presets",
+        "self_us": 742
+      },
+      {
+        "cumulative_us": 670,
+        "module": "numpy.version",
+        "self_us": 670
+      },
+      {
+        "cumulative_us": 403,
+        "module": "numpy._expired_attrs_2_0",
+        "self_us": 403
+      },
+      {
+        "cumulative_us": 553,
+        "module": "numpy._utils._convertions",
+        "self_us": 553
+      },
+      {
+        "cumulative_us": 1116,
+        "module": "numpy._utils",
+        "self_us": 563
+      },
+      {
+        "cumulative_us": 1632,
+        "module": "numpy._globals",
+        "self_us": 517
+      },
+      {
+        "cumulative_us": 552,
+        "module": "mkl._init_helper",
+        "self_us": 552
+      },
+      {
+        "cumulative_us": 4288,
+        "module": "_ctypes",
+        "self_us": 4288
+      },
+      {
+        "cumulative_us": 74,
+        "module": "_struct",
+        "self_us": 74
+      },
+      {
+        "cumulative_us": 766,
+        "module": "struct",
+        "self_us": 693
+      },
+      {
+        "cumulative_us": 842,
+        "module": "ctypes._endian",
+        "self_us": 842
+      },
+      {
+        "cumulative_us": 7206,
+        "module": "ctypes",
+        "self_us": 1312
+      },
+      {
+        "cumulative_us": 1015,
+        "module": "mkl._mklinit",
+        "self_us": 1015
+      },
+      {
+        "cumulative_us": 838,
+        "module": "numbers",
+        "self_us": 838
+      },
+      {
+        "cumulative_us": 1585,
+        "module": "mkl._py_mkl_service",
+        "self_us": 747
+      },
+      {
+        "cumulative_us": 380,
+        "module": "mkl._version",
+        "self_us": 380
+      },
+      {
+        "cumulative_us": 11652,
+        "module": "mkl",
+        "self_us": 916
+      },
+      {
+        "cumulative_us": 13367,
+        "module": "numpy._distributor_init",
+        "self_us": 1715
+      },
+      {
+        "cumulative_us": 111,
+        "module": "_datetime",
+        "self_us": 111
+      },
+      {
+        "cumulative_us": 760,
+        "module": "datetime",
+        "self_us": 649
+      },
+      {
+        "cumulative_us": 47,
+        "module": "math",
+        "self_us": 47
+      },
+      {
+        "cumulative_us": 459,
+        "module": "numpy.exceptions",
+        "self_us": 459
+      },
+      {
+        "cumulative_us": 500,
+        "module": "numpy._core._exceptions",
+        "self_us": 500
+      },
+      {
+        "cumulative_us": 37,
+        "module": "_contextvars",
+        "self_us": 37
+      },
+      {
+        "cumulative_us": 594,
+        "module": "contextvars",
+        "self_us": 558
+      },
+      {
+        "cumulative_us": 978,
+        "module": "numpy._core.printoptions",
+        "self_us": 384
+      },
+      {
+        "cumulative_us": 575,
+        "module": "numpy.dtypes",
+        "self_us": 575
+      },
+      {
+        "cumulative_us": 6779,
+        "module": "numpy._core._multiarray_umath",
+        "self_us": 3462
+      },
+      {
+        "cumulative_us": 451,
+        "module": "numpy._utils._inspect",
+        "self_us": 451
+      },
+      {
+        "cumulative_us": 1133,
+        "module": "numpy._core.overrides",
+        "self_us": 683
+      },
+      {
+        "cumulative_us": 8971,
+        "module": "numpy._core.multiarray",
+        "self_us": 1060
+      },
+      {
+        "cumulative_us": 489,
+        "module": "numpy._core.umath",
+        "self_us": 489
+      },
+      {
+        "cumulative_us": 486,
+        "module": "numpy._core._dtype",
+        "self_us": 486
+      },
+      {
+        "cumulative_us": 461,
+        "module": "numpy._core._string_helpers",
+        "self_us": 461
+      },
+      {
+        "cumulative_us": 562,
+        "module": "numpy._core._type_aliases",
+        "self_us": 562
+      },
+      {
+        "cumulative_us": 2188,
+        "module": "numpy._core.numerictypes",
+        "self_us": 680
+      },
+      {
+        "cumulative_us": 497,
+        "module": "numpy._core._ufunc_config",
+        "self_us": 497
+      },
+      {
+        "cumulative_us": 807,
+        "module": "_compat_pickle",
+        "self_us": 807
+      },
+      {
+        "cumulative_us": 109,
+        "module": "_pickle",
+        "self_us": 109
+      },
+      {
+        "cumulative_us": 2213,
+        "module": "pickle",
+        "self_us": 1298
+      },
+      {
+        "cumulative_us": 2740,
+        "module": "numpy._core._methods",
+        "self_us": 527
+      },
+      {
+        "cumulative_us": 3924,
+        "module": "numpy._core.fromnumeric",
+        "self_us": 1184
+      },
+      {
+        "cumulative_us": 4904,
+        "module": "numpy._core._machar",
+        "self_us": 485
+      },
+      {
+        "cumulative_us": 544,
+        "module": "numpy._core.shape_base",
+        "self_us": 544
+      },
+      {
+        "cumulative_us": 444,
+        "module": "numpy._core._asarray",
+        "self_us": 444
+      },
+      {
+        "cumulative_us": 795,
+        "module": "numpy._core.arrayprint",
+        "self_us": 795
+      },
+      {
+        "cumulative_us": 2678,
+        "module": "numpy._core.numeric",
+        "self_us": 896
+      },
+      {
+        "cumulative_us": 3205,
+        "module": "numpy._core.einsumfunc",
+        "self_us": 527
+      },
+      {
+        "cumulative_us": 525,
+        "module": "numpy._core.function_base",
+        "self_us": 525
+      },
+      {
+        "cumulative_us": 569,
+        "module": "numpy._core.getlimits",
+        "self_us": 569
+      },
+      {
+        "cumulative_us": 479,
+        "module": "numpy._core.memmap",
+        "self_us": 479
+      },
+      {
+        "cumulative_us": 584,
+        "module": "numpy._core.records",
+        "self_us": 584
+      },
+      {
+        "cumulative_us": 1208,
+        "module": "numpy._core._add_newdocs",
+        "self_us": 1208
+      },
+      {
+        "cumulative_us": 690,
+        "module": "numpy._core._add_newdocs_scalars",
+        "self_us": 690
+      },
+      {
+        "cumulative_us": 490,
+        "module": "numpy._core._dtype_ctypes",
+        "self_us": 490
+      },
+      {
+        "cumulative_us": 907,
+        "module": "_ast",
+        "self_us": 907
+      },
+      {
+        "cumulative_us": 4683,
+        "module": "ast",
+        "self_us": 3777
+      },
+      {
+        "cumulative_us": 5671,
+        "module": "numpy._core._internal",
+        "self_us": 988
+      },
+      {
+        "cumulative_us": 557,
+        "module": "numpy._pytesttester",
+        "self_us": 557
+      },
+      {
+        "cumulative_us": 31468,
+        "module": "numpy._core",
+        "self_us": 943
+      },
+      {
+        "cumulative_us": 31501,
+        "module": "numpy._core._multiarray_umath",
+        "self_us": 34
+      },
+      {
+        "cumulative_us": 32130,
+        "module": "numpy.__config__",
+        "self_us": 629
+      },
+      {
+        "cumulative_us": 534,
+        "module": "numpy._typing._nbit_base",
+        "self_us": 534
+      },
+      {
+        "cumulative_us": 580,
+        "module": "numpy._typing._nested_sequence",
+        "self_us": 580
+      },
+      {
+        "cumulative_us": 466,
+        "module": "numpy._typing._shape",
+        "self_us": 466
+      },
+      {
+        "cumulative_us": 3792,
+        "module": "numpy._typing._array_like",
+        "self_us": 2214
+      },
+      {
+        "cumulative_us": 1890,
+        "module": "numpy._typing._char_codes",
+        "self_us": 1890
+      },
+      {
+        "cumulative_us": 2156,
+        "module": "numpy._typing._dtype_like",
+        "self_us": 2156
+      },
+      {
+        "cumulative_us": 543,
+        "module": "numpy._typing._nbit",
+        "self_us": 543
+      },
+      {
+        "cumulative_us": 504,
+        "module": "numpy._typing._scalars",
+        "self_us": 504
+      },
+      {
+        "cumulative_us": 457,
+        "module": "numpy._typing._ufunc",
+        "self_us": 457
+      },
+      {
+        "cumulative_us": 10178,
+        "module": "numpy._typing",
+        "self_us": 838
+      },
+      {
+        "cumulative_us": 614,
+        "module": "numpy.lib._stride_tricks_impl",
+        "self_us": 614
+      },
+      {
+        "cumulative_us": 1291,
+        "module": "numpy.lib._twodim_base_impl",
+        "self_us": 678
+      },
+      {
+        "cumulative_us": 472,
+        "module": "numpy.lib._array_utils_impl",
+        "self_us": 472
+      },
+      {
+        "cumulative_us": 965,
+        "module": "numpy.lib.array_utils",
+        "self_us": 494
+      },
+      {
+        "cumulative_us": 674,
+        "module": "numpy.linalg._umath_linalg",
+        "self_us": 674
+      },
+      {
+        "cumulative_us": 15216,
+        "module": "numpy.linalg._linalg",
+        "self_us": 2110
+      },
+      {
+        "cumulative_us": 504,
+        "module": "numpy.linalg.linalg",
+        "self_us": 504
+      },
+      {
+        "cumulative_us": 16355,
+        "module": "numpy.linalg",
+        "self_us": 636
+      },
+      {
+        "cumulative_us": 17135,
+        "module": "numpy.matrixlib.defmatrix",
+        "self_us": 780
+      },
+      {
+        "cumulative_us": 17705,
+        "module": "numpy.matrixlib",
+        "self_us": 571
+      },
+      {
+        "cumulative_us": 841,
+        "module": "numpy.lib._histograms_impl",
+        "self_us": 841
+      },
+      {
+        "cumulative_us": 2084,
+        "module": "numpy.lib._function_base_impl",
+        "self_us": 1244
+      },
+      {
+        "cumulative_us": 448,
+        "module": "numpy.lib.stride_tricks",
+        "self_us": 448
+      },
+      {
+        "cumulative_us": 20968,
+        "module": "numpy.lib._index_tricks_impl",
+        "self_us": 732
+      },
+      {
+        "cumulative_us": 21766,
+        "module": "numpy.lib._arraypad_impl",
+        "self_us": 799
+      },
+      {
+        "cumulative_us": 1041,
+        "module": "numpy.lib._arraysetops_impl",
+        "self_us": 1041
+      },
+      {
+        "cumulative_us": 535,
+        "module": "numpy.lib._arrayterator_impl",
+        "self_us": 535
+      },
+      {
+        "cumulative_us": 673,
+        "module": "numpy.lib._nanfunctions_impl",
+        "self_us": 673
+      },
+      {
+        "cumulative_us": 1666,
+        "module": "_wmi",
+        "self_us": 1666
+      },
+      {
+        "cumulative_us": 2905,
+        "module": "platform",
+        "self_us": 1240
+      },
+      {
+        "cumulative_us": 1376,
+        "module": "textwrap",
+        "self_us": 1376
+      },
+      {
+        "cumulative_us": 4837,
+        "module": "numpy.lib._utils_impl",
+        "self_us": 557
+      },
+      {
+        "cumulative_us": 5376,
+        "module": "numpy.lib._format_impl",
+        "self_us": 539
+      },
+      {
+        "cumulative_us": 5850,
+        "module": "numpy.lib.format",
+        "self_us": 475
+      },
+      {
+        "cumulative_us": 586,
+        "module": "numpy.lib._datasource",
+        "self_us": 586
+      },
+      {
+        "cumulative_us": 667,
+        "module": "numpy.lib._iotools",
+        "self_us": 667
+      },
+      {
+        "cumulative_us": 8231,
+        "module": "numpy.lib._npyio_impl",
+        "self_us": 1129
+      },
+      {
+        "cumulative_us": 434,
+        "module": "numpy.lib._ufunclike_impl",
+        "self_us": 434
+      },
+      {
+        "cumulative_us": 1024,
+        "module": "numpy.lib._type_check_impl",
+        "self_us": 590
+      },
+      {
+        "cumulative_us": 1866,
+        "module": "numpy.lib._polynomial_impl",
+        "self_us": 842
+      },
+      {
+        "cumulative_us": 683,
+        "module": "numpy.lib._shape_base_impl",
+        "self_us": 683
+      },
+      {
+        "cumulative_us": 471,
+        "module": "numpy.lib._version",
+        "self_us": 471
+      },
+      {
+        "cumulative_us": 400,
+        "module": "numpy.lib.introspect",
+        "self_us": 400
+      },
+      {
+        "cumulative_us": 480,
+        "module": "numpy.lib.mixins",
+        "self_us": 480
+      },
+      {
+        "cumulative_us": 401,
+        "module": "numpy.lib.npyio",
+        "self_us": 401
+      },
+      {
+        "cumulative_us": 532,
+        "module": "numpy.lib._scimath_impl",
+        "self_us": 532
+      },
+      {
+        "cumulative_us": 1052,
+        "module": "numpy.lib.scimath",
+        "self_us": 521
+      },
+      {
+        "cumulative_us": 38469,
+        "module": "numpy.lib",
+        "self_us": 875
+      },
+      {
+        "cumulative_us": 484,
+        "module": "numpy._array_api_info",
+        "self_us": 484
+      },
+      {
+        "cumulative_us": 97661,
+        "module": "numpy",
+        "self_us": 10511
+      },
+      {
+        "cumulative_us": 98417,
+        "module": "plotkit.field3d",
+        "self_us": 756
+      },
+      {
+        "cumulative_us": 60,
+        "module": "_opcode",
+        "self_us": 60
+      },
+      {
+        "cumulative_us": 657,
+        "module": "_opcode_metadata",
+        "self_us": 657
+      },
+      {
+        "cumulative_us": 1525,
+        "module": "opcode",
+        "self_us": 809
+      },
+      {
+        "cumulative_us": 2757,
+        "module": "dis",
+        "self_us": 1232
+      },
+      {
+        "cumulative_us": 728,
+        "module": "token",
+        "self_us": 728
+      },
+      {
+        "cumulative_us": 45,
+        "module": "_tokenize",
+        "self_us": 45
+      },
+      {
+        "cumulative_us": 2031,
+        "module": "tokenize",
+        "self_us": 1258
+      },
+      {
+        "cumulative_us": 7132,
+        "module": "inspect",
+        "self_us": 2346
+      },
+      {
+        "cumulative_us": 8214,
+        "module": "dataclasses",
+        "self_us": 1083
+      },
+      {
+        "cumulative_us": 2021,
+        "module": "plotkit.ns.field",
+        "self_us": 2021
+      },
+      {
+        "cumulative_us": 11794,
+        "module": "plotkit.ns.diagnostics",
+        "self_us": 1559
+      },
+      {
+        "cumulative_us": 496,
+        "module": "plotkit.ns.scene",
+        "self_us": 496
+      },
+      {
+        "cumulative_us": 13675,
+        "module": "plotkit.ns",
+        "self_us": 1387
+      },
+      {
+        "cumulative_us": 78,
+        "module": "zlib",
+        "self_us": 78
+      },
+      {
+        "cumulative_us": 656,
+        "module": "_compression",
+        "self_us": 656
+      },
+      {
+        "cumulative_us": 1079,
+        "module": "_bz2",
+        "self_us": 1079
+      },
+      {
+        "cumulative_us": 2441,
+        "module": "bz2",
+        "self_us": 707
+      },
+      {
+        "cumulative_us": 1250,
+        "module": "_lzma",
+        "self_us": 1250
+      },
+      {
+        "cumulative_us": 1997,
+        "module": "lzma",
+        "self_us": 748
+      },
+      {
+        "cumulative_us": 5597,
+        "module": "shutil",
+        "self_us": 1082
+      },
+      {
+        "cumulative_us": 85,
+        "module": "_bisect",
+        "self_us": 85
+      },
+      {
+        "cumulative_us": 656,
+        "module": "bisect",
+        "self_us": 572
+      },
+      {
+        "cumulative_us": 36,
+        "module": "_random",
+        "self_us": 36
+      },
+      {
+        "cumulative_us": 1565,
+        "module": "random",
+        "self_us": 874
+      },
+      {
+        "cumulative_us": 8068,
+        "module": "tempfile",
+        "self_us": 907
+      },
+      {
+        "cumulative_us": 8505,
+        "module": "plotkit.quick",
+        "self_us": 437
+      },
+      {
+        "cumulative_us": 498,
+        "module": "plotkit.api",
+        "self_us": 498
+      },
+      {
+        "cumulative_us": 2372,
+        "module": "_hashlib",
+        "self_us": 2372
+      },
+      {
+        "cumulative_us": 54,
+        "module": "_blake2",
+        "self_us": 54
+      },
+      {
+        "cumulative_us": 3147,
+        "module": "hashlib",
+        "self_us": 722
+      },
+      {
+        "cumulative_us": 1341,
+        "module": "_uuid",
+        "self_us": 1341
+      },
+      {
+        "cumulative_us": 2717,
+        "module": "uuid",
+        "self_us": 1376
+      },
+      {
+        "cumulative_us": 3406,
+        "module": "plotkit.spec.model",
+        "self_us": 689
+      },
+      {
+        "cumulative_us": 1589,
+        "module": "plotkit.spec.validate",
+        "self_us": 1589
+      },
+      {
+        "cumulative_us": 5631,
+        "module": "plotkit.spec",
+        "self_us": 637
+      },
+      {
+        "cumulative_us": 5671,
+        "module": "plotkit.spec.model",
+        "self_us": 41
+      },
+      {
+        "cumulative_us": 969,
+        "module": "plotkit.store.downsample",
+        "self_us": 969
+      },
+      {
+        "cumulative_us": 71,
+        "module": "_csv",
+        "self_us": 71
+      },
+      {
+        "cumulative_us": 877,
+        "module": "csv",
+        "self_us": 807
+      },
+      {
+        "cumulative_us": 1374,
+        "module": "threading",
+        "self_us": 1374
+      },
+      {
+        "cumulative_us": 3609,
+        "module": "plotkit.store.registry",
+        "self_us": 1358
+      },
+      {
+        "cumulative_us": 4530,
+        "module": "plotkit.store.reclaim",
+        "self_us": 922
+      },
+      {
+        "cumulative_us": 6194,
+        "module": "plotkit.store",
+        "self_us": 696
+      },
+      {
+        "cumulative_us": 6222,
+        "module": "plotkit.store.registry",
+        "self_us": 28
+      },
+      {
+        "cumulative_us": 1356,
+        "module": "plotkit.backends.registry",
+        "self_us": 1356
+      },
+      {
+        "cumulative_us": 522,
+        "module": "plotkit.backends.series",
+        "self_us": 522
+      },
+      {
+        "cumulative_us": 15108,
+        "module": "plotkit.backends.mpl_backend",
+        "self_us": 1338
+      },
+      {
+        "cumulative_us": 15709,
+        "module": "plotkit.backends",
+        "self_us": 602
+      },
+      {
+        "cumulative_us": 1205,
+        "module": "plotkit.backends.dispatch",
+        "self_us": 1205
+      },
+      {
+        "cumulative_us": 67,
+        "module": "_json",
+        "self_us": 67
+      },
+      {
+        "cumulative_us": 681,
+        "module": "json.scanner",
+        "self_us": 615
+      },
+      {
+        "cumulative_us": 1657,
+        "module": "json.decoder",
+        "self_us": 976
+      },
+      {
+        "cumulative_us": 717,
+        "module": "json.encoder",
+        "self_us": 717
+      },
+      {
+        "cumulative_us": 3176,
+        "module": "json",
+        "self_us": 803
+      },
+      {
+        "cumulative_us": 3674,
+        "module": "plotkit.spec.io",
+        "self_us": 499
+      },
+      {
+        "cumulative_us": 25313,
+        "module": "plotkit.api.native",
+        "self_us": 1082
+      },
+      {
+        "cumulative_us": 868,
+        "module": "plotkit.host_api",
+        "self_us": 868
+      },
+      {
+        "cumulative_us": 153260,
+        "module": "plotkit",
+        "self_us": 944
+      }
+    ],
+    "parsed_module_count": 243,
+    "plotkit_module_count": 26,
+    "plotkit_modules": [
+      "plotkit.presets",
+      "plotkit.field3d",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.ns",
+      "plotkit.quick",
+      "plotkit.api",
+      "plotkit.spec.model",
+      "plotkit.spec.validate",
+      "plotkit.spec",
+      "plotkit.spec.model",
+      "plotkit.store.downsample",
+      "plotkit.store.registry",
+      "plotkit.store.reclaim",
+      "plotkit.store",
+      "plotkit.store.registry",
+      "plotkit.backends.registry",
+      "plotkit.backends.series",
+      "plotkit.backends.mpl_backend",
+      "plotkit.backends",
+      "plotkit.backends.dispatch",
+      "plotkit.spec.io",
+      "plotkit.api.native",
+      "plotkit.host_api",
+      "plotkit"
+    ],
+    "raw_stdout": "import time: self [us] | cumulative | imported package\nimport time:       106 |        106 | winreg\nimport time:       187 |        187 |   _io\nimport time:        33 |         33 |   marshal\nimport time:       180 |        180 |   nt\nimport time:       546 |        944 | _frozen_importlib_external\nimport time:       649 |        649 |   time\nimport time:       195 |        843 | zipimport\nimport time:        47 |         47 |     _codecs\nimport time:       429 |        475 |   codecs\nimport time:       856 |        856 |   encodings.aliases\nimport time:      2048 |       3379 | encodings\nimport time:       448 |        448 | encodings.utf_8\nimport time:        44 |         44 | _signal\nimport time:        28 |         28 |     _abc\nimport time:       137 |        165 |   abc\nimport time:       122 |        286 | io\nimport time:        60 |         60 |       _stat\nimport time:        89 |        149 |     stat\nimport time:       771 |        771 |     _collections_abc\nimport time:        90 |         90 |       genericpath\nimport time:        86 |         86 |       _winapi\nimport time:       190 |        366 |     ntpath\nimport time:       415 |       1699 |   os\nimport time:        81 |         81 |   _sitebuiltins\nimport time:        67 |         67 |   errno\nimport time:       543 |        543 |   encodings.utf_8_sig\nimport time:       596 |        596 |     __future__\nimport time:       669 |        669 |       importlib\nimport time:        72 |        741 |     importlib.machinery\nimport time:       622 |        622 |       importlib._abc\nimport time:       735 |        735 |       types\nimport time:       160 |       1517 |     importlib.util\nimport time:       111 |        111 |     itertools\nimport time:       559 |        559 |             keyword\nimport time:        67 |         67 |               _operator\nimport time:       688 |        755 |             operator\nimport time:       608 |        608 |             reprlib\nimport time:        71 |         71 |             _collections\nimport time:      1337 |       3329 |           collections\nimport time:        54 |         54 |           _functools\nimport time:       965 |       4347 |         functools\nimport time:       921 |        921 |           contextlib\nimport time:      1508 |       1508 |             enum\nimport time:        80 |         80 |               _sre\nimport time:       574 |        574 |                 re._constants\nimport time:       836 |       1410 |               re._parser\nimport time:       478 |        478 |               re._casefix\nimport time:       903 |       2869 |             re._compiler\nimport time:       653 |        653 |             copyreg\nimport time:      1062 |       6090 |           re\nimport time:       447 |        447 |               posix\nimport time:       398 |        398 |               posix\nimport time:       152 |        996 |             posixpath\nimport time:       620 |       1616 |           fnmatch\nimport time:       934 |       9561 |         glob\nimport time:       810 |      14717 |       pathlib._abc\nimport time:       781 |        781 |         warnings\nimport time:       425 |        425 |         pwd\nimport time:       374 |        374 |         grp\nimport time:       873 |       2452 |       pathlib._local\nimport time:       665 |      17833 |     pathlib\nimport time:      1953 |      22749 |   __editable___netlab_3_20_1_finder\nimport time:       884 |        884 |   _distutils_hack\nimport time:      1370 |       1370 |   sitecustomize\nimport time:       564 |        564 |   usercustomize\nimport time:      4871 |      32824 | site\nimport time:       875 |        875 | linecache\nimport time:        51 |         51 |     _typing\nimport time:      2542 |       2593 |   typing\nimport time:       705 |        705 |         _weakrefset\nimport time:       854 |       1558 |       weakref\nimport time:       648 |       2206 |     copy\nimport time:       742 |       2947 |   plotkit.presets\nimport time:       670 |        670 |       numpy.version\nimport time:       403 |        403 |       numpy._expired_attrs_2_0\nimport time:       553 |        553 |           numpy._utils._convertions\nimport time:       563 |       1116 |         numpy._utils\nimport time:       517 |       1632 |       numpy._globals\nimport time:       552 |        552 |           mkl._init_helper\nimport time:      4288 |       4288 |             _ctypes\nimport time:        74 |         74 |               _struct\nimport time:       693 |        766 |             struct\nimport time:       842 |        842 |             ctypes._endian\nimport time:      1312 |       7206 |           ctypes\nimport time:      1015 |       1015 |           mkl._mklinit\nimport time:       838 |        838 |             numbers\nimport time:       747 |       1585 |           mkl._py_mkl_service\nimport time:       380 |        380 |           mkl._version\nimport time:       916 |      11652 |         mkl\nimport time:      1715 |      13367 |       numpy._distributor_init\nimport time:       111 |        111 |                   _datetime\nimport time:       649 |        760 |                 datetime\nimport time:        47 |         47 |                 math\nimport time:       459 |        459 |                 numpy.exceptions\nimport time:       500 |        500 |                 numpy._core._exceptions\nimport time:        37 |         37 |                     _contextvars\nimport time:       558 |        594 |                   contextvars\nimport time:       384 |        978 |                 numpy._core.printoptions\nimport time:       575 |        575 |                 numpy.dtypes\nimport time:      3462 |       6779 |               numpy._core._multiarray_umath\nimport time:       451 |        451 |                 numpy._utils._inspect\nimport time:       683 |       1133 |               numpy._core.overrides\nimport time:      1060 |       8971 |             numpy._core.multiarray\nimport time:       489 |        489 |             numpy._core.umath\nimport time:       486 |        486 |               numpy._core._dtype\nimport time:       461 |        461 |               numpy._core._string_helpers\nimport time:       562 |        562 |               numpy._core._type_aliases\nimport time:       680 |       2188 |             numpy._core.numerictypes\nimport time:       497 |        497 |               numpy._core._ufunc_config\nimport time:       807 |        807 |                     _compat_pickle\nimport time:       109 |        109 |                     _pickle\nimport time:      1298 |       2213 |                   pickle\nimport time:       527 |       2740 |                 numpy._core._methods\nimport time:      1184 |       3924 |               numpy._core.fromnumeric\nimport time:       485 |       4904 |             numpy._core._machar\nimport time:       544 |        544 |                 numpy._core.shape_base\nimport time:       444 |        444 |                 numpy._core._asarray\nimport time:       795 |        795 |                 numpy._core.arrayprint\nimport time:       896 |       2678 |               numpy._core.numeric\nimport time:       527 |       3205 |             numpy._core.einsumfunc\nimport time:       525 |        525 |             numpy._core.function_base\nimport time:       569 |        569 |             numpy._core.getlimits\nimport time:       479 |        479 |             numpy._core.memmap\nimport time:       584 |        584 |             numpy._core.records\nimport time:      1208 |       1208 |             numpy._core._add_newdocs\nimport time:       690 |        690 |             numpy._core._add_newdocs_scalars\nimport time:       490 |        490 |             numpy._core._dtype_ctypes\nimport time:       907 |        907 |                 _ast\nimport time:      3777 |       4683 |               ast\nimport time:       988 |       5671 |             numpy._core._internal\nimport time:       557 |        557 |             numpy._pytesttester\nimport time:       943 |      31468 |           numpy._core\nimport time:        34 |      31501 |         numpy._core._multiarray_umath\nimport time:       629 |      32130 |       numpy.__config__\nimport time:       534 |        534 |                         numpy._typing._nbit_base\nimport time:       580 |        580 |                         numpy._typing._nested_sequence\nimport time:       466 |        466 |                         numpy._typing._shape\nimport time:      2214 |       3792 |                       numpy._typing._array_like\nimport time:      1890 |       1890 |                       numpy._typing._char_codes\nimport time:      2156 |       2156 |                       numpy._typing._dtype_like\nimport time:       543 |        543 |                       numpy._typing._nbit\nimport time:       504 |        504 |                       numpy._typing._scalars\nimport time:       457 |        457 |                       numpy._typing._ufunc\nimport time:       838 |      10178 |                     numpy._typing\nimport time:       614 |        614 |                       numpy.lib._stride_tricks_impl\nimport time:       678 |       1291 |                     numpy.lib._twodim_base_impl\nimport time:       472 |        472 |                       numpy.lib._array_utils_impl\nimport time:       494 |        965 |                     numpy.lib.array_utils\nimport time:       674 |        674 |                     numpy.linalg._umath_linalg\nimport time:      2110 |      15216 |                   numpy.linalg._linalg\nimport time:       504 |        504 |                   numpy.linalg.linalg\nimport time:       636 |      16355 |                 numpy.linalg\nimport time:       780 |      17135 |               numpy.matrixlib.defmatrix\nimport time:       571 |      17705 |             numpy.matrixlib\nimport time:       841 |        841 |               numpy.lib._histograms_impl\nimport time:      1244 |       2084 |             numpy.lib._function_base_impl\nimport time:       448 |        448 |             numpy.lib.stride_tricks\nimport time:       732 |      20968 |           numpy.lib._index_tricks_impl\nimport time:       799 |      21766 |         numpy.lib._arraypad_impl\nimport time:      1041 |       1041 |         numpy.lib._arraysetops_impl\nimport time:       535 |        535 |         numpy.lib._arrayterator_impl\nimport time:       673 |        673 |         numpy.lib._nanfunctions_impl\nimport time:      1666 |       1666 |                   _wmi\nimport time:      1240 |       2905 |                 platform\nimport time:      1376 |       1376 |                 textwrap\nimport time:       557 |       4837 |               numpy.lib._utils_impl\nimport time:       539 |       5376 |             numpy.lib._format_impl\nimport time:       475 |       5850 |           numpy.lib.format\nimport time:       586 |        586 |           numpy.lib._datasource\nimport time:       667 |        667 |           numpy.lib._iotools\nimport time:      1129 |       8231 |         numpy.lib._npyio_impl\nimport time:       434 |        434 |             numpy.lib._ufunclike_impl\nimport time:       590 |       1024 |           numpy.lib._type_check_impl\nimport time:       842 |       1866 |         numpy.lib._polynomial_impl\nimport time:       683 |        683 |         numpy.lib._shape_base_impl\nimport time:       471 |        471 |         numpy.lib._version\nimport time:       400 |        400 |         numpy.lib.introspect\nimport time:       480 |        480 |         numpy.lib.mixins\nimport time:       401 |        401 |         numpy.lib.npyio\nimport time:       532 |        532 |           numpy.lib._scimath_impl\nimport time:       521 |       1052 |         numpy.lib.scimath\nimport time:       875 |      38469 |       numpy.lib\nimport time:       484 |        484 |       numpy._array_api_info\nimport time:     10511 |      97661 |     numpy\nimport time:       756 |      98417 |   plotkit.field3d\nimport time:        60 |         60 |               _opcode\nimport time:       657 |        657 |               _opcode_metadata\nimport time:       809 |       1525 |             opcode\nimport time:      1232 |       2757 |           dis\nimport time:       728 |        728 |             token\nimport time:        45 |         45 |             _tokenize\nimport time:      1258 |       2031 |           tokenize\nimport time:      2346 |       7132 |         inspect\nimport time:      1083 |       8214 |       dataclasses\nimport time:      2021 |       2021 |       plotkit.ns.field\nimport time:      1559 |      11794 |     plotkit.ns.diagnostics\nimport time:       496 |        496 |     plotkit.ns.scene\nimport time:      1387 |      13675 |   plotkit.ns\nimport time:        78 |         78 |         zlib\nimport time:       656 |        656 |           _compression\nimport time:      1079 |       1079 |           _bz2\nimport time:       707 |       2441 |         bz2\nimport time:      1250 |       1250 |           _lzma\nimport time:       748 |       1997 |         lzma\nimport time:      1082 |       5597 |       shutil\nimport time:        85 |         85 |           _bisect\nimport time:       572 |        656 |         bisect\nimport time:        36 |         36 |         _random\nimport time:       874 |       1565 |       random\nimport time:       907 |       8068 |     tempfile\nimport time:       437 |       8505 |   plotkit.quick\nimport time:       498 |        498 |     plotkit.api\nimport time:      2372 |       2372 |       _hashlib\nimport time:        54 |         54 |       _blake2\nimport time:       722 |       3147 |     hashlib\nimport time:      1341 |       1341 |                 _uuid\nimport time:      1376 |       2717 |               uuid\nimport time:       689 |       3406 |             plotkit.spec.model\nimport time:      1589 |       1589 |             plotkit.spec.validate\nimport time:       637 |       5631 |           plotkit.spec\nimport time:        41 |       5671 |         plotkit.spec.model\nimport time:       969 |        969 |             plotkit.store.downsample\nimport time:        71 |         71 |                   _csv\nimport time:       807 |        877 |                 csv\nimport time:      1374 |       1374 |                 threading\nimport time:      1358 |       3609 |               plotkit.store.registry\nimport time:       922 |       4530 |             plotkit.store.reclaim\nimport time:       696 |       6194 |           plotkit.store\nimport time:        28 |       6222 |         plotkit.store.registry\nimport time:      1356 |       1356 |         plotkit.backends.registry\nimport time:       522 |        522 |         plotkit.backends.series\nimport time:      1338 |      15108 |       plotkit.backends.mpl_backend\nimport time:       602 |      15709 |     plotkit.backends\nimport time:      1205 |       1205 |     plotkit.backends.dispatch\nimport time:        67 |         67 |             _json\nimport time:       615 |        681 |           json.scanner\nimport time:       976 |       1657 |         json.decoder\nimport time:       717 |        717 |         json.encoder\nimport time:       803 |       3176 |       json\nimport time:       499 |       3674 |     plotkit.spec.io\nimport time:      1082 |      25313 |   plotkit.api.native\nimport time:       868 |        868 |   plotkit.host_api\nimport time:       944 |     153260 | plotkit\n",
+    "required_ns_or_three_modules": [
+      "plotkit.ns",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.field3d"
+    ],
+    "returncode": 0,
+    "root_cause": "src/plotkit/__init__.py:25 from . import field3d, ns",
+    "root_cumulative_us": 153260,
+    "root_self_us": 944,
+    "stdout_lines": [
+      "import time: self [us] | cumulative | imported package",
+      "import time:       106 |        106 | winreg",
+      "import time:       187 |        187 |   _io",
+      "import time:        33 |         33 |   marshal",
+      "import time:       180 |        180 |   nt",
+      "import time:       546 |        944 | _frozen_importlib_external",
+      "import time:       649 |        649 |   time",
+      "import time:       195 |        843 | zipimport",
+      "import time:        47 |         47 |     _codecs",
+      "import time:       429 |        475 |   codecs",
+      "import time:       856 |        856 |   encodings.aliases",
+      "import time:      2048 |       3379 | encodings",
+      "import time:       448 |        448 | encodings.utf_8",
+      "import time:        44 |         44 | _signal",
+      "import time:        28 |         28 |     _abc",
+      "import time:       137 |        165 |   abc",
+      "import time:       122 |        286 | io",
+      "import time:        60 |         60 |       _stat",
+      "import time:        89 |        149 |     stat",
+      "import time:       771 |        771 |     _collections_abc",
+      "import time:        90 |         90 |       genericpath",
+      "import time:        86 |         86 |       _winapi",
+      "import time:       190 |        366 |     ntpath",
+      "import time:       415 |       1699 |   os",
+      "import time:        81 |         81 |   _sitebuiltins",
+      "import time:        67 |         67 |   errno",
+      "import time:       543 |        543 |   encodings.utf_8_sig",
+      "import time:       596 |        596 |     __future__",
+      "import time:       669 |        669 |       importlib",
+      "import time:        72 |        741 |     importlib.machinery",
+      "import time:       622 |        622 |       importlib._abc",
+      "import time:       735 |        735 |       types",
+      "import time:       160 |       1517 |     importlib.util",
+      "import time:       111 |        111 |     itertools",
+      "import time:       559 |        559 |             keyword",
+      "import time:        67 |         67 |               _operator",
+      "import time:       688 |        755 |             operator",
+      "import time:       608 |        608 |             reprlib",
+      "import time:        71 |         71 |             _collections",
+      "import time:      1337 |       3329 |           collections",
+      "import time:        54 |         54 |           _functools",
+      "import time:       965 |       4347 |         functools",
+      "import time:       921 |        921 |           contextlib",
+      "import time:      1508 |       1508 |             enum",
+      "import time:        80 |         80 |               _sre",
+      "import time:       574 |        574 |                 re._constants",
+      "import time:       836 |       1410 |               re._parser",
+      "import time:       478 |        478 |               re._casefix",
+      "import time:       903 |       2869 |             re._compiler",
+      "import time:       653 |        653 |             copyreg",
+      "import time:      1062 |       6090 |           re",
+      "import time:       447 |        447 |               posix",
+      "import time:       398 |        398 |               posix",
+      "import time:       152 |        996 |             posixpath",
+      "import time:       620 |       1616 |           fnmatch",
+      "import time:       934 |       9561 |         glob",
+      "import time:       810 |      14717 |       pathlib._abc",
+      "import time:       781 |        781 |         warnings",
+      "import time:       425 |        425 |         pwd",
+      "import time:       374 |        374 |         grp",
+      "import time:       873 |       2452 |       pathlib._local",
+      "import time:       665 |      17833 |     pathlib",
+      "import time:      1953 |      22749 |   __editable___netlab_3_20_1_finder",
+      "import time:       884 |        884 |   _distutils_hack",
+      "import time:      1370 |       1370 |   sitecustomize",
+      "import time:       564 |        564 |   usercustomize",
+      "import time:      4871 |      32824 | site",
+      "import time:       875 |        875 | linecache",
+      "import time:        51 |         51 |     _typing",
+      "import time:      2542 |       2593 |   typing",
+      "import time:       705 |        705 |         _weakrefset",
+      "import time:       854 |       1558 |       weakref",
+      "import time:       648 |       2206 |     copy",
+      "import time:       742 |       2947 |   plotkit.presets",
+      "import time:       670 |        670 |       numpy.version",
+      "import time:       403 |        403 |       numpy._expired_attrs_2_0",
+      "import time:       553 |        553 |           numpy._utils._convertions",
+      "import time:       563 |       1116 |         numpy._utils",
+      "import time:       517 |       1632 |       numpy._globals",
+      "import time:       552 |        552 |           mkl._init_helper",
+      "import time:      4288 |       4288 |             _ctypes",
+      "import time:        74 |         74 |               _struct",
+      "import time:       693 |        766 |             struct",
+      "import time:       842 |        842 |             ctypes._endian",
+      "import time:      1312 |       7206 |           ctypes",
+      "import time:      1015 |       1015 |           mkl._mklinit",
+      "import time:       838 |        838 |             numbers",
+      "import time:       747 |       1585 |           mkl._py_mkl_service",
+      "import time:       380 |        380 |           mkl._version",
+      "import time:       916 |      11652 |         mkl",
+      "import time:      1715 |      13367 |       numpy._distributor_init",
+      "import time:       111 |        111 |                   _datetime",
+      "import time:       649 |        760 |                 datetime",
+      "import time:        47 |         47 |                 math",
+      "import time:       459 |        459 |                 numpy.exceptions",
+      "import time:       500 |        500 |                 numpy._core._exceptions",
+      "import time:        37 |         37 |                     _contextvars",
+      "import time:       558 |        594 |                   contextvars",
+      "import time:       384 |        978 |                 numpy._core.printoptions",
+      "import time:       575 |        575 |                 numpy.dtypes",
+      "import time:      3462 |       6779 |               numpy._core._multiarray_umath",
+      "import time:       451 |        451 |                 numpy._utils._inspect",
+      "import time:       683 |       1133 |               numpy._core.overrides",
+      "import time:      1060 |       8971 |             numpy._core.multiarray",
+      "import time:       489 |        489 |             numpy._core.umath",
+      "import time:       486 |        486 |               numpy._core._dtype",
+      "import time:       461 |        461 |               numpy._core._string_helpers",
+      "import time:       562 |        562 |               numpy._core._type_aliases",
+      "import time:       680 |       2188 |             numpy._core.numerictypes",
+      "import time:       497 |        497 |               numpy._core._ufunc_config",
+      "import time:       807 |        807 |                     _compat_pickle",
+      "import time:       109 |        109 |                     _pickle",
+      "import time:      1298 |       2213 |                   pickle",
+      "import time:       527 |       2740 |                 numpy._core._methods",
+      "import time:      1184 |       3924 |               numpy._core.fromnumeric",
+      "import time:       485 |       4904 |             numpy._core._machar",
+      "import time:       544 |        544 |                 numpy._core.shape_base",
+      "import time:       444 |        444 |                 numpy._core._asarray",
+      "import time:       795 |        795 |                 numpy._core.arrayprint",
+      "import time:       896 |       2678 |               numpy._core.numeric",
+      "import time:       527 |       3205 |             numpy._core.einsumfunc",
+      "import time:       525 |        525 |             numpy._core.function_base",
+      "import time:       569 |        569 |             numpy._core.getlimits",
+      "import time:       479 |        479 |             numpy._core.memmap",
+      "import time:       584 |        584 |             numpy._core.records",
+      "import time:      1208 |       1208 |             numpy._core._add_newdocs",
+      "import time:       690 |        690 |             numpy._core._add_newdocs_scalars",
+      "import time:       490 |        490 |             numpy._core._dtype_ctypes",
+      "import time:       907 |        907 |                 _ast",
+      "import time:      3777 |       4683 |               ast",
+      "import time:       988 |       5671 |             numpy._core._internal",
+      "import time:       557 |        557 |             numpy._pytesttester",
+      "import time:       943 |      31468 |           numpy._core",
+      "import time:        34 |      31501 |         numpy._core._multiarray_umath",
+      "import time:       629 |      32130 |       numpy.__config__",
+      "import time:       534 |        534 |                         numpy._typing._nbit_base",
+      "import time:       580 |        580 |                         numpy._typing._nested_sequence",
+      "import time:       466 |        466 |                         numpy._typing._shape",
+      "import time:      2214 |       3792 |                       numpy._typing._array_like",
+      "import time:      1890 |       1890 |                       numpy._typing._char_codes",
+      "import time:      2156 |       2156 |                       numpy._typing._dtype_like",
+      "import time:       543 |        543 |                       numpy._typing._nbit",
+      "import time:       504 |        504 |                       numpy._typing._scalars",
+      "import time:       457 |        457 |                       numpy._typing._ufunc",
+      "import time:       838 |      10178 |                     numpy._typing",
+      "import time:       614 |        614 |                       numpy.lib._stride_tricks_impl",
+      "import time:       678 |       1291 |                     numpy.lib._twodim_base_impl",
+      "import time:       472 |        472 |                       numpy.lib._array_utils_impl",
+      "import time:       494 |        965 |                     numpy.lib.array_utils",
+      "import time:       674 |        674 |                     numpy.linalg._umath_linalg",
+      "import time:      2110 |      15216 |                   numpy.linalg._linalg",
+      "import time:       504 |        504 |                   numpy.linalg.linalg",
+      "import time:       636 |      16355 |                 numpy.linalg",
+      "import time:       780 |      17135 |               numpy.matrixlib.defmatrix",
+      "import time:       571 |      17705 |             numpy.matrixlib",
+      "import time:       841 |        841 |               numpy.lib._histograms_impl",
+      "import time:      1244 |       2084 |             numpy.lib._function_base_impl",
+      "import time:       448 |        448 |             numpy.lib.stride_tricks",
+      "import time:       732 |      20968 |           numpy.lib._index_tricks_impl",
+      "import time:       799 |      21766 |         numpy.lib._arraypad_impl",
+      "import time:      1041 |       1041 |         numpy.lib._arraysetops_impl",
+      "import time:       535 |        535 |         numpy.lib._arrayterator_impl",
+      "import time:       673 |        673 |         numpy.lib._nanfunctions_impl",
+      "import time:      1666 |       1666 |                   _wmi",
+      "import time:      1240 |       2905 |                 platform",
+      "import time:      1376 |       1376 |                 textwrap",
+      "import time:       557 |       4837 |               numpy.lib._utils_impl",
+      "import time:       539 |       5376 |             numpy.lib._format_impl",
+      "import time:       475 |       5850 |           numpy.lib.format",
+      "import time:       586 |        586 |           numpy.lib._datasource",
+      "import time:       667 |        667 |           numpy.lib._iotools",
+      "import time:      1129 |       8231 |         numpy.lib._npyio_impl",
+      "import time:       434 |        434 |             numpy.lib._ufunclike_impl",
+      "import time:       590 |       1024 |           numpy.lib._type_check_impl",
+      "import time:       842 |       1866 |         numpy.lib._polynomial_impl",
+      "import time:       683 |        683 |         numpy.lib._shape_base_impl",
+      "import time:       471 |        471 |         numpy.lib._version",
+      "import time:       400 |        400 |         numpy.lib.introspect",
+      "import time:       480 |        480 |         numpy.lib.mixins",
+      "import time:       401 |        401 |         numpy.lib.npyio",
+      "import time:       532 |        532 |           numpy.lib._scimath_impl",
+      "import time:       521 |       1052 |         numpy.lib.scimath",
+      "import time:       875 |      38469 |       numpy.lib",
+      "import time:       484 |        484 |       numpy._array_api_info",
+      "import time:     10511 |      97661 |     numpy",
+      "import time:       756 |      98417 |   plotkit.field3d",
+      "import time:        60 |         60 |               _opcode",
+      "import time:       657 |        657 |               _opcode_metadata",
+      "import time:       809 |       1525 |             opcode",
+      "import time:      1232 |       2757 |           dis",
+      "import time:       728 |        728 |             token",
+      "import time:        45 |         45 |             _tokenize",
+      "import time:      1258 |       2031 |           tokenize",
+      "import time:      2346 |       7132 |         inspect",
+      "import time:      1083 |       8214 |       dataclasses",
+      "import time:      2021 |       2021 |       plotkit.ns.field",
+      "import time:      1559 |      11794 |     plotkit.ns.diagnostics",
+      "import time:       496 |        496 |     plotkit.ns.scene",
+      "import time:      1387 |      13675 |   plotkit.ns",
+      "import time:        78 |         78 |         zlib",
+      "import time:       656 |        656 |           _compression",
+      "import time:      1079 |       1079 |           _bz2",
+      "import time:       707 |       2441 |         bz2",
+      "import time:      1250 |       1250 |           _lzma",
+      "import time:       748 |       1997 |         lzma",
+      "import time:      1082 |       5597 |       shutil",
+      "import time:        85 |         85 |           _bisect",
+      "import time:       572 |        656 |         bisect",
+      "import time:        36 |         36 |         _random",
+      "import time:       874 |       1565 |       random",
+      "import time:       907 |       8068 |     tempfile",
+      "import time:       437 |       8505 |   plotkit.quick",
+      "import time:       498 |        498 |     plotkit.api",
+      "import time:      2372 |       2372 |       _hashlib",
+      "import time:        54 |         54 |       _blake2",
+      "import time:       722 |       3147 |     hashlib",
+      "import time:      1341 |       1341 |                 _uuid",
+      "import time:      1376 |       2717 |               uuid",
+      "import time:       689 |       3406 |             plotkit.spec.model",
+      "import time:      1589 |       1589 |             plotkit.spec.validate",
+      "import time:       637 |       5631 |           plotkit.spec",
+      "import time:        41 |       5671 |         plotkit.spec.model",
+      "import time:       969 |        969 |             plotkit.store.downsample",
+      "import time:        71 |         71 |                   _csv",
+      "import time:       807 |        877 |                 csv",
+      "import time:      1374 |       1374 |                 threading",
+      "import time:      1358 |       3609 |               plotkit.store.registry",
+      "import time:       922 |       4530 |             plotkit.store.reclaim",
+      "import time:       696 |       6194 |           plotkit.store",
+      "import time:        28 |       6222 |         plotkit.store.registry",
+      "import time:      1356 |       1356 |         plotkit.backends.registry",
+      "import time:       522 |        522 |         plotkit.backends.series",
+      "import time:      1338 |      15108 |       plotkit.backends.mpl_backend",
+      "import time:       602 |      15709 |     plotkit.backends",
+      "import time:      1205 |       1205 |     plotkit.backends.dispatch",
+      "import time:        67 |         67 |             _json",
+      "import time:       615 |        681 |           json.scanner",
+      "import time:       976 |       1657 |         json.decoder",
+      "import time:       717 |        717 |         json.encoder",
+      "import time:       803 |       3176 |       json",
+      "import time:       499 |       3674 |     plotkit.spec.io",
+      "import time:      1082 |      25313 |   plotkit.api.native",
+      "import time:       868 |        868 |   plotkit.host_api",
+      "import time:       944 |     153260 | plotkit"
+    ],
+    "stdout_sha256": "ec00189fde7564e6e4756b653e44debc973c15ce29cc9a49966aa4d4f9487700",
+    "top_10_by_cumulative_us": [
+      {
+        "cumulative_us": 153260,
+        "module": "plotkit",
+        "self_us": 944
+      },
+      {
+        "cumulative_us": 98417,
+        "module": "plotkit.field3d",
+        "self_us": 756
+      },
+      {
+        "cumulative_us": 97661,
+        "module": "numpy",
+        "self_us": 10511
+      },
+      {
+        "cumulative_us": 38469,
+        "module": "numpy.lib",
+        "self_us": 875
+      },
+      {
+        "cumulative_us": 32824,
+        "module": "site",
+        "self_us": 4871
+      },
+      {
+        "cumulative_us": 32130,
+        "module": "numpy.__config__",
+        "self_us": 629
+      },
+      {
+        "cumulative_us": 31501,
+        "module": "numpy._core._multiarray_umath",
+        "self_us": 34
+      },
+      {
+        "cumulative_us": 31468,
+        "module": "numpy._core",
+        "self_us": 943
+      },
+      {
+        "cumulative_us": 25313,
+        "module": "plotkit.api.native",
+        "self_us": 1082
+      },
+      {
+        "cumulative_us": 22749,
+        "module": "__editable___netlab_3_20_1_finder",
+        "self_us": 1953
+      }
+    ],
+    "total_self_us": 193112
+  },
+  "json_dump_options": {
+    "ensure_ascii": false,
+    "indent": 2,
+    "sort_keys": true
+  },
+  "measurement_commands": {
+    "file_baselines": "python - <<'PY'  # sha256(raw bytes) + sha256(ast.dump(ast.parse(...), include_attributes=False))",
+    "find_spec": "python -c \"import importlib.util, json; ...\"",
+    "frontend_line_counts": "python -c \"读取 static/*.ts 与 static/*.js 行数\"",
+    "frontend_line_counts_all": "python -c \"遍历 PlotKit 下所有 .ts/.js（排除 build/node_modules/.git）并计行\"",
+    "importtime": "PYTHONPATH=src python -X importtime -c \"import plotkit\" 2>&1",
+    "metadata_requires": "python -c \"import importlib.metadata as md, json; ...\"",
+    "note": "以上命令均在 PlotKit/ 目录实跑；完整输出见本 JSON 各小节 raw_stdout / 结果字段。",
+    "source_imports": "python -c \"ast 静态扫描 src/plotkit 目标文件 import\"",
+    "synthetic_probe": "python -c \"monkeypatch plotkit.host_api._module_available\"",
+    "sys_modules_diff": "python -c \"import sys; before=set(sys.modules); import plotkit; print(sorted(set(sys.modules)-before))\""
+  },
+  "notes": [
+    "本轮性质：只测量、只设计、不实施、不搬文件；G0 签字范围之外的准备工作。",
+    "未改任何现有文件；未创建 capability_matrix.json；未运行全量 pytest；未执行 git add/commit/tag/push/reset/checkout/rebase。",
+    "未运行会写用户目录的命令：子进程设置 PYTHONDONTWRITEBYTECODE=1、MPLCONFIGDIR/XDG_CACHE_HOME/TMP/TEMP 指向 C:/Windows/Temp。",
+    "synthetic probe 为子进程 monkeypatch _module_available 的模拟输出，明确标注 synthetic，不代表真实安装了全部 extra。",
+    "importtime 命令显示文本按裁定书写成 PYTHONPATH=src；实际执行以 sys.executable 作为 python，PYTHONPATH 为绝对 src 路径，避免 shell 差异。",
+    "裁定书列出的 pyvista_backend.py / pyvista_pool.py / hybrid3d.py 实际位于 src/plotkit/backends/ 下，file_baselines 键使用 backends/ 前缀。",
+    "tools/generate_reports.py 只生成 architecture/decisions/schema 三份固定 JSON，不覆盖 p1_baseline.json。",
+    "前端 TS/JS 产物仍须入库并保留 drift guard；test:ui 仅为设计稿。",
+    "裁定书 §二⑤ 的「双份 13990 行」与本轮实读行数不一致；p1_baseline.json 同时记录 static 与全仓 TS/JS 行数，不把任何未实跑数字当测量结果。"
+  ],
+  "ns_extra_naming": {
+    "current_state": {
+      "desktop": [
+        "pywebview>=5.0"
+      ],
+      "ns": null,
+      "three": [
+        "pyvista>=0.44"
+      ]
+    },
+    "note": "pyproject.toml 当前已有 three=['pyvista>=0.44'] 与 desktop=['pywebview>=5.0']，没有 ns extra；vtk 由 pyvista 带入，不单独 pin；pywebview 属于 desktop，不属于 ns；scipy>=1.10 当前未在任何 extra 声明。",
+    "proposal": {
+      "depends_on_three": true,
+      "ns": [
+        "plotkit[three]",
+        "scipy>=1.10"
+      ]
+    },
+    "status": "proposed"
+  },
+  "report_schema": "plotkit.p1-baseline/2026-11-09",
+  "sys_modules_diff": {
+    "command": "python -c \"import sys; before=set(sys.modules); import plotkit; print(sorted(set(sys.modules)-before))\"",
+    "diff": [
+      "_ast",
+      "_bisect",
+      "_blake2",
+      "_bz2",
+      "_compat_pickle",
+      "_compression",
+      "_contextvars",
+      "_csv",
+      "_ctypes",
+      "_cython_3_1_4",
+      "_datetime",
+      "_hashlib",
+      "_json",
+      "_lzma",
+      "_opcode",
+      "_opcode_metadata",
+      "_pickle",
+      "_random",
+      "_struct",
+      "_tokenize",
+      "_typing",
+      "_uuid",
+      "_weakrefset",
+      "_wmi",
+      "ast",
+      "bisect",
+      "bz2",
+      "contextvars",
+      "copy",
+      "csv",
+      "ctypes",
+      "ctypes._endian",
+      "cython_runtime",
+      "dataclasses",
+      "datetime",
+      "dis",
+      "hashlib",
+      "inspect",
+      "json",
+      "json.decoder",
+      "json.encoder",
+      "json.scanner",
+      "lzma",
+      "math",
+      "mkl",
+      "mkl._init_helper",
+      "mkl._mklinit",
+      "mkl._py_mkl_service",
+      "mkl._version",
+      "numbers",
+      "numpy",
+      "numpy.__config__",
+      "numpy._array_api_info",
+      "numpy._core",
+      "numpy._core._add_newdocs",
+      "numpy._core._add_newdocs_scalars",
+      "numpy._core._asarray",
+      "numpy._core._dtype",
+      "numpy._core._dtype_ctypes",
+      "numpy._core._exceptions",
+      "numpy._core._internal",
+      "numpy._core._machar",
+      "numpy._core._methods",
+      "numpy._core._multiarray_umath",
+      "numpy._core._string_helpers",
+      "numpy._core._type_aliases",
+      "numpy._core._ufunc_config",
+      "numpy._core.arrayprint",
+      "numpy._core.einsumfunc",
+      "numpy._core.fromnumeric",
+      "numpy._core.function_base",
+      "numpy._core.getlimits",
+      "numpy._core.memmap",
+      "numpy._core.multiarray",
+      "numpy._core.numeric",
+      "numpy._core.numerictypes",
+      "numpy._core.overrides",
+      "numpy._core.printoptions",
+      "numpy._core.records",
+      "numpy._core.shape_base",
+      "numpy._core.umath",
+      "numpy._distributor_init",
+      "numpy._expired_attrs_2_0",
+      "numpy._globals",
+      "numpy._pytesttester",
+      "numpy._typing",
+      "numpy._typing._array_like",
+      "numpy._typing._char_codes",
+      "numpy._typing._dtype_like",
+      "numpy._typing._nbit",
+      "numpy._typing._nbit_base",
+      "numpy._typing._nested_sequence",
+      "numpy._typing._scalars",
+      "numpy._typing._shape",
+      "numpy._typing._ufunc",
+      "numpy._utils",
+      "numpy._utils._convertions",
+      "numpy._utils._inspect",
+      "numpy.dtypes",
+      "numpy.exceptions",
+      "numpy.lib",
+      "numpy.lib._array_utils_impl",
+      "numpy.lib._arraypad_impl",
+      "numpy.lib._arraysetops_impl",
+      "numpy.lib._arrayterator_impl",
+      "numpy.lib._datasource",
+      "numpy.lib._format_impl",
+      "numpy.lib._function_base_impl",
+      "numpy.lib._histograms_impl",
+      "numpy.lib._index_tricks_impl",
+      "numpy.lib._iotools",
+      "numpy.lib._nanfunctions_impl",
+      "numpy.lib._npyio_impl",
+      "numpy.lib._polynomial_impl",
+      "numpy.lib._scimath_impl",
+      "numpy.lib._shape_base_impl",
+      "numpy.lib._stride_tricks_impl",
+      "numpy.lib._twodim_base_impl",
+      "numpy.lib._type_check_impl",
+      "numpy.lib._ufunclike_impl",
+      "numpy.lib._utils_impl",
+      "numpy.lib._version",
+      "numpy.lib.array_utils",
+      "numpy.lib.format",
+      "numpy.lib.introspect",
+      "numpy.lib.mixins",
+      "numpy.lib.npyio",
+      "numpy.lib.scimath",
+      "numpy.lib.stride_tricks",
+      "numpy.linalg",
+      "numpy.linalg._linalg",
+      "numpy.linalg._umath_linalg",
+      "numpy.linalg.linalg",
+      "numpy.matrixlib",
+      "numpy.matrixlib.defmatrix",
+      "numpy.version",
+      "opcode",
+      "pickle",
+      "platform",
+      "plotkit",
+      "plotkit.api",
+      "plotkit.api.native",
+      "plotkit.backends",
+      "plotkit.backends.dispatch",
+      "plotkit.backends.mpl_backend",
+      "plotkit.backends.registry",
+      "plotkit.backends.series",
+      "plotkit.field3d",
+      "plotkit.host_api",
+      "plotkit.ns",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.field",
+      "plotkit.ns.scene",
+      "plotkit.presets",
+      "plotkit.quick",
+      "plotkit.spec",
+      "plotkit.spec.io",
+      "plotkit.spec.model",
+      "plotkit.spec.validate",
+      "plotkit.store",
+      "plotkit.store.downsample",
+      "plotkit.store.reclaim",
+      "plotkit.store.registry",
+      "random",
+      "shutil",
+      "struct",
+      "tempfile",
+      "textwrap",
+      "threading",
+      "token",
+      "tokenize",
+      "typing",
+      "uuid",
+      "weakref",
+      "zlib"
+    ],
+    "diff_count": 175,
+    "ns_or_three_modules_present": [
+      "plotkit.ns",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.field3d"
+    ],
+    "plotkit_module_count": 24,
+    "plotkit_modules": [
+      "plotkit",
+      "plotkit.api",
+      "plotkit.api.native",
+      "plotkit.backends",
+      "plotkit.backends.dispatch",
+      "plotkit.backends.mpl_backend",
+      "plotkit.backends.registry",
+      "plotkit.backends.series",
+      "plotkit.field3d",
+      "plotkit.host_api",
+      "plotkit.ns",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.field",
+      "plotkit.ns.scene",
+      "plotkit.presets",
+      "plotkit.quick",
+      "plotkit.spec",
+      "plotkit.spec.io",
+      "plotkit.spec.model",
+      "plotkit.spec.validate",
+      "plotkit.store",
+      "plotkit.store.downsample",
+      "plotkit.store.reclaim",
+      "plotkit.store.registry"
+    ],
+    "raw_stdout": "['_ast', '_bisect', '_blake2', '_bz2', '_compat_pickle', '_compression', '_contextvars', '_csv', '_ctypes', '_cython_3_1_4', '_datetime', '_hashlib', '_json', '_lzma', '_opcode', '_opcode_metadata', '_pickle', '_random', '_struct', '_tokenize', '_typing', '_uuid', '_weakrefset', '_wmi', 'ast', 'bisect', 'bz2', 'contextvars', 'copy', 'csv', 'ctypes', 'ctypes._endian', 'cython_runtime', 'dataclasses', 'datetime', 'dis', 'hashlib', 'inspect', 'json', 'json.decoder', 'json.encoder', 'json.scanner', 'lzma', 'math', 'mkl', 'mkl._init_helper', 'mkl._mklinit', 'mkl._py_mkl_service', 'mkl._version', 'numbers', 'numpy', 'numpy.__config__', 'numpy._array_api_info', 'numpy._core', 'numpy._core._add_newdocs', 'numpy._core._add_newdocs_scalars', 'numpy._core._asarray', 'numpy._core._dtype', 'numpy._core._dtype_ctypes', 'numpy._core._exceptions', 'numpy._core._internal', 'numpy._core._machar', 'numpy._core._methods', 'numpy._core._multiarray_umath', 'numpy._core._string_helpers', 'numpy._core._type_aliases', 'numpy._core._ufunc_config', 'numpy._core.arrayprint', 'numpy._core.einsumfunc', 'numpy._core.fromnumeric', 'numpy._core.function_base', 'numpy._core.getlimits', 'numpy._core.memmap', 'numpy._core.multiarray', 'numpy._core.numeric', 'numpy._core.numerictypes', 'numpy._core.overrides', 'numpy._core.printoptions', 'numpy._core.records', 'numpy._core.shape_base', 'numpy._core.umath', 'numpy._distributor_init', 'numpy._expired_attrs_2_0', 'numpy._globals', 'numpy._pytesttester', 'numpy._typing', 'numpy._typing._array_like', 'numpy._typing._char_codes', 'numpy._typing._dtype_like', 'numpy._typing._nbit', 'numpy._typing._nbit_base', 'numpy._typing._nested_sequence', 'numpy._typing._scalars', 'numpy._typing._shape', 'numpy._typing._ufunc', 'numpy._utils', 'numpy._utils._convertions', 'numpy._utils._inspect', 'numpy.dtypes', 'numpy.exceptions', 'numpy.lib', 'numpy.lib._array_utils_impl', 'numpy.lib._arraypad_impl', 'numpy.lib._arraysetops_impl', 'numpy.lib._arrayterator_impl', 'numpy.lib._datasource', 'numpy.lib._format_impl', 'numpy.lib._function_base_impl', 'numpy.lib._histograms_impl', 'numpy.lib._index_tricks_impl', 'numpy.lib._iotools', 'numpy.lib._nanfunctions_impl', 'numpy.lib._npyio_impl', 'numpy.lib._polynomial_impl', 'numpy.lib._scimath_impl', 'numpy.lib._shape_base_impl', 'numpy.lib._stride_tricks_impl', 'numpy.lib._twodim_base_impl', 'numpy.lib._type_check_impl', 'numpy.lib._ufunclike_impl', 'numpy.lib._utils_impl', 'numpy.lib._version', 'numpy.lib.array_utils', 'numpy.lib.format', 'numpy.lib.introspect', 'numpy.lib.mixins', 'numpy.lib.npyio', 'numpy.lib.scimath', 'numpy.lib.stride_tricks', 'numpy.linalg', 'numpy.linalg._linalg', 'numpy.linalg._umath_linalg', 'numpy.linalg.linalg', 'numpy.matrixlib', 'numpy.matrixlib.defmatrix', 'numpy.version', 'opcode', 'pickle', 'platform', 'plotkit', 'plotkit.api', 'plotkit.api.native', 'plotkit.backends', 'plotkit.backends.dispatch', 'plotkit.backends.mpl_backend', 'plotkit.backends.registry', 'plotkit.backends.series', 'plotkit.field3d', 'plotkit.host_api', 'plotkit.ns', 'plotkit.ns.diagnostics', 'plotkit.ns.field', 'plotkit.ns.scene', 'plotkit.presets', 'plotkit.quick', 'plotkit.spec', 'plotkit.spec.io', 'plotkit.spec.model', 'plotkit.spec.validate', 'plotkit.store', 'plotkit.store.downsample', 'plotkit.store.reclaim', 'plotkit.store.registry', 'random', 'shutil', 'struct', 'tempfile', 'textwrap', 'threading', 'token', 'tokenize', 'typing', 'uuid', 'weakref', 'zlib']\n",
+    "required_ns_or_three_modules": [
+      "plotkit.ns",
+      "plotkit.ns.field",
+      "plotkit.ns.diagnostics",
+      "plotkit.ns.scene",
+      "plotkit.field3d"
+    ],
+    "returncode": 0,
+    "root_cause": "src/plotkit/__init__.py:25 from . import field3d, ns",
+    "stderr": "",
+    "stdout_sha256": "486f2fea1b5383ffc01f7c129cec149ad601e8ded686afc9f7b9947b6034f86c"
+  },
+  "top_level_keys": [
+    "deliverables",
+    "dependency_closure",
+    "evidence",
+    "expand_contract_batches",
+    "file_baselines",
+    "file_baselines_count",
+    "file_baselines_meta",
+    "frontend_line_counts",
+    "g1_readiness",
+    "importtime",
+    "json_dump_options",
+    "measurement_commands",
+    "notes",
+    "ns_extra_naming",
+    "report_schema",
+    "sys_modules_diff",
+    "top_level_keys"
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plotkit.capability/v1",
+  "$comment": "L0 冻结契约（裁定 ⑨）：能力矩阵信封只承认一个正式 id 与固定 8 行；单行与 Decision 对象字段白名单化、additionalProperties=false，禁止靠放宽 schema 掩盖命名空间冲突。",
+  "type": "object",
+  "required": ["schema", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "plotkit.capability_matrix/v1"},
+    "revision": {"type": "integer", "minimum": 0},
+    "rows": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {"$ref": "#/$defs/row"}
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "required": [
+        "id",
+        "situation",
+        "match",
+        "backend",
+        "placement",
+        "capabilities_used",
+        "fallback",
+        "degraded_when",
+        "acceptance"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "situation": {"type": "string"},
+        "match": {
+          "type": "object",
+          "required": [
+            "doc_features",
+            "target_kinds",
+            "formats",
+            "qualities",
+            "requires_extra"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "doc_features": {"type": "array", "items": {"type": "string"}},
+            "target_kinds": {"type": "array", "items": {"type": "string"}},
+            "formats": {"type": "array", "items": {"type": "string"}},
+            "qualities": {"type": "array", "items": {"type": "string"}},
+            "requires_extra": {"type": ["string", "null"]}
+          }
+        },
+        "backend": {"type": "string"},
+        "placement": {"type": "string"},
+        "capabilities_used": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "fallback": {"type": ["string", "null"]},
+        "degraded_when": {"type": "array", "items": {"type": "string"}},
+        "acceptance": {"type": "string"}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "required": [
+        "backend",
+        "reason",
+        "fallback",
+        "capabilities_used",
+        "degraded"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "backend": {"type": "string"},
+        "reason": {"type": "string"},
+        "fallback": {"type": ["string", "null"]},
+        "capabilities_used": {"type": "array", "items": {"type": "string"}},
+        "degraded": {"type": "boolean"}
+      }
+    }
+  }
+}

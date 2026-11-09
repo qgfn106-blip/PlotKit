@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-06 17:50
+> 最后修改：2026-11-09 16:50
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -36,8 +36,10 @@
 | **PK-R21** | 「不能自行放置文字框，数据标注，箭头等类似于笔记功能」 | 笔记级批注：文字框/箭头/框选/数据标注，存进 `figure.notes` | 已完成（2026-11-03，3.16.10；spec P5） |
 | **PK-R22** | 前端 TypeScript 迁移：PlotKit 四个静态前端文件（`app.js` / `nsview.js` / `render2d.js` / `view3d.js`）纳入 netlab 主导的全局 JS→TS 迁移 | 与 netlab R41 同一口径：一期只加类型、1:1 编译、行为零变化；二期（P17）改原生 ES Modules（`app.js` 为模块入口，抽 `plot2d.utils`/`plot3d.utils`），由 esbuild 构建（`npm run build`） | **已完成（P16 一期 + P17 二期，2026-11-06）**：四文件全部严格类型化、tsc strict 0、AST 行为等价（verify_*_parity.js）；P17 原生 ESM 化、`plot2d.utils`/`plot3d.utils` 单测 19 passed；pytest 470 全绿；详见 netlab `REQUIREMENTS_AND_RULES.md` R41 / `PROGRESS.md` §7.76 |
 | **PK-R23** | 全部 Python 代码按 PEP 8 规范化（TS 重构完成后） | 在 netlab R41 P16/P17 全部完成后，对 PlotKit 全部 Python 代码做 PEP 8 规范化与无损优化；不影响任何功能、不改公共接口与数值结果 | **已完成**（2026-11-06，`black` 规范化 92 文件、AST 等价校验通过（3 处仅 docstring 缩进差）、`pytest` 470 passed、`node test:utils` 19 passed；commit `32587c4`；详见 netlab R42 / P18） |
+| **PK-R24** | 用户原话（2026-11-09）：「@docs\PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md 请就这个文档对plotkit项目进行复核，然后按照文档提出的规划进行代码优化 请遵守代码规范与文档规范 /to-spec /to-tickets 然后自行按照任务，开始完成任务，之间不要反复找我批准，只留下需要审批复核决策的操作」 | 复核 `docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` 的基线与证据，按 §8 P0「冻结契约」实施：L0 四份契约 JSON + 能力矩阵 8 行、L1 `FigureDocument` v1 与 0.1→v1 双向 golden、L2 `Frame` v1 wire、L3 `Selector` 唯一决策点与 `Decision`、X3 UI 状态不再落 cwd、三层测试与 CI 门禁；全部为纯新增或等价改进，P1–P5 的搬运/删接口/改宿主列为需审批决策项 | **P0 已实施（2026-11-09）**：复核报告 `docs/PLOTKIT_ORIGIN_REFACTOR_REVIEW_2026-11-09.md`；/to-spec 规格 `docs/specs/2026-11-09-p0-contract-freeze.md`；/to-tickets 票单 `.scratch/plotkit-origin-refactor/issues/01..12`；签字表 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0；基线 `pytest 470 passed`（HEAD c563707）；本轮回归数字见签字表 G0 |
+| **PK-R25** | 用户原话（2026-11-09，m01327）：「现在开始每次github上传更新都在readme中显示最近一次更新更新了什么，并且保留最近十次的更新记录可查阅」 | 每次 GitHub 上传前用 `tools/record_update.py --add` 把「日期/版本ref/更新内容/证据」写入 README 唯一 `<!-- UPDATE:LATEST:BEGIN/END -->` 标记块，并在 `docs/UPDATE_LOG.md` 滚动保留最近 10 条；`--check` 供 CI 校验两处逐字一致 | **已实施（2026-11-09）**：`record_update.py --check` → `entries=10 ok=True`，`tests/contract/test_record_update.py` 4 条全绿；工单 11 与 README 更新记录机制同批入 `docs/tickets/`。规则已写入全局长期记忆 |
 
-## 2. 决策台账（D1–D38，摘录结论）
+## 2. 决策台账（D1–D40，摘录结论）
 
 | 号 | 决策 | 一句话理由 |
 | --- | --- | --- |
@@ -79,6 +81,8 @@
 | D36 | inset 拖拽 = 前端覆盖层画框，松手 PUT spec 再重绘；`LayerSpec` 用 `interactive: bool` 取代 `browser_native` | 拖拽中不回后端，避免抖动 |
 | D37 | **不删旧 canvas**：netlab 原生时间序列/示波器/李萨如/相图与分析面板长期保留，PlotKit 作为**并行**能力（2026-10-31 用户决定） | 用户明确要求「先不要将原生绘图分析删掉」；两条路径并存，谁都不阻塞谁 |
 | D38 | **多后端框架**：`LayerSpec.builders` 支持按后端注册 builder；`dispatch` 负责选后端与回退；matplotlib 仍是默认与兜底，PyVista 作**可选三维工程后端**，VisPy 只留名字（2026-10-31 实现） | 三维在 mpl 上 10 万点要 1.4–6s（`Axes3D` 逐面片走 Agg），PyVista 交给 GPU 后 0.16–0.22s；但 VTK 常驻 ~165MB 且只出 PNG，所以不做全局替换 |
+| D39 | **P0 只做等价改进与纯新增，不删任何能力（2026-11-09，PK-R24）**：四份契约 JSON 与能力矩阵落 `schema/`；`FigureDocument` v1 / 双向迁移落 `document/`；`Frame` v1 wire 落 `store/frame.py`；`Selector`/`Decision` 落 `backends/selector.py`（唯一决策点，不读环境变量 X6）；`host_api.probe()` 保持 `state` 三态与 `api_version="1"` 不变、只追加声明键；UI 状态默认落点由 `Path.cwd()/"layout.json"` 改为用户配置目录（X3），`create_app` 不隐式迁移；`/api/capabilities`、`/api/doc`、`/api/frame` 与 `X-PlotKit-Decision` 响应头均为纯新增 | `CODE_STANDARDS.md §0` 只许等价改进；计划 §10 X1–X10 要求保留全部绘图策略、禁止破坏性搬运；`api_version` 升 2 / 新三态、删 `PUT /api/spec`、收敛 `/api/column`、搬 contrib、改 `netlab/plotkit_bridge.py`、删文档资产均改变对外行为或跨仓，属需审批决策项，本轮不实施 |
+| D40 | **裁定书 11 项收口（2026-11-09，PK-R24 续）**：⑨ probe 四字段拆分（`features` / 静态 `capabilities` / 动态 `optional` / 运行时 `decisions`）+ `capability.v1.json` 收紧；③ `get_layout()` 仅在 `using_default` 下 lazy 触发 `migrate_legacy_layout()`；⑪ 放行判据改 `collected == 常量 544 且 failed == 0 且四门禁零 violations 且 reports 二次生成 sha 不变`；⑩ 12 票入 `docs/tickets/` + README 更新记录机制；⑧ `BENCHMARKS.md` 删数字表、`bench_baseline.json` 唯一机器基线 + `bench_regress.py --check`；②PATCH 设计 / ④P1-0 测量 / ⑤test:ui 范围 / ⑥资产编目均只做设计或编目，不改对外行为 | `docs/PLOTKIT_P0_DECISIONS_2026-11-09.md` §二 逐项裁定、§四 执行顺序；G0 不自签（CI 首次绿灯与评审签字待用户），G1–G4 留白；`check_test_baseline.py` 把 `collected=544` 钉为常量，`check_layers.py` 加「契约加载器不得 import selector」 |
 
 ## 3. 图表能力扩展计划（P13 / D24–D36，2026-10-30 立项，2026-10-31 架构修订）
 
@@ -261,6 +265,8 @@
 
 | 阶段 | 内容 | 状态 |
 | --- | --- | --- |
+| **P0 契约冻结**（PK-R24 / D39） | 复核 `docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` → L0 四份契约 JSON + 能力矩阵 8 行 / L1 `FigureDocument` v1 与 0.1→v1 双向 golden / L2 `Frame` v1 wire / L3 `Selector`+`Decision` / X3 UI 状态路径 / 纯新增 `/api/capabilities`、`/api/doc`、`/api/frame` 与 `X-PlotKit-Decision` / 三层测试 + `tools/check_*.py` + `python-tests.yml` | **已实施（2026-11-09）**：全部为纯新增或等价改进；基线 `470 passed`（HEAD `c563707`）；本轮回归与门禁输出见 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0。P1–P5（contrib 搬运、删 `PUT /api/spec`、收敛 `/api/column`、`api_version` 升 2 / probe 新三态、改 `netlab/plotkit_bridge.py`、docs 瘦身）**未实施，列为需审批决策项** |
+| **P0 裁定书收口**（PK-R25 / D40） | ⑨ 四字段拆分 / ③ lazy 迁移 / ⑪ collected 常量门禁 / ⑩ 12 票入仓 + README 更新记录 / ⑧ bench 相对回归带 / ②④⑤⑥ 设计与编目；`reports/test_baseline.json` 钉 `collected=544` | **已实施（2026-11-09 16:50）**：`pytest 544 passed`、`--collect-only 544 collected`、三层 `70 passed`、四门禁 `ok=True` 零 violations、`check_test_baseline ok=True`、`bench_regress check=ok`、`record_update entries=10 ok=True`、`reports/*.json` 二次生成 sha 不变；本地冻结提交与轻量 tag `p0-freeze-2026-11-09` 见工作区签字表 §0；不 push（代理未开），CI 首次绿灯待用户 |
 | TS 迁移 | 四个静态前端文件纳入 netlab R41 全局 JS→TS（一期类型化 P16 + 二期模块化 P17：原生 ESM、抽 `plot2d.utils.ts`/`plot3d.utils.ts` 并补单测） | 已完成（2026-11-06；P16 tsc strict 0 / AST 行为等价；P17 ESM 化、utils 单测 19 passed；pytest 470 全绿） |
 | Python PEP 8 | TS 重构完成后，PlotKit 全部 Python 代码按 PEP 8 规范化（无损、不改功能）；对应 netlab R42 / P18 | 已完成（2026-11-06；`black` 92 文件、pytest 470 passed、`node test:utils` 19 passed；见 PK-R23 / netlab R42 P18） |
 | P12-01 | spec + DataStore + 分块落盘 + 抽稀 | 完成 |

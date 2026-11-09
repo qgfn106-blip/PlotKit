@@ -1,0 +1,50 @@
+name: plotkit-python-tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package and test dependencies
+        run: pip install -e ".[dev,web]"
+
+      - name: Full suite with collected-count gate
+        run: python tools/check_test_baseline.py
+
+      - name: Contract and parity tests
+        run: python -m pytest -o addopts= -q tests/contract tests/parity --disable-warnings
+
+      - name: Render baseline tests
+        run: python -m pytest -o addopts= -q tests/render --disable-warnings
+
+      - name: Performance regression band
+        run: python tools/bench_regress.py --check
+
+      - name: Update record consistency
+        run: python tools/record_update.py --check
+
+      - name: Check layer imports
+        run: python tools/check_layers.py
+
+      - name: Check capability matrix
+        run: python tools/check_capability_matrix.py
+
+      - name: Check document and schema sync
+        run: python tools/check_doc_sync.py
+
+      - name: Regenerate reports
+        run: python tools/generate_reports.py
+
+      - name: Reports must be up to date
+        run: git diff --ignore-cr-at-eol --exit-code -- reports/

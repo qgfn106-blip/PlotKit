@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plotkit.frame/v1",
+  "$comment": "L0 冻结契约：Frame v1 线格式只携带列元信息与 base64 载荷，不内联 plotkit 业务对象。",
+  "type": "object",
+  "required": ["schema", "generation", "cursor", "t0", "dt", "columns", "payload"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "plotkit.frame/v1"},
+    "generation": {"type": "integer", "minimum": 0},
+    "cursor": {"type": "integer", "minimum": 0},
+    "version": {"type": "integer", "minimum": 0},
+    "t0": {"type": "number"},
+    "dt": {"type": "number"},
+    "columns": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/column"}
+    },
+    "payload": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "$comment": "原始列块按 base64 编码；解码规则由 Frame v1 传输层定义。"
+    }
+  },
+  "$defs": {
+    "column": {
+      "$comment": "列描述符严格封闭；offset/count 描述 payload 内的块位置，均为非负整数。",
+      "type": "object",
+      "required": ["name", "unit", "role", "dtype", "encoding", "offset", "count"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "unit": {"type": "string"},
+        "role": {"type": "string"},
+        "dtype": {"type": "string"},
+        "encoding": {"type": "string"},
+        "offset": {"type": "integer", "minimum": 0},
+        "count": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

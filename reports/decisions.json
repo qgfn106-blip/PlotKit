@@ -1,0 +1,196 @@
+{
+  "environment": "all-extras-available (synthetic)",
+  "rows": [
+    {
+      "acceptance": "SVG 中文字为 <text> 而非 <image>；轴刻度可选中",
+      "decision": {
+        "backend": "mpl",
+        "capabilities_used": [
+          "mpl2d",
+          "vector-text",
+          "font-control",
+          "dpi-control"
+        ],
+        "degraded": false,
+        "fallback": null,
+        "reason": "命中能力行 2d-publication-vector：2D 出版级矢量导出，要求字体/DPI 可控；policy=quality"
+      },
+      "doc_features": [
+        "2d"
+      ],
+      "id": "2d-publication-vector",
+      "situation": "2D 出版级矢量导出，要求字体/DPI 可控",
+      "target": {
+        "fmt": "svg",
+        "kind": "export",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "轴文字与刻度可选中；场景位图与轴矢量分层",
+      "decision": {
+        "backend": "hybrid3d",
+        "capabilities_used": [
+          "3d-scene",
+          "vector-axes"
+        ],
+        "degraded": false,
+        "fallback": "mpl",
+        "reason": "命中能力行 3d-publication-vector：3D 场景的出版级矢量导出（位图场景 + 矢量轴）；policy=quality"
+      },
+      "doc_features": [
+        "3d"
+      ],
+      "id": "3d-publication-vector",
+      "situation": "3D 场景的出版级矢量导出（位图场景 + 矢量轴）",
+      "target": {
+        "fmt": "svg",
+        "kind": "export",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "未安装 three extra 时 Decision.degraded=True 且不抛异常",
+      "decision": {
+        "backend": "pyvista",
+        "capabilities_used": [
+          "3d-scene",
+          "interactive",
+          "process-pool"
+        ],
+        "degraded": false,
+        "fallback": "mpl",
+        "reason": "命中能力行 3d-interactive-viewport：3D 交互 / 大规模场景的可视口渲染；policy=quality"
+      },
+      "doc_features": [
+        "3d"
+      ],
+      "id": "3d-interactive-viewport",
+      "situation": "3D 交互 / 大规模场景的可视口渲染",
+      "target": {
+        "fmt": "png",
+        "kind": "viewport",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "抽稀前后包络误差 ≤ 阈值；首帧耗时 CI 记录但不设硬阈值",
+      "decision": {
+        "backend": "canvas",
+        "capabilities_used": [
+          "canvas-timeseries",
+          "downsample-pyramid"
+        ],
+        "degraded": false,
+        "fallback": "mpl",
+        "reason": "命中能力行 large-timeseries-viewport：百万点时序在视口内拖拽平移缩放；policy=quality"
+      },
+      "doc_features": [
+        "2d",
+        "large",
+        "timeseries"
+      ],
+      "id": "large-timeseries-viewport",
+      "situation": "百万点时序在视口内拖拽平移缩放",
+      "target": {
+        "fmt": "png",
+        "kind": "viewport",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "LIC 对同一 seed 逐字节可复现",
+      "decision": {
+        "backend": "lic",
+        "capabilities_used": [
+          "lic",
+          "quiver",
+          "streamplot"
+        ],
+        "degraded": false,
+        "fallback": "mpl",
+        "reason": "命中能力行 vector-field：矢量场 / 流线（LIC、quiver、streamplot）；policy=quality"
+      },
+      "doc_features": [
+        "vector-field"
+      ],
+      "id": "vector-field",
+      "situation": "矢量场 / 流线（LIC、quiver、streamplot）",
+      "target": {
+        "fmt": "png",
+        "kind": "export",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "并发 push/render 1000 次无长度不一致；golden vector 往返一致",
+      "decision": {
+        "backend": "frame-v1",
+        "capabilities_used": [
+          "frame-v1",
+          "columnstore-version"
+        ],
+        "degraded": false,
+        "fallback": null,
+        "reason": "命中能力行 live-stream-increment：实时流式增量数据（web / viewport）；policy=quality"
+      },
+      "doc_features": [
+        "live"
+      ],
+      "id": "live-stream-increment",
+      "situation": "实时流式增量数据（web / viewport）",
+      "target": {
+        "fmt": "png",
+        "kind": "web",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "只在该 extra 安装时注册 CLI 子命令",
+      "decision": {
+        "backend": "anim3d",
+        "capabilities_used": [
+          "animation",
+          "batch-render"
+        ],
+        "degraded": false,
+        "fallback": null,
+        "reason": "命中能力行 animation-batch：动画 / 批渲染（gif、mp4、zip）；policy=quality"
+      },
+      "doc_features": [
+        "animation"
+      ],
+      "id": "animation-batch",
+      "situation": "动画 / 批渲染（gif、mp4、zip）",
+      "target": {
+        "fmt": "gif",
+        "kind": "export",
+        "quality": "balanced"
+      }
+    },
+    {
+      "acceptance": "主包 import plotkit 不触发 ns 导入；probe().capabilities 随 extra 变化",
+      "decision": {
+        "backend": "ns",
+        "capabilities_used": [
+          "ns-solver",
+          "teaching-demo"
+        ],
+        "degraded": false,
+        "fallback": null,
+        "reason": "命中能力行 ns-vortex-demo：NS 涡旋教学演示（独立页面，独立产品线）；policy=quality"
+      },
+      "doc_features": [
+        "ns"
+      ],
+      "id": "ns-vortex-demo",
+      "situation": "NS 涡旋教学演示（独立页面，独立产品线）",
+      "target": {
+        "fmt": "png",
+        "kind": "web",
+        "quality": "balanced"
+      }
+    }
+  ],
+  "schema": "plotkit.decisions/v1"
+}

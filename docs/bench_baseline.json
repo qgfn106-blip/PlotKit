@@ -1,4 +1,12 @@
 {
+  "backend": "Agg",
+  "captured_at": "2026-11-09T04:47:42+00:00",
+  "captured_commit": "1cf2570",
+  "cpu": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+  "generated_by": "tools/bench_regress.py --json",
+  "matplotlib": "3.10.6",
+  "python": "3.13.9",
+  "resolution": "1200x700@100dpi",
   "results": [
     {
       "shape": "sine",

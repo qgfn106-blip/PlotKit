@@ -1,0 +1,70 @@
+{
+  "schema": "plotkit.compat/v1",
+  "api_version": "1",
+  "package_version": "0.2.1",
+  "package_version_min": "0.2",
+  "package_version_max_exclusive": "0.3",
+  "schema_versions": {
+    "figure": ["plotkit.figure/v1"],
+    "frame": ["plotkit.frame/v1"],
+    "capability": ["plotkit.capability/v1"]
+  },
+  "schema_ids": {
+    "capability_schema_document": "plotkit.capability/v1",
+    "capability_matrix_envelope": "plotkit.capability_matrix/v1",
+    "decisions_envelope": "plotkit.decisions/v1"
+  },
+  "frame_schema_versions": ["plotkit.frame/v1"],
+  "probe_states": ["available", "missing", "incompatible"],
+  "features": [
+    "static_png",
+    "static_svg",
+    "interactive_html",
+    "live_frame",
+    "capability_matrix",
+    "document_roundtrip",
+    "migration",
+    "host_probe"
+  ],
+  "extra_requirements": {
+    "three": {
+      "distributions": ["pyvista"],
+      "modules": ["pyvista", "vtk"],
+      "factory": "pyvista.Plotter"
+    },
+    "ns": {
+      "distributions": [],
+      "modules": ["plotkit.contrib.ns"],
+      "factory": null
+    },
+    "desktop": {
+      "distributions": ["pywebview"],
+      "modules": ["webview"],
+      "factory": null
+    }
+  },
+  "hosts": {
+    "netlab": {
+      "min": "0.2",
+      "max_exclusive": "0.3",
+      "api_version": "1"
+    }
+  },
+  "compat": {
+    "min": "0.2",
+    "max_exclusive": "0.3",
+    "hosts": {
+      "netlab": {
+        "min": "0.2",
+        "max_exclusive": "0.3",
+        "api_version": "1"
+      }
+    }
+  },
+  "bump_rules": {
+    "api_version": "breaking signature change of probe/create_server/PlotRenderPort",
+    "schema_version": "add a new figure/frame/capability schema id",
+    "host_obligation": "hosts read compat_matrix.json, never duplicate version bounds"
+  },
+  "notes": "宿主须读取本文件，禁止硬编码版本边界；schema 列表勿重复维护。api_version 保持 '1'，升 2 需用户拍板。features / capabilities / optional / decisions 四字段互不混淆：features 是静态 P0 功能名，capabilities 是静态后端能力名（8 行 capabilities_used 并集），optional 是动态 extra 安装状态（绝不并入 capabilities），decisions 是运行时按 optional 计算的结果。extra 可用性由 extra_requirements 的发行包 + 依赖闭包声明决定；schema_ids 正式登记 capability schema 文档 id 与 matrix/decisions 信封 id，不再靠 enum 兼容两个值。"
+}

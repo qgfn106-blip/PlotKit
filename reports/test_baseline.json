@@ -1,0 +1,6 @@
+{
+  "collected": 544,
+  "generated_by": "python -m pytest -o addopts= --collect-only -q",
+  "schema": "plotkit.test_baseline/v1",
+  "skipped": []
+}

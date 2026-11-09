@@ -29,10 +29,19 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .. import host_api
 from ..backends import registry as reg
+from ..backends.selector import (
+    RenderTarget,
+    capability_matrix,
+    decision_report,
+    select,
+)
 from ..spec.validate import SpecError, validate_spec
 from ..store.downsample import downsample_xy
+from ..store.frame import encode_frame_from_store, frame_schema_id
 from ..store.registry import DATA_LOCK
+from ..ui_state import default_ui_state_path, migrate_legacy_layout
 from .assets import STATIC_DIR
 
 MAGIC = b"PK01"
@@ -184,9 +193,14 @@ def create_app(
     *,
     title: str | None = None,
     layout_path: str | Path | None = None,
+    ui_state_path: str | Path | None = None,
     with_ns: bool = False,
 ) -> FastAPI:
-    """`figure` 是 plotkit.api.native.Figure。"""
+    """`figure` 是 plotkit.api.native.Figure。
+
+    ``layout_path`` 保持旧语义（显式指定优先）；``ui_state_path`` 是 P0 新增的
+    显式注入点。两者都不给时走 ``~/.config/plotkit/ui.json``，不再写 cwd（X3）。
+    """
     app = FastAPI(title=title or "PlotKit", docs_url=None, redoc_url=None)
     if with_ns:  # 同一个进程里同时提供二维图与 NS 三维涡旋接口
         from .ns_app import router as ns_router
@@ -930,10 +944,27 @@ def create_app(
         best["hit"] = True
         return best
 
-    layout_file = Path(layout_path) if layout_path else Path.cwd() / "layout.json"
+    # X3：UI 状态绝不默认落到 Path.cwd()/layout.json。显式路径优先，
+    # 否则走用户配置目录；cwd 的旧文件只做一次性只读迁移，永不作为写入落点。
+    if layout_path:
+        layout_file = Path(layout_path)
+    elif ui_state_path:
+        layout_file = Path(ui_state_path)
+    else:
+        layout_file = default_ui_state_path()
+    # 裁定 ③：既有用户升级后若无人调用迁移函数，面板状态会确定丢失，
+    # 因此不能依赖宿主「记得调用」。仅当未显式注入 layout_path/ui_state_path
+    # 时，在首次 GET /api/layout 前 lazy 触发一次只读导入：目标已存在则不覆盖，
+    # cwd 的 legacy 文件字节不变。显式注入保持最高优先级且不触发迁移。
+    using_default = not (layout_path or ui_state_path)
+    legacy_checked = False
 
     @app.get("/api/layout")
     def get_layout() -> JSONResponse:
+        nonlocal legacy_checked
+        if using_default and not legacy_checked:
+            legacy_checked = True
+            migrate_legacy_layout(layout_file)
         try:
             return JSONResponse(json.loads(layout_file.read_text(encoding="utf-8")))
         except (FileNotFoundError, json.JSONDecodeError):
@@ -1001,6 +1032,21 @@ def create_app(
                     (limits or {}).get("backend") or backend or "mpl"
                 )
             }
+            # P0：唯一决策点产生的可序列化 Decision（G3 的可观测降级证据）。
+            # 只追加响应头，不改 figure.render 的调用语义与缓存键。
+            decision = select(
+                figure.spec,
+                RenderTarget(
+                    kind="export",
+                    fmt=fmt,
+                    width=width,
+                    height=height,
+                    dpi=dpi,
+                    quality="balanced",
+                ),
+                backend=backend,
+            )
+            extra["X-PlotKit-Decision"] = decision.to_header()
             if limits:
                 if limits.get("xlim") and limits.get("ylim"):
                     extra["X-PlotKit-Xlim"] = (
@@ -1073,5 +1119,92 @@ def create_app(
         except Exception as exc:  # noqa: BLE001 - 直接回给前端看
             raise HTTPException(500, f"matplotlib 渲染失败: {exc}") from exc
         return Response(content=payload, media_type="image/png")
+
+    # ------------------------------------------------------------------
+    # P0 契约冻结：纯新增的只读表面（不替换任何既有路由）。
+    # PATCH /api/doc、删 PUT /api/spec、收敛 /api/column 属于 P2/P3，
+    # 都是改变对外行为的破坏性改动，本轮不实施（见签字表需审批项）。
+    # ------------------------------------------------------------------
+    def _document_type():
+        from .. import document
+
+        cls = getattr(document, "FigureDocument", None)
+        if cls is None:
+            raise HTTPException(503, "plotkit.document 未提供 FigureDocument")
+        return cls
+
+    @app.get("/api/capabilities")
+    def capabilities() -> JSONResponse:
+        """probe 三态 + 能力矩阵 + schema 版本 + 兼容矩阵 + 8 行 Decision。"""
+        status = host_api.probe()
+        return JSONResponse(
+            {
+                "probe": status,
+                # 裁定 ⑨：四个命名空间在顶层各自独立、互不混淆。
+                # features 静态、capabilities 静态、optional 动态、decisions 运行时；
+                # 全部用 .get 取值，monkeypatch probe 返回最小 dict 也不 KeyError。
+                "features": status.get("features", []),
+                "capabilities": status.get("capabilities", []),
+                "optional": status.get("optional", {}),
+                "schema_versions": status.get("schema_versions", {}),
+                "frame_schema_versions": status.get("frame_schema_versions", []),
+                "capability_matrix": capability_matrix(),
+                "decisions": decision_report(available=status.get("optional")),
+                "compat": status.get("compat", {}),
+            }
+        )
+
+    @app.get("/api/doc")
+    def get_doc(request: Request) -> Response:
+        """FigureDocument v1 只读视图（v0 spec 现场迁移），带 revision 与 ETag。"""
+        cls = _document_type()
+        doc = cls.migrate(figure.spec)
+        payload = doc.to_dict()
+        body = json.dumps(
+            payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        etag = '"' + hashlib.sha256(body).hexdigest()[:16] + '"'
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={"ETag": etag})
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={
+                "ETag": etag,
+                "X-PlotKit-Revision": str(getattr(doc, "revision", 0)),
+            },
+        )
+
+    @app.get("/api/frame")
+    def get_frame(
+        name: str = Query(..., description="DataStore 里的列名"),
+        cursor: int = 0,
+        generation: int = 0,
+        t0: float = 0.0,
+        dt: float = 0.0,
+    ) -> Response:
+        """Frame v1 wire：单一 encode 出口，取代散落的 struct.pack 内联格式。"""
+        with DATA_LOCK:
+            if name not in figure.store.names():
+                raise HTTPException(404, f"没有数据集 {name!r}")
+            meta = figure.store.meta(name) or {}
+            payload = encode_frame_from_store(
+                figure.store,
+                [name],
+                generation=generation,
+                cursor=cursor,
+                t0=t0,
+                dt=dt,
+                version=int(meta.get("version", 0) or 0),
+            )
+        return Response(
+            content=payload,
+            media_type="application/octet-stream",
+            headers={
+                "X-PlotKit-Frame-Schema": frame_schema_id(),
+                "X-PlotKit-Frame-Columns": name,
+                "X-PlotKit-Frame-Cursor": str(cursor),
+            },
+        )
 
     return app

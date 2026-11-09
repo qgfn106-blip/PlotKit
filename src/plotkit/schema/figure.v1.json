@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "plotkit.figure/v1",
+  "$comment": "L0 冻结契约：FigureDocument 的严格线格式；未知 0.1 字段只能进入 legacy/extensions，不得改变顶层契约。",
+  "type": "object",
+  "required": ["schema", "revision", "page", "layers", "theme", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": {"const": "plotkit.figure/v1"},
+    "revision": {"type": "integer", "minimum": 0},
+    "page": {"$ref": "#/$defs/page"},
+    "layers": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/layer"}
+    },
+    "theme": {"$ref": "#/$defs/theme_ref"},
+    "template": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/template_ref"}
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/note"}
+    },
+    "shapes": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/shape"}
+    },
+    "data": {"$ref": "#/$defs/column_refs"},
+    "legacy": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "原样保留 0.1 spec 信封，保证 to_v0 字节级黄金往返。"
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true,
+      "$comment": "前向兼容袋：迁移时保留未知顶层、figure、layer 字段。"
+    }
+  },
+  "$defs": {
+    "page": {
+      "$comment": "页面是唯一物理画布；size/dpi/margin 均为正数或有限数值。",
+      "type": "object",
+      "required": ["size", "dpi", "margin", "background", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "number", "exclusiveMinimum": 0}
+        },
+        "dpi": {"type": "integer", "exclusiveMinimum": 0},
+        "margin": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"type": "number"}
+        },
+        "background": {"type": "string"},
+        "title": {"type": ["string", "null"]}
+      }
+    },
+    "layer": {
+      "$comment": "图层用归一化矩形定位；link_to 是 layers 列表中的整数索引，z_order 控制叠放次序。",
+      "type": "object",
+      "required": ["id", "rect", "axes", "plots", "link_to", "locked", "z_order"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "rect": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "axes": {"$ref": "#/$defs/axes"},
+        "plots": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/plot"}
+        },
+        "link_to": {"type": ["integer", "null"]},
+        "locked": {"type": "boolean"},
+        "z_order": {"type": "integer"}
+      }
+    },
+    "axes": {
+      "$comment": "axes 只承载 AxesSpec 的固定字段；0.1 view 的完整原始值保存在 plot.view。",
+      "type": "object",
+      "required": [
+        "xlabel", "ylabel", "xlim", "ylim", "xscale", "yscale",
+        "grid", "invert_y", "zero_line", "ticks", "loglabels"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "xlabel": {"type": ["string", "null"]},
+        "ylabel": {"type": ["string", "null"]},
+        "xlim": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}
+          ]
+        },
+        "ylim": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number"}}
+          ]
+        },
+        "xscale": {"type": "string"},
+        "yscale": {"type": "string"},
+        "grid": {"type": "boolean"},
+        "invert_y": {"type": "boolean"},
+        "zero_line": {"type": "boolean"},
+        "ticks": {"type": "array", "items": {"type": "number"}},
+        "loglabels": {"type": "string"}
+      }
+    },
+    "plot": {
+      "$comment": "style/view 是任意 0.1 值的前向兼容袋，故内联为宽松对象；其余字段严格封闭。",
+      "type": "object",
+      "required": ["id", "kind", "x", "y", "label", "legend", "style", "view"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"type": "string"},
+        "x": {"type": ["string", "null"]},
+        "y": {"type": ["string", "null"]},
+        "label": {"type": ["string", "null"]},
+        "legend": {"type": "boolean"},
+        "style": {"type": "object", "additionalProperties": true},
+        "view": {"type": "object", "additionalProperties": true}
+      }
+    },
+    "theme_ref": {
+      "$comment": "主题只引用名字与修订号，不内联主题内容。",
+      "type": "object",
+      "required": ["name", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "revision": {"type": "integer", "minimum": 0}
+      }
+    },
+    "template_ref": {
+      "$comment": "模板引用与主题引用同构，revision 用于乐观并发。",
+      "type": "object",
+      "required": ["name", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string"},
+        "revision": {"type": "integer", "minimum": 0}
+      }
+    },
+    "note": {
+      "$comment": "批注坐标是 figure 归一化坐标；id 用于 PATCH 幂等定位。",
+      "type": "object",
+      "required": ["id", "kind", "text", "color", "size", "pos"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"type": "string"},
+        "text": {"type": "string"},
+        "color": {"type": "string"},
+        "size": {"type": "number"},
+        "pos": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"type": "number"}
+        }
+      }
+    },
+    "shape": {
+      "$comment": "装饰形状使用 [x, y, w, h] 四元组；id 在 shapes 内唯一。",
+      "type": "object",
+      "required": ["id", "kind", "rect"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "kind": {"type": "string"},
+        "rect": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {"type": "number"}
+        }
+      }
+    },
+    "column_refs": {
+      "$comment": "数据只记录列名引用，不内联列数据；version 供增量帧对齐。",
+      "type": "object",
+      "required": ["names", "store", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "names": {"type": "array", "items": {"type": "string"}},
+        "store": {"type": "string"},
+        "version": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

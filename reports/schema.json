@@ -1,0 +1,25 @@
+{
+  "capability_rows": 8,
+  "compat": {
+    "$id": "plotkit.compat/v1",
+    "contract_hashes": {
+      "capability.v1.json": "ee0fdbbdd954670ad91d090692106d100cc85c9bf3980864a27b4b7766d40afc",
+      "compat_matrix.json": "e216c3ab720b08087e134f3026909abbdb9250c7f7c47a74145df696aa9c1205",
+      "figure.v1.json": "e50e75e23ee46fc08f5e56daf91119023cda87049b974be7b072ef47999fa8c4",
+      "frame.v1.json": "80e8af80f62ecdde4f365810782fc2bbc548629a8d90c898023c507b8a59b157"
+    },
+    "frame_schema_versions": [
+      "plotkit.frame/v1"
+    ],
+    "sha256": "e216c3ab720b08087e134f3026909abbdb9250c7f7c47a74145df696aa9c1205"
+  },
+  "figure": {
+    "$id": "plotkit.figure/v1",
+    "sha256": "e50e75e23ee46fc08f5e56daf91119023cda87049b974be7b072ef47999fa8c4"
+  },
+  "frame": {
+    "$id": "plotkit.frame/v1",
+    "sha256": "80e8af80f62ecdde4f365810782fc2bbc548629a8d90c898023c507b8a59b157"
+  },
+  "schema": "plotkit.schema_report/v1"
+}

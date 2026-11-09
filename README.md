@@ -1,5 +1,13 @@
 # PlotKit
 
+<!-- UPDATE:LATEST:BEGIN -->
+- 日期：2026-11-09
+- 版本/ref：p0-freeze-2026-11-09
+- 更新内容：P0 裁定书 11 项收口：capabilities 四字段拆分、X3 迁移接线、G0 collected 常量门禁、12 票入仓、README 更新记录机制、bench 数字表删除
+- 证据：docs/specs/2026-11-09-p0-contract-freeze.md §实测
+- 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
+<!-- UPDATE:LATEST:END -->
+
 一套 **spec 驱动的绘图层**：Python 侧注册数据、定义呈现，**matplotlib 负责渲染**，网页前端只做集中呈现与编辑。
 
 > **2026-10-31 架构变更（D33）**：渲染统一走 matplotlib，plotly 后端退役（新能力一律 mpl）。交互方式改为「拖动时前端变换 PNG，停手 120 ms 回后端重绘」（D34）。

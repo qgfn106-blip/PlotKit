@@ -1,0 +1,142 @@
+{
+  "schema": "plotkit.capability_matrix/v1",
+  "revision": 1,
+  "rows": [
+    {
+      "id": "2d-publication-vector",
+      "situation": "2D 出版级矢量导出，要求字体/DPI 可控",
+      "match": {
+        "doc_features": ["2d"],
+        "target_kinds": ["export"],
+        "formats": ["svg", "pdf", "png"],
+        "qualities": ["balanced", "publication"],
+        "requires_extra": null
+      },
+      "backend": "mpl",
+      "placement": "core",
+      "capabilities_used": ["mpl2d", "vector-text", "font-control", "dpi-control"],
+      "fallback": null,
+      "degraded_when": [],
+      "acceptance": "SVG 中文字为 <text> 而非 <image>；轴刻度可选中"
+    },
+    {
+      "id": "3d-publication-vector",
+      "situation": "3D 场景的出版级矢量导出（位图场景 + 矢量轴）",
+      "match": {
+        "doc_features": ["3d"],
+        "target_kinds": ["export"],
+        "formats": ["svg", "pdf"],
+        "qualities": ["balanced", "publication"],
+        "requires_extra": "three"
+      },
+      "backend": "hybrid3d",
+      "placement": "contrib.three",
+      "capabilities_used": ["3d-scene", "vector-axes"],
+      "fallback": "mpl",
+      "degraded_when": ["extra:three"],
+      "acceptance": "轴文字与刻度可选中；场景位图与轴矢量分层"
+    },
+    {
+      "id": "3d-interactive-viewport",
+      "situation": "3D 交互 / 大规模场景的可视口渲染",
+      "match": {
+        "doc_features": ["3d"],
+        "target_kinds": ["viewport"],
+        "formats": ["*"],
+        "qualities": ["*"],
+        "requires_extra": "three"
+      },
+      "backend": "pyvista",
+      "placement": "contrib.three",
+      "capabilities_used": ["3d-scene", "interactive", "process-pool"],
+      "fallback": "mpl",
+      "degraded_when": ["extra:three"],
+      "acceptance": "未安装 three extra 时 Decision.degraded=True 且不抛异常"
+    },
+    {
+      "id": "large-timeseries-viewport",
+      "situation": "百万点时序在视口内拖拽平移缩放",
+      "match": {
+        "doc_features": ["2d", "timeseries", "large"],
+        "target_kinds": ["viewport", "web"],
+        "formats": ["*"],
+        "qualities": ["*"],
+        "requires_extra": null
+      },
+      "backend": "canvas",
+      "placement": "core",
+      "capabilities_used": ["canvas-timeseries", "downsample-pyramid"],
+      "fallback": "mpl",
+      "degraded_when": [],
+      "acceptance": "抽稀前后包络误差 ≤ 阈值；首帧耗时 CI 记录但不设硬阈值"
+    },
+    {
+      "id": "vector-field",
+      "situation": "矢量场 / 流线（LIC、quiver、streamplot）",
+      "match": {
+        "doc_features": ["vector-field"],
+        "target_kinds": ["export", "viewport"],
+        "formats": ["*"],
+        "qualities": ["*"],
+        "requires_extra": null
+      },
+      "backend": "lic",
+      "placement": "core",
+      "capabilities_used": ["lic", "quiver", "streamplot"],
+      "fallback": "mpl",
+      "degraded_when": [],
+      "acceptance": "LIC 对同一 seed 逐字节可复现"
+    },
+    {
+      "id": "live-stream-increment",
+      "situation": "实时流式增量数据（web / viewport）",
+      "match": {
+        "doc_features": ["live"],
+        "target_kinds": ["web", "viewport"],
+        "formats": ["*"],
+        "qualities": ["*"],
+        "requires_extra": null
+      },
+      "backend": "frame-v1",
+      "placement": "core",
+      "capabilities_used": ["frame-v1", "columnstore-version"],
+      "fallback": null,
+      "degraded_when": [],
+      "acceptance": "并发 push/render 1000 次无长度不一致；golden vector 往返一致"
+    },
+    {
+      "id": "animation-batch",
+      "situation": "动画 / 批渲染（gif、mp4、zip）",
+      "match": {
+        "doc_features": ["animation"],
+        "target_kinds": ["export"],
+        "formats": ["gif", "mp4", "zip"],
+        "qualities": ["*"],
+        "requires_extra": "three"
+      },
+      "backend": "anim3d",
+      "placement": "contrib.three",
+      "capabilities_used": ["animation", "batch-render"],
+      "fallback": null,
+      "degraded_when": ["extra:three"],
+      "acceptance": "只在该 extra 安装时注册 CLI 子命令"
+    },
+    {
+      "id": "ns-vortex-demo",
+      "situation": "NS 涡旋教学演示（独立页面，独立产品线）",
+      "match": {
+        "doc_features": ["ns"],
+        "target_kinds": ["web"],
+        "formats": ["*"],
+        "qualities": ["*"],
+        "requires_extra": "ns"
+      },
+      "backend": "ns",
+      "placement": "contrib.ns",
+      "capabilities_used": ["ns-solver", "teaching-demo"],
+      "fallback": null,
+      "degraded_when": ["extra:ns"],
+      "acceptance": "主包 import plotkit 不触发 ns 导入；probe().capabilities 随 extra 变化"
+    }
+  ]
+}
