@@ -62,3 +62,13 @@ evidence_head: d82870f
 - N6：跨仓契约诊断（NetlabHome `pyproject.toml:26` 与 `netlab/plotkit_bridge.py:122`
   硬编码 `plotkit>=0.2,<0.3`；单一主人未落地前不得宣称 C-4；X12 只诊断不改桥接）。
 - G3 的真正收敛（矩阵驱动、全渲染路径经单点）作为后续独立议题。
+
+## 6. 远端 CI 双绿证据（2026-11-10）
+
+- 分支 `p1-single-decision @ 3942419`：`plotkit-python-tests` success（run 42660218487，
+  run_number 18）、`plotkit-static-build` success（run 42660218477，run_number 23）。
+- `main @ 3942419`：`plotkit-python-tests` success（run 42660599993，run_number 19）、
+  `plotkit-static-build` success（run 42660600038，run_number 24）。
+- 结论：`collected=556` 全量（含新增 10 条一致性契约）在远端无 extras 环境真跑通过；
+  `npm run test:ui`/drift guard 通过；G3 仍「不达成／未签」（本轮仅薄适配，非全路径收敛）。
+
