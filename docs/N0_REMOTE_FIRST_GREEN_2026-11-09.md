@@ -2,7 +2,7 @@
 
 > 阶段：N0（远端 CI 首次绿灯，唯一硬阻塞）
 > 时间窗：2026-11-09 17:33–17:39 +0800
-> 执行：lead（本地诊断，未 push）
+> 执行：lead（本地诊断 → 经用户授权后已 push 新分支并触发 CI，见 §8）
 > 依据：`docs/PLOTKIT_NEXT_PHASE_AGENT_PROMPT_2026-11-09.md` §0–§2 N0
 > 红线遵守：X1 —— 未 push、未改 `.git/config`/代理/网络设置、未 rebase/force-push/amend/reset；仅用单次 `-c http.proxy=…` 覆盖做诊断，不落盘任何配置。
 
@@ -131,3 +131,69 @@ on:
 | D4 | 网络修法（可选） | `.git/config` 的 7897 已死；是否要我把 repo 代理改为 2494（**需你单独授权，因为 X1 禁止我自行改配置**），或继续每次用单次 `-c` 覆盖不落盘 |
 
 > 本报告只做诊断，未 push、未改配置、未执行 merge/rebase/cherry-pick。等你对 D1–D3 的裁定后再继续。
+
+---
+
+> 说明：以下 §8 起为本报告在用户裁定后的后续发展，**覆盖 §5/§6 中「0 次远端运行」的陈述**（该陈述仅是 17:39 当时的快照）。
+
+## 8. push 执行与 CI 首跑结果（2026-11-09 18:0x–18:16）
+
+- **用户裁定**：D1=**方案 A**（推新分支 `origin/p0-freeze-2026-11-09`，main 不动）；D3=**一并推 tag** `p0-freeze-2026-11-09`；D2 授权 HEAD=`af16001e9d00d5e8508d970a13895402e6e46c55`（X1 授权不跨 HEAD）。用户另报「重新打开了 Clash Verge 代理，clash 在 7897」，重试后 7897 恢复。
+- **鉴权修法（记录）**：portable git 的 exec-path 只有 `git-credential-wincred.exe`，而 `~/.gitconfig` 的 `credential.helper=manager` 指向不存在的 `git-credential-manager`。改用 `git -c credential.helper= -c credential.helper=wincred -c http.proxy=http://127.0.0.1:7897 -c https.proxy=http://127.0.0.1:7897 push …`（空值先清空 helper 列表再加 wincred，读 Windows 凭据管理器）成功。
+- **push 结果**：`p0-freeze-2026-11-09` branch → `af16001e9d00d5e8508d970a13895402e6e46c55`（`* [new branch]`）；tag `p0-freeze-2026-11-09` → `116ec67be9163aac54f7f4ed33d4d6a00ba8e2e5`（`* [new tag]`）；`refs/heads/main` 仍 `30779d2a8a22bfb5321c062839b9ead442401da8`（**未动**）。
+- **CI 触发（api.github.com 直连查询，total_count=4）**：
+  - on `af16001`：`plotkit-static-build` = **success**（run 42598683901）；`plotkit-python-tests` = **failure**（run 42598684141，job 129097515999）。
+  - on `116ec67`（tag push）：static-build success（42598732517）；python-tests failure（42598732523）。
+- **失败定位**：`python-tests` 的 **step 5 `Full suite with collected-count gate`（`python tools/check_test_baseline.py`）失败**，step 6–14 全 skipped，step 1–4 success（含 `pip install -e ".[dev,web]"`）。
+- **取证限制**：job 原始日志下载被拒 `403 Must have admin rights to Repository.`（无 token）；check-run annotations 仅 `Process completed with exit code 1.`（path `..github`, start_line 18）。故 CI 原始 stdout 不可得，下面 §9.3 用**本机等价环境复现**给出等价 stderr。
+
+## 9. 失败五要素（N0 计划 step 5 要求）
+
+**1. 命令全文（CI step 5）**：`python tools/check_test_baseline.py`；其内部两条 = `python -m pytest -o addopts= --collect-only -q` 与 `python -m pytest -o addopts= -q --disable-warnings -ra`。
+
+**2. 退出码**：`1`（step 5 failure）。
+
+**3. stderr / 输出尾部（本机等价 CI 环境复现，见 §9.4）**：
+
+```
+check_test_baseline: collected=509 pinned=544 passed=501 failed=4 skipped=7 exit=1 ok=False
+```
+
+violations 共 5 条：全量 pytest 退出码 `1 != 0`；`failed == 0 不满足：failed=4`；`collected 下降 544 -> 509`（提示需 docs/waivers.md 事前豁免）；`collected == passed + skipped 不满足：509 != 501 + 7`；`skipped 集合与基线不一致：实际 7，基线 []`。
+
+**4. 环境指纹**：CI = `ubuntu-latest` + `actions/setup-python@v5 python "3.11"` + `pip install -e ".[dev,web]"`（**不含** pyvista / vtk / psutil / pywebview / h5py）；本地复现 = Windows + 全局已装 pyvista，用 `.scratch/noextra_shim/{pyvista,vtk,psutil,pywebview,h5py}.py`（import 即 `raise ImportError`）模拟「只装 .[dev,web]」。
+
+**5. 最小复现步骤**：
+
+```
+# 造 shim（import 即失败，模拟 CI 未装 extras）
+mkdir -p .scratch/noextra_shim
+for m in pyvista vtk psutil pywebview h5py; do
+  echo 'raise ImportError("simulated: not installed")' > .scratch/noextra_shim/$m.py
+done
+cd PlotKit
+PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python tools/check_test_baseline.py   # → exit 1
+# 或直接看失败用例：
+PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o addopts= -q --disable-warnings -rf
+# → 4 failed, 501 passed, 7 skipped
+```
+
+**4 个失败用例（缺 pyvista 时 ImportError，未加 importorskip 守卫）**：
+- `tests/test_ns_physical.py::test_iso_returns_triangles`
+- `tests/test_ns_physical.py::test_streamlines_returns_polylines`
+- `tests/test_web3d_layers.py::test_volume_surface_returns_mesh`
+- `tests/test_web3d_layers.py::test_volume_surface_rejects_empty_level`
+
+**collected 差 35 的来源**：3 个**模块级** `pytest.importorskip("pyvista")` 模块整模块不收集 —— `tests/test_anim3d.py`、`tests/test_multibackend.py`、`tests/test_pyvista_pool.py`。
+
+**分类**：**本机可复现（当且仅当缺少 optional extras 时）**，不是「仅 CI 幽灵」。根因 = 测试套件按「已装 pyvista」的环境编写/钉基线（`reports/test_baseline.json` 钉 `collected=544` / `skipped=[]`），而 CI 只装 `.[dev,web]`。属**环境—基线口径不一致**，非代码业务逻辑错误。
+
+## 10. 结论更新（N0 仍未达成）与待用户决策
+
+- 依 N0 step 5：任一红即**停止 N1–N6**；且明令**「禁止改测试或基线把红抹平，禁止 pytest -k 跳过」**。故本 agent **不自行修改 test / baseline / CI 配置**，停在此交你裁定修复方式。
+- 可选修复方向（**均触及计划 step5 红线或 CI 环境，需你批准**）：
+  - **R-a** 让 CI 装齐 extras（如 `.[dev,web,three,metrics]` 或 `.[all]`）并解决 pyvista 无头渲染（xvfb/OSMesa）：使环境贴合 544 基线；代价大，且 3D golden 跨 OS 字节易不稳。
+  - **R-b** 把测试改成「无 extras 时也收集、缺依赖优雅 skip」（模块级 `importorskip` → 逐用例 `skipif`/运行时守卫；4 个裸 pyvista 用例加 `importorskip`），并把 `reports/test_baseline.json` 钉成**无-extras 环境**的真实值（collected≈509 + 显式 skipped 列表）：这是让「基线 = CI 环境」自洽的根治，但**改测试 + 改基线**（step5 禁止项，需显式豁免）。
+  - **R-c** 维持 544 基线，把 CI 换成「装全 extras 且可无头渲染」的镜像；或把 3D/NS 用例在 CI 明确标 skip（需改测试）。
+- **需你拍板**：选 R-a / R-b / R-c 或其他；若选 R-b/R-c（涉及改测试或基线），请显式解除 step5 禁令并给出允许改动边界（可改哪些文件、`collected` 常量新值如何认定）。
+- 本报告更新**仅文档**：未改任何 test / baseline / CI / 配置；未 push（新 commit 只落本地，X1 授权不跨 HEAD）。
