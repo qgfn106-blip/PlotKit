@@ -2,7 +2,7 @@
 """P0 G0 收集数常量门禁（裁定 ⑪ / R-b′ 加固版，基线 schema v2）。
 
 判据（全部满足才 ok）：
-  * ``collected == 钉定常量``（reports/test_baseline.json 的 collected，本轮 544）
+  * ``collected == 钉定常量``（reports/test_baseline.json 的 collected，即 pinned 常量；数值只在该 JSON 维护，不在注释 / 文档硬编码；合法增量见 docs/waivers.md W-002）
   * ``failed == 0``（failed + error + errors）
   * ``collected == passed + failed + skipped``（计入 failed，修掉旧公式的伪 violation）
   * skipped 的**用例集合与总数**都与所选 profile 的基线一致

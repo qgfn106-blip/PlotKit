@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-09 16:50
+> 最后修改：2026-11-10 03:20
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -39,7 +39,7 @@
 | **PK-R24** | 用户原话（2026-11-09）：「@docs\PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md 请就这个文档对plotkit项目进行复核，然后按照文档提出的规划进行代码优化 请遵守代码规范与文档规范 /to-spec /to-tickets 然后自行按照任务，开始完成任务，之间不要反复找我批准，只留下需要审批复核决策的操作」 | 复核 `docs/PLOTKIT_ORIGIN_REFACTOR_PLAN_2026-11-09.md` 的基线与证据，按 §8 P0「冻结契约」实施：L0 四份契约 JSON + 能力矩阵 8 行、L1 `FigureDocument` v1 与 0.1→v1 双向 golden、L2 `Frame` v1 wire、L3 `Selector` 唯一决策点与 `Decision`、X3 UI 状态不再落 cwd、三层测试与 CI 门禁；全部为纯新增或等价改进，P1–P5 的搬运/删接口/改宿主列为需审批决策项 | **P0 已实施（2026-11-09）**：复核报告 `docs/PLOTKIT_ORIGIN_REFACTOR_REVIEW_2026-11-09.md`；/to-spec 规格 `docs/specs/2026-11-09-p0-contract-freeze.md`；/to-tickets 票单 `.scratch/plotkit-origin-refactor/issues/01..12`；签字表 `docs/PLOTKIT_ORIGIN_REFACTOR_SIGNOFF_2026-11-09.md` G0；基线 `pytest 470 passed`（HEAD c563707）；本轮回归数字见签字表 G0 |
 | **PK-R25** | 用户原话（2026-11-09，m01327）：「现在开始每次github上传更新都在readme中显示最近一次更新更新了什么，并且保留最近十次的更新记录可查阅」 | 每次 GitHub 上传前用 `tools/record_update.py --add` 把「日期/版本ref/更新内容/证据」写入 README 唯一 `<!-- UPDATE:LATEST:BEGIN/END -->` 标记块，并在 `docs/UPDATE_LOG.md` 滚动保留最近 10 条；`--check` 供 CI 校验两处逐字一致 | **已实施（2026-11-09）**：`record_update.py --check` → `entries=10 ok=True`，`tests/contract/test_record_update.py` 4 条全绿；工单 11 与 README 更新记录机制同批入 `docs/tickets/`。规则已写入全局长期记忆 |
 
-## 2. 决策台账（D1–D40，摘录结论）
+## 2. 决策台账（D1–D41，摘录结论）
 
 | 号 | 决策 | 一句话理由 |
 | --- | --- | --- |
@@ -82,7 +82,8 @@
 | D37 | **不删旧 canvas**：netlab 原生时间序列/示波器/李萨如/相图与分析面板长期保留，PlotKit 作为**并行**能力（2026-10-31 用户决定） | 用户明确要求「先不要将原生绘图分析删掉」；两条路径并存，谁都不阻塞谁 |
 | D38 | **多后端框架**：`LayerSpec.builders` 支持按后端注册 builder；`dispatch` 负责选后端与回退；matplotlib 仍是默认与兜底，PyVista 作**可选三维工程后端**，VisPy 只留名字（2026-10-31 实现） | 三维在 mpl 上 10 万点要 1.4–6s（`Axes3D` 逐面片走 Agg），PyVista 交给 GPU 后 0.16–0.22s；但 VTK 常驻 ~165MB 且只出 PNG，所以不做全局替换 |
 | D39 | **P0 只做等价改进与纯新增，不删任何能力（2026-11-09，PK-R24）**：四份契约 JSON 与能力矩阵落 `schema/`；`FigureDocument` v1 / 双向迁移落 `document/`；`Frame` v1 wire 落 `store/frame.py`；`Selector`/`Decision` 落 `backends/selector.py`（唯一决策点，不读环境变量 X6）；`host_api.probe()` 保持 `state` 三态与 `api_version="1"` 不变、只追加声明键；UI 状态默认落点由 `Path.cwd()/"layout.json"` 改为用户配置目录（X3），`create_app` 不隐式迁移；`/api/capabilities`、`/api/doc`、`/api/frame` 与 `X-PlotKit-Decision` 响应头均为纯新增 | `CODE_STANDARDS.md §0` 只许等价改进；计划 §10 X1–X10 要求保留全部绘图策略、禁止破坏性搬运；`api_version` 升 2 / 新三态、删 `PUT /api/spec`、收敛 `/api/column`、搬 contrib、改 `netlab/plotkit_bridge.py`、删文档资产均改变对外行为或跨仓，属需审批决策项，本轮不实施 |
-| D40 | **裁定书 11 项收口（2026-11-09，PK-R24 续）**：⑨ probe 四字段拆分（`features` / 静态 `capabilities` / 动态 `optional` / 运行时 `decisions`）+ `capability.v1.json` 收紧；③ `get_layout()` 仅在 `using_default` 下 lazy 触发 `migrate_legacy_layout()`；⑪ 放行判据改 `collected == 常量 544 且 failed == 0 且四门禁零 violations 且 reports 二次生成 sha 不变`；⑩ 12 票入 `docs/tickets/` + README 更新记录机制；⑧ `BENCHMARKS.md` 删数字表、`bench_baseline.json` 唯一机器基线 + `bench_regress.py --check`；②PATCH 设计 / ④P1-0 测量 / ⑤test:ui 范围 / ⑥资产编目均只做设计或编目，不改对外行为 | `docs/PLOTKIT_P0_DECISIONS_2026-11-09.md` §二 逐项裁定、§四 执行顺序；G0 不自签（CI 首次绿灯与评审签字待用户），G1–G4 留白；`check_test_baseline.py` 把 `collected=544` 钉为常量，`check_layers.py` 加「契约加载器不得 import selector」 |
+| D40 | **裁定书 11 项收口（2026-11-09，PK-R24 续）**：⑨ probe 四字段拆分（`features` / 静态 `capabilities` / 动态 `optional` / 运行时 `decisions`）+ `capability.v1.json` 收紧；③ `get_layout()` 仅在 `using_default` 下 lazy 触发 `migrate_legacy_layout()`；⑪ 放行判据改 `collected == reports/test_baseline.json 的 pinned 常量 且 failed == 0 且四门禁零 violations 且 reports 二次生成 sha 不变`；⑩ 12 票入 `docs/tickets/` + README 更新记录机制；⑧ `BENCHMARKS.md` 删数字表、`bench_baseline.json` 唯一机器基线 + `bench_regress.py --check`；②PATCH 设计 / ④P1-0 测量 / ⑤test:ui 范围 / ⑥资产编目均只做设计或编目，不改对外行为 | `docs/PLOTKIT_P0_DECISIONS_2026-11-09.md` §二 逐项裁定、§四 执行顺序；G0 不自签（CI 首次绿灯与评审签字待用户），G1–G4 留白；`check_test_baseline.py` 把 `collected` 钉为 pinned 常量（数值见 `reports/test_baseline.json`，合法增量见 `docs/waivers.md` W-002），`check_layers.py` 加「契约加载器不得 import selector」 |
+| D41 | **治理口径收口（2026-11-10，用户复核后续）**：① 判据性 544 硬编码全部改为「引用 `reports/test_baseline.json` 的 pinned 常量」，新增 W-002 如实记录 544→546→556 三次合法增量与前瞻规则（状态待用户追认，非事前豁免）；② 建 `docs/GOVERNANCE_SSOT_2026-11-10.md` 为仓内现行唯一口径 + 5 份治理文档同名归档指针（非原件），46 处悬空引用可解析；⑥ README / UPDATE_LOG 补 546 档、ref 改稳定批次标签 | `docs/GOVERNANCE_SSOT_2026-11-10.md` §3/§4/§5 与 `docs/waivers.md` W-002；X11 禁止事后补豁免故 W-002 标「待用户追认」；不 push、不 amend、不删 docs 资产；G3 / C-4 / G4 仍未达成 |
 
 ## 3. 图表能力扩展计划（P13 / D24–D36，2026-10-30 立项，2026-10-31 架构修订）
 
