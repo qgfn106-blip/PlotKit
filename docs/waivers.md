@@ -76,3 +76,10 @@ environment_fingerprint = {
 - **门禁判据**：`collected == pinned(544)`、`failed == 0`、`collected == passed + failed + skipped`、`skipped_ids` 集合与 `skipped_total` 均与 profile 一致、禁 xfail/xpass/deselected、pytest exit 0；指纹不匹配 → 红（return 1）。
 - **本地验证**：dev（全 extras）`544 collected / 544 passed / 0 failed`，`check_test_baseline: profile=dev_full ... ok=True`；无 extras 仿真（faithful shim：`importlib.util.find_spec` 与真实 import 双屏蔽）`544 collected / 517 passed / 27 skipped / 0 failed`，ci profile `evaluate` → OK。
 - **反向验证（先红→复原，baseline `cmp` 复原一致）**：V1 `collected` 钉 545 vs 实 544 → rc=1 红（等价于删除非 3D 用例致 collected 下降）；V2 profile skipped 集合/总数不符 → rc=1 红；V3 伪造 fingerprint 不匹配 → rc=1 红；V4 无 extras 下 `test_volume_surface_rejects_empty_level`（`level=5.0`）→ **1 passed**（返回 400，非 500）。
+
+## 九、跨 OS / ffmpeg 修正（2026-11-09 第二次推送后补）
+
+- `ci_no_extras` profile 现为 `skipped_total=29`（原 27 + `tests/test_anim.py:125` / `:139` 两个 ffmpeg-gated mp4 用例）。
+- 生成用 faithful shim：同时屏蔽 `importlib.util.find_spec(<blocked>)` → None 与真实 import（shim 模块 raise ImportError），并在生成期令 `shutil.which("ffmpeg")` 返回 None，使「未安装」判定与真实 import 一致（避免只在 find_spec 层面假可用导致 selector 用例误跑）。
+- 环境指纹新增 `ffmpeg` 布尔（`shutil.which("ffmpeg") is not None`），dev_full=True / ci_no_extras=False。
+- 门禁失败时除 `::error::<violation>` 外，另把 `FAILED <nodeid>` 列表并入注解，便于无 token 定位具体失败用例。此为诊断可观测性增强，不放宽任何判据。

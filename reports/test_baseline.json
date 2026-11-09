@@ -11,10 +11,13 @@
           "pywebview": false,
           "vtk": false
         },
+        "ffmpeg": false,
         "os": "Linux",
         "python": "3.11"
       },
       "skipped_ids": [
+        "tests/test_anim.py:125",
+        "tests/test_anim.py:139",
         "tests/test_anim3d.py:105",
         "tests/test_anim3d.py:41",
         "tests/test_anim3d.py:50",
@@ -43,7 +46,7 @@
         "tests/test_pyvista_pool.py:59",
         "tests/test_web3d_layers.py:66"
       ],
-      "skipped_total": 27
+      "skipped_total": 29
     },
     "dev_full": {
       "environment_fingerprint": {
@@ -54,6 +57,7 @@
           "pywebview": false,
           "vtk": true
         },
+        "ffmpeg": true,
         "os": "Windows",
         "python": "3.13"
       },

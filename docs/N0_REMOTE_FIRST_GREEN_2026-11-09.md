@@ -208,6 +208,7 @@ PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o a
 - **自查抓到的门禁缺陷（已修）**：`evaluate()` 的早期错误分支（读基线失败 / schema 不符 / collected 非法 / 指纹不匹配）原先误 `return 0`（假绿），经反向验证 V3 抓出，已全部改为 `return 1`。
 - **验证结果**：dev（全 extras）`544 collected / 544 passed / 0 failed`，`profile=dev_full ... ok=True`；无 extras 仿真（faithful shim：`importlib.util.find_spec` 与真实 import 双屏蔽）`544 collected / 517 passed / 27 skipped / 0 failed`，ci profile `evaluate` → OK。四张反向验证 V1（collected 钉 545 vs 544→红）/V2（skipped 集合不符→红）/V3（伪造指纹→红）/V4（无 extras 下 `level=5.0`→400，1 passed）全部符合预期；篡改后 baseline 复原 `cmp` 一致。
 - **跨 OS 修正（第一次推送后补）**：`skipped` 位置路径归一化（`\`→`/`），使 Windows 上生成的 `ci_no_extras` profile 能在 Linux CI 精确匹配（首次推送因 `tests\...` vs `tests/...` 集合比对失败，已定位并修）；门禁失败时额外输出 `::error::<违规>`，便于无 token 从 check-runs annotations 读具体原因。
+- **ffmpeg 与 +2 跳过（第二次推送后补）**：Linux CI 无 ffmpeg，`tests/test_anim.py:125`/`:139` 两个 mp4 用例按 `shutil.which("ffmpeg")` skip；`ci_no_extras` 重新生成时用 faithful shim 同时屏蔽 `importlib.util.find_spec` 与真实 import（并在生成期令 `shutil.which("ffmpeg")` 返回 None），`skipped_total` 由 27 → **29**；环境指纹新增 `ffmpeg` 布尔。门禁失败注解同时输出 `FAILED <nodeid>` 列表以便定位具体失败用例。
 
 ## 12. 交付与后续
 

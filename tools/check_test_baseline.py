@@ -10,7 +10,8 @@
   * pytest 退出码 == 0
 
 环境指纹 = python(主.次) + os(platform.system()) + extras 五件的 find_spec 布尔
-（extras = pyvista / vtk / psutil / pywebview / h5py）。基线 v2 可按指纹存多个 profile，
+（extras = pyvista / vtk / psutil / pywebview / h5py）+ ffmpeg 可执行是否存在（shutil.which）。
+基线 v2 可按指纹存多个 profile，
 当前环境必须**精确匹配**某个 profile，否则报错（禁止静默回退）。任何 collected 下降
 都要求 docs/waivers.md 事前豁免。
 
@@ -27,6 +28,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -106,6 +108,7 @@ def current_fingerprint() -> dict:
         "python": f"{sys.version_info.major}.{sys.version_info.minor}",
         "os": platform.system(),
         "extras": {name: _extra_present(name) for name in EXTRAS},
+        "ffmpeg": bool(shutil.which("ffmpeg")),
     }
 
 
@@ -166,11 +169,12 @@ def evaluate() -> tuple[dict, list[str], int]:
     skipped = counts.get("skipped", 0)
     got_ids = _skipped_ids(suite_text)
     got_total = _skipped_total(suite_text)
+    failed_ids = sorted(set(re.findall(r"^FAILED\s+(\S+)", suite_text, re.MULTILINE)))
 
     if suite_proc.returncode != 0:
         violations.append(f"全量 pytest 退出码 {suite_proc.returncode} != 0")
     if failed:
-        violations.append(f"failed == 0 不满足：failed={failed}")
+        violations.append(f"failed == 0 不满足：failed={failed}（{failed_ids[:8]}）")
     if collected != pinned:
         if collected < pinned:
             violations.append(f"collected 下降 {pinned} -> {collected}；{WAIVER_HINT}")
