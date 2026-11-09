@@ -215,3 +215,10 @@ PYTHONPATH="<abs>/.scratch/noextra_shim;<abs>/PlotKit/src" python -m pytest -o a
 - 上述改动（生产 2 文件、测试 5 文件、`tools/check_test_baseline.py`、`reports/test_baseline.json`、`docs/waivers.md`、本报告）将作**本地 commit**（X1 允许本地提交，禁止 push/force-push/rebase/amend/reset）。
 - **push 需对新的 HEAD/ref 单独书面授权**：前次授权仅覆盖 `af16001`（指向旧分支头），授权不跨 HEAD 复用（X1）。
 - 真 CI 双绿仍需 push 后由 GitHub Actions 确认；**G0 在远端双绿前不自签「达成」**；N1–N6 仍锁。
+## 13. 分支首绿（2026-11-09 22:32 +0800）
+
+- 修复 `tests/test_anim.py::test_frames_share_one_viewport`：改为断言「每帧实际显示的坐标范围 == 共用视窗」（读 `render(...,with_limits=True)` 的 `get_xlim/get_ylim`），不再比较两张 PNG 的原始字节（跨平台不稳，Linux CI 曾误报）。仅改测试，未改阈值、未掩盖失败。
+- 同步 `reports/test_baseline.json` 的 `ci_no_extras` 跳过行号：`tests/test_anim.py` 跳过行 125/139 → 139/153（测试改写致行号平移；skip 总数仍 29、failed 仍 0，无阈值变化）。
+- 提交：`d38b609`（测试）、`96e5a80`（基线行号）。
+- 远端 `p0-freeze-2026-11-09 @ 96e5a80`：`plotkit-static-build` success（run 42635485654）、`plotkit-python-tests` **success**（run 42635485655，https://github.com/qgfn106-blip/PlotKit/actions/runs/42635485655）。首次远端全绿，step 1–14（三层 contract/parity/render、能力矩阵、doc sync、reports 漂移门）全部执行并通过。
+- 仍待：合并 main 并取 main 首绿（main 现 30779d2，与本地 1cf2570 树等价；需 X1 授权后 merge + FF push）。
