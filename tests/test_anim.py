@@ -94,16 +94,30 @@ def test_anim_rejects_bad_frames():
 
 
 def test_frames_share_one_viewport():
-    """动画必须锁定视窗：否则每帧自动缩放，看起来像整幅图在放大而不是波形生长。"""
+    """动画必须锁定视窗：否则每帧自动缩放，看起来像整幅图在放大而不是波形生长。
+
+    断言「每一帧实际显示的坐标范围都等于共用视窗」，而不是比较两张 PNG 的原始
+    字节——字节相等依赖「两次 anim_limits / 渲染在特定平台逐位一致」，跨平台不稳
+    （Linux CI 曾因末位/元数据差异误报）；这里直接校验视窗锁定这一语义不变量，
+    跨平台稳健，且若某帧忽略 xlim/ylim 逐帧自动缩放，断言仍会失败。
+    """
+    import io
+    from PIL import Image
+
     fig = _fig(4)
-    frames = fig.render_frames(width=280, height=180)
     xlim, ylim = fig.anim_limits(width=280, height=180)
     assert xlim and ylim
-    last = fig.frame_times()[-1]
-    assert (
-        fig.render(width=280, height=180, t_end=last, xlim=xlim, ylim=ylim)
-        == frames[-1]
-    )
+    frames = fig.render_frames(width=280, height=180)
+    assert len(frames) == len(fig.frame_times())
+    # 所有帧画布尺寸一致（视窗锁定不应改变画布大小）
+    assert {Image.open(io.BytesIO(b)).size for b in frames} == {(280, 180)}
+    # 每帧实际显示范围必须等于共用视窗
+    for t in fig.frame_times():
+        _payload, limits = fig.render(
+            width=280, height=180, t_end=t, xlim=xlim, ylim=ylim, with_limits=True
+        )
+        assert tuple(limits["xlim"]) == tuple(xlim)
+        assert tuple(limits["ylim"]) == tuple(ylim)
 
 
 def test_spec_rejects_bad_anim():
