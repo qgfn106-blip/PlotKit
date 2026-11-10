@@ -218,7 +218,8 @@ def decode_frame(data: bytes) -> Frame:
         raise ValueError("Frame header 顶层必须是对象")
     payload = data[end:]
     columns: list[FrameColumn] = []
-    for raw in header.get("columns", []):
+    raw_columns = header.get("columns", [])
+    for column_index, raw in enumerate(raw_columns):
         if not isinstance(raw, dict):
             raise ValueError("Frame column 描述必须是对象")
         offset = int(raw.get("offset", 0))
@@ -244,6 +245,10 @@ def decode_frame(data: bytes) -> Frame:
                 if offset + byte_length > len(payload):
                     raise ValueError("Frame column 的 JSON byte_length 超出 payload")
                 blob = payload[offset : offset + byte_length]
+            elif column_index != len(raw_columns) - 1:
+                raise ValueError(
+                    "旧格式 JSON 列必须是最后一列：byte_length=0 且后续仍有列"
+                )
             else:
                 blob = payload[offset:]
         values = _decode_values(blob, encoding, count)
