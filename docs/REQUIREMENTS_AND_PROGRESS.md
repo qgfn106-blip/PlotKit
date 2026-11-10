@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-10 03:20
+> 最后修改：2026-11-11（当前基线 562 passed；本轮补齐 PKF1 JSON 列边界与 DataSet 只读视图）
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
