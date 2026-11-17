@@ -1,10 +1,10 @@
 # PlotKit
 
 <!-- UPDATE:LATEST:BEGIN -->
-- 日期：2026-11-11
-- 版本/ref：7d73f5e（PKF1/DataSet 修复后）
-- 更新内容：测试基线 562 passed；补 PKF1 JSON 列 byte_length 与混合列拒读、DataSet 只读视图、3D append 尾形状校验；G3/C-4/G4 仍未达成
-- 证据：docs/REQUIREMENTS_AND_PROGRESS.md、reports/test_baseline.json
+- 日期：2026-11-18
+- 版本/ref：9048666
+- 更新内容：完成 WP-4/5/7：selector/dispatch 单一决策源、PKF1 边界与一致快照、基准四态/渲染 oracle；全量 589 passed
+- 证据：docs/REQUIREMENTS_AND_PROGRESS.md、docs/WP7_DECISION_SOURCE_2026-11-18.md
 - 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
 <!-- UPDATE:LATEST:END -->
 
@@ -100,7 +100,7 @@ src/plotkit/
 ## 测试
 
 ```bash
-PYTHONPATH=src python -m pytest -q     # 562 passed（当前基线，2026-11-10）
+PYTHONPATH=src python -m pytest -q     # 589 passed（当前基线，2026-11-18）
 ```
 
 真实渲染自检（需要本机 Edge/Chrome 或 PySide6）：
@@ -366,10 +366,10 @@ fig.add("volume", {"x": "x", "y": "y", "z": "z", "values": "w"},
 
 ## 当前状态
 
-- ✅ P0 spec / P1 store / P2 双后端（plotly 已退役）/ P3 API + 服务 + 前端（124 项测试为历史阶段数；当前基线 562 passed，真实浏览器渲染已核对）
+- ✅ P0 spec / P1 store / P2 双后端（plotly 已退役）/ P3 API + 服务 + 前端（124 项测试为历史阶段数；当前基线 589 passed，真实浏览器渲染已核对）
 - ✅ P13-00 mpl 渲染管线：`/api/render`（像素尺寸 + xlim/ylim + 回放游标）、ETag/304 缓存、前端图像层（拖动变换 + 停手 120 ms 重绘 + hover 读数）、presets / `fig.add()` / strict（250 项测试为历史阶段数；1200×700×6×20k 实测 ~310 ms，目标 <120 ms 待优化）
 - ✅ v0.2 论文级能力：误差棒、对数轴朴素标签、刻度样式、逐级字号、装饰、内嵌子图 + 拖拽
-- ✅ v0.2 交互：撤销/重做、图层分组、菜单栏 + 快捷键、`layout.json`、构图缓存 + GZip（**115 项测试**为历史阶段数；当前基线 562 passed）
+- ✅ v0.2 交互：撤销/重做、图层分组、菜单栏 + 快捷键、`layout.json`、构图缓存 + GZip（**115 项测试**为历史阶段数；当前基线 589 passed）
 - ✅ P5 接 netlab：分析组「绘图」子页签 + 可停靠/分离内嵌窗口（netlab 侧 **347 项测试**）
 - ⏳ P4 延迟：热重绘 14–23 ms，冷启动 862 ms（门槛已改为「热重绘 <50 ms + 冷启动 <1 s」）
 - ⏳ P6 删旧：netlab 的时间序列 canvas 仍在，等 PlotKit 补齐回放/预计算/多画布后再删
