@@ -221,6 +221,27 @@ class DataStore:
         self._sets[key] = DataSet(meta=meta, values=array, history=history)
         return meta
 
+    def snapshot_columns(
+        self, names: Sequence[str]
+    ) -> list[tuple[str, np.ndarray, dict[str, Any]]]:
+        """在 DATA_LOCK 下取多列的一致快照（值复制 + 元数据副本）。
+
+        PKF1 编码要求同一次帧里的列来自同一时刻；逐个 values/meta 读取会
+        被并发 push 插入，出现 t 已增长而 v 未增长的中间态。
+        """
+        items: list[tuple[str, np.ndarray, dict[str, Any]]] = []
+        with DATA_LOCK:
+            for name in names:
+                dataset = self.get(name)
+                items.append(
+                    (
+                        name,
+                        np.array(dataset.values, copy=True),
+                        dataset.meta.as_dict(),
+                    )
+                )
+        return items
+
     def push(self, name: str, values: Any) -> DataSetMeta:
         """按 life 追加或替换。返回更新后的 meta（前端读 version 做防抖）。"""
         key = self._resolve(name)

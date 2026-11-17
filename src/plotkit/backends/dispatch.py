@@ -139,44 +139,17 @@ def _unsupported_layers(spec: Mapping[str, Any], backend: str) -> list[str]:
 
 
 def _choose_impl(spec: Mapping[str, Any], requested: str | None = None) -> str:
-    """后端选择实际算法（**不读环境变量**；环境解析在 choose() 适配层完成）。"""
-    want = (requested or _figure_backend(spec) or "").strip().lower()
-    if not want:
-        want = BACKEND_MPL
+    """兼容入口：后端选择算法已迁到 Selector，本函数只做适配（不读环境变量）。"""
+    from .selector import Selector
 
-    if want == "auto":
-        if not _is_3d(spec):
-            return BACKEND_MPL
-        if not available()[BACKEND_PYVISTA]:
-            return BACKEND_MPL
-        _ensure_registered(BACKEND_PYVISTA)
-        if _unsupported_layers(spec, BACKEND_PYVISTA):
-            return BACKEND_MPL
-        return BACKEND_PYVISTA
-
-    if want not in KNOWN_BACKENDS:
-        raise BackendUnavailable(
-            f"未知后端 {want!r}（可选：{', '.join(KNOWN_BACKENDS)}, auto）"
-        )
-
-    if not available()[want]:
-        hint = "pip install pyvista" if want == BACKEND_PYVISTA else ""
-        raise BackendUnavailable(f"后端 {want} 不可用，请先安装依赖：{hint}".strip())
-
-    _ensure_registered(want)
-    missing = _unsupported_layers(spec, want)
-    if missing:
-        raise BackendUnsupported(
-            f"后端 {want} 暂不支持图层：{', '.join(sorted(set(missing)))}"
-        )
-    return want
+    return Selector().select_backend(spec, requested).backend
 
 
 def choose(spec: Mapping[str, Any], requested: str | None = None) -> str:
     """决定用哪个后端；不改变默认行为（默认 matplotlib）。
 
-    N5：收敛到 ``Selector.select_backend`` 的薄适配层——本函数只负责把环境变量
-    ``PLOTKIT_BACKEND`` 解析进 ``requested``；真实选择算法在 ``_choose_impl``（不读环境）。
+    N5：本函数只负责把环境变量 ``PLOTKIT_BACKEND`` 解析进 ``requested``；
+    真实选择算法在 ``Selector.select_backend``（不读环境），不存在第二份分支。
     """
     if not requested:
         requested = os.environ.get("PLOTKIT_BACKEND")

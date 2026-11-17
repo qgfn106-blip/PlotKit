@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-11（当前基线 562 passed；本轮补齐 PKF1 JSON 列边界与 DataSet 只读视图）
+> 最后修改：2026-11-18（当前基线 589 passed；WP-7 收口 PKF1 边界与单一决策源）
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -161,7 +161,11 @@
 
 **每个 kind 四件套（D32，按 mpl 单后端修订）**：① spec 往返字节相等、未知字段保留；② PNG 像素快照（固定 `metadata`，逐像素比对或 SSIM > 0.995）；③ 视窗重绘一致性（改 xlim/ylim 后轴刻度与数据位置符合预期）；④ CDP 截图 + 轴/图例/色条存在性断言。
 
-**通用门槛**：PlotKit 测试只增不减（当前基线 562 passed，见 README/测试输出）；改前端跑 `npm run build`（esbuild：TS→ESM）、`npm run typecheck`，utils 单测 `npm run test:utils`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
+**PKF1 边界与一致快照（WP-7）**：`src/plotkit/store/frame.py` 的 `decode_frame` 校验 magic/schema、列名唯一非空、offset/count 为整数、列区间连续且不重叠、payload 无尾部多余字节、JSON 头部 count 与列数一致；`DataStore.snapshot_columns` 在 `DATA_LOCK` 内一次性复制 values 与 meta，`encode_frame_from_store` 优先使用快照。`tests/contract/test_data_integrity.py` 覆盖 5 类坏帧、20 万点大帧、trim 后 pyramid 缓存失效和并发 push 一致快照。
+
+**渲染 oracle 与工作流（WP-5）**：`tests/render/test_render_oracle.py` 用已知对角线的 PNG 像素几何、中心批注像素区域和 SVG 刻度/轴标签文本做结构 oracle，并包含错位曲线与角落批注两个负例；`tests/test_workflow_persistence.py` 覆盖编辑 → PKF1 数据 + spec 落盘 → 刷新重开 → `/api/render` → `/api/png` 导出 → 再次重开的语义等价。
+
+**通用门槛**：PlotKit 测试只增不减（当前基线 589 passed，见 README/测试输出）；改前端跑 `npm run build`（esbuild：TS→ESM）、`npm run typecheck`，utils 单测 `npm run test:utils`；**重绘 < 120 ms（1200×700，6 通道 × 20k 点）**；实时刷新默认 8 fps 且可调；netlab 347 不回归。
 
 **量化**：hist 与 `np.histogram` 逐箱相等；correlation 与 `np.corrcoef` 差 < 1e-12；contour levels 与 mpl 默认一致；3D 的 `elev/azim` 写入 spec 后可复现；动画 60 帧；对流传热 Nu 与 de Vahl Davis 差 1–2%。
 
@@ -182,7 +186,7 @@
 本文（PK-R 现状 / D 台账 / 进度表 / 经验）→ `../README.md` 的「当前状态」→ netlab 侧**只在 R32 留一行指针**，不复制结论。
 
 
-### 3.9 覆盖率表（`tools/coverage.py` 历史生成，250 passed 时快照；当前基线 562 passed）
+### 3.9 覆盖率表（`tools/coverage.py` 历史生成，250 passed 时快照；当前基线 589 passed）
 
 | kind | 维 | mpl 绘制器 | 数据键 | 预设 | 说明 |
 | --- | --- | --- | --- | --- | --- |

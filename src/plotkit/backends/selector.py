@@ -2,11 +2,11 @@
 
 能力矩阵是「可声明、可枚举、可回归」的首选判断点。
 
-N5（G3 单一决策点，行为保持型薄适配）：``backends/dispatch.choose()`` 已收敛为
-``Selector.select_backend()`` 的薄适配层——真实算法仍在 dispatch ``_choose_impl``，
-但对外唯一边界是 Selector。**G3 仍不达成**：``RendererSelector.render`` / hybrid3d /
-pyvista pool 等渲染路径尚未证明全部经此单点，故 ``Selector`` 的矩阵结论目前仅作
-advisory（见 ``decision_report`` 的 ``advisory_only=True``）。
+N5（G3 单一决策点）：``backends/selector.py`` 是后端选择算法的唯一权威来源；
+``backends/dispatch.choose()`` 只负责解析环境变量并调用 Selector，不再持有第二份
+选择分支。**G3 仍不达成**：``RendererSelector.render`` / hybrid3d / pyvista pool 等
+渲染路径尚未证明全部经此单点，故 ``Selector`` 的矩阵结论目前仅作 advisory
+（见 ``decision_report`` 的 ``advisory_only=True``）。
 
 约束（计划 §10 X6）：Selector 自身不读任何环境变量（``PLOTKIT_BACKEND`` 等解析留在
 dispatch.choose() 适配层）；显式 backend 仅用于调试且强制 ``degraded=True``。
@@ -257,20 +257,50 @@ class Selector:
     def select_backend(
         self, spec: Mapping[str, Any], requested: str | None = None
     ) -> Decision:
-        """薄适配：把 dispatch 既有的后端选择算法收敛到 Selector 这一唯一入口。
+        """后端选择的唯一权威实现（不读环境变量）。
 
-        - **不改变任何后端选择语义**：内部委托 ``dispatch._choose_impl``。
-        - 遵守本模块约束：本方法**不读环境变量**；``PLOTKIT_BACKEND`` 等环境解析
-          留在 ``dispatch.choose()`` 适配层完成后作为 ``requested`` 传入。
-        - **G3 仍不达成**：``RendererSelector.render`` / hybrid3d / pyvista pool 等
-          路径尚未证明全部经此单点，故本决策仅作统一入口，不做矩阵驱动的真实切换。
+        环境变量解析留在 ``dispatch.choose()`` 适配层，完成后作为 ``requested``
+        传入；dispatch 不再保留第二份选择分支。显式 ``auto`` 仍按三维/可用性/图层
+        支持回退到 matplotlib，未知或不可用后端保持原有异常语义。
         """
         from . import dispatch
 
-        backend = dispatch._choose_impl(spec, requested)
+        want = (requested or dispatch._figure_backend(spec) or "").strip().lower()
+        if not want:
+            want = dispatch.BACKEND_MPL
+        if want == "auto":
+            if not dispatch._is_3d(spec):
+                chosen = dispatch.BACKEND_MPL
+            elif not dispatch.available()[dispatch.BACKEND_PYVISTA]:
+                chosen = dispatch.BACKEND_MPL
+            else:
+                dispatch._ensure_registered(dispatch.BACKEND_PYVISTA)
+                chosen = (
+                    dispatch.BACKEND_MPL
+                    if dispatch._unsupported_layers(spec, dispatch.BACKEND_PYVISTA)
+                    else dispatch.BACKEND_PYVISTA
+                )
+            return Decision(
+                backend=chosen,
+                reason="Selector 决策：auto 按三维图层与可用性回退",
+                advisory_only=False,
+            )
+        if want not in dispatch.KNOWN_BACKENDS:
+            raise dispatch.BackendUnavailable(
+                f"未知后端 {want!r}（可选：{', '.join(dispatch.KNOWN_BACKENDS)}, auto）"
+            )
+        if not dispatch.available()[want]:
+            hint = "pip install pyvista" if want == dispatch.BACKEND_PYVISTA else ""
+            raise dispatch.BackendUnavailable(f"后端 {want} 不可用，请先安装依赖：{hint}".strip())
+        dispatch._ensure_registered(want)
+        missing = dispatch._unsupported_layers(spec, want)
+        if missing:
+            raise dispatch.BackendUnsupported(
+                f"后端 {want} 暂不支持图层：{', '.join(sorted(set(missing)))}"
+            )
         return Decision(
-            backend=backend,
-            reason="由 Selector.select_backend 统一决策（薄适配 dispatch 既有算法）",
+            backend=want,
+            reason="Selector 决策：显式后端通过可用性与图层支持校验",
             advisory_only=False,
         )
 

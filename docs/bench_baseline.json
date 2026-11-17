@@ -1,92 +1,342 @@
 {
   "backend": "Agg",
-  "captured_at": "2026-11-09T04:47:42+00:00",
-  "captured_commit": "1cf2570",
+  "blas": "mkl-sdl",
+  "budget": {
+    "append_total": 200.0,
+    "cold_png": 400.0,
+    "cold_svg": 700.0,
+    "downsample_2m": 60.0,
+    "hot_autoscale": 220.0,
+    "hot_blit": 120.0
+  },
+  "captured_at": "2026-11-17T17:35:15.370121+00:00",
+  "captured_commit": "91da9a2",
   "cpu": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel",
+  "cpu_count": 22,
   "generated_by": "tools/bench_regress.py --json",
+  "input_contract": {
+    "channels": 6,
+    "figure": {
+      "dpi": 100,
+      "height": 700,
+      "width": 1200
+    },
+    "memory": "tracemalloc.reset_peak() 包住单次调用；可选 psutil RSS 前后采样",
+    "points": 20000,
+    "repeat": {
+      "add_2m": 3,
+      "append_total": 1,
+      "default": 5,
+      "downsample_2m": 3
+    },
+    "seed": 1234,
+    "timing": "time.perf_counter() 包住单次操作；先 warmup 再 repeat；样本统计 p50/p95/min/max",
+    "warmup": {
+      "add_2m": 1,
+      "append_total": 0,
+      "default": 2,
+      "downsample_2m": 1
+    }
+  },
+  "input_contract_sha256": "73da969b7a9dfc14",
+  "machine": "AMD64",
   "matplotlib": "3.10.6",
+  "mkl": "Intel(R) oneAPI Math Kernel Library Version 2025.0-Product Build 20241009 for Intel(R) 64 architecture applications",
+  "numpy": "2.3.5",
+  "os": "Windows",
+  "os_release": "11",
   "python": "3.13.9",
+  "python_implementation": "CPython",
   "resolution": "1200x700@100dpi",
   "results": [
     {
-      "shape": "sine",
-      "cold_png": [
-        100.87819999898784,
-        99.03060000215191
-      ],
-      "cold_svg": [
-        244.38499999814667,
-        240.41090000537224
-      ],
-      "cold_png_bytes": 18168,
-      "hot_blit": [
-        66.52070001291577,
-        65.72459999006242
-      ],
-      "hot_autoscale": [
-        126.20319999405183,
-        121.53700001363177
-      ],
-      "downsample_2m": [
-        14.64049999776762,
-        13.2004000042798
-      ],
-      "downsample_2m_peak_mb": 10.810168,
-      "append_total": [
-        47.44960000971332,
-        47.44960000971332
-      ],
-      "append_peak_mb": 60.244356,
+      "add_2m": {
+        "max": 9.698,
+        "mean": 7.5042,
+        "min": 5.6265,
+        "n": 3,
+        "p50": 7.1881,
+        "p95": 9.44701,
+        "samples": [
+          5.6265,
+          7.1881,
+          9.698
+        ],
+        "stdev": 1.677144,
+        "unit": "ms"
+      },
+      "add_2m_memory": {
+        "peak_rss_mb": 239.354,
+        "rss_after_mb": 239.354,
+        "rss_before_mb": 223.351,
+        "rss_delta_mb": 16.003,
+        "tracemalloc_peak_mb": 16.001
+      },
+      "add_2m_peak_mb": 16.001,
       "append_lines": 4000000,
-      "add_2m": [
-        7.124399999156594,
-        6.369800001266412
-      ],
-      "add_2m_peak_mb": 16.000898
+      "append_memory": {
+        "peak_rss_mb": 191.336,
+        "rss_after_mb": 191.336,
+        "rss_before_mb": 174.387,
+        "rss_delta_mb": 16.949,
+        "tracemalloc_peak_mb": 60.244
+      },
+      "append_peak_mb": 60.244,
+      "append_total": {
+        "max": 104.6513,
+        "mean": 104.6513,
+        "min": 104.6513,
+        "n": 1,
+        "p50": 104.6513,
+        "p95": 104.6513,
+        "samples": [
+          104.6513
+        ],
+        "stdev": 0.0,
+        "unit": "ms"
+      },
+      "cold_png": {
+        "max": 513.7729,
+        "mean": 296.01732,
+        "min": 216.6985,
+        "n": 5,
+        "p50": 247.8465,
+        "p95": 463.03532,
+        "samples": [
+          260.085,
+          216.6985,
+          241.6837,
+          247.8465,
+          513.7729
+        ],
+        "stdev": 109.793141,
+        "unit": "ms"
+      },
+      "cold_png_bytes": 18168,
+      "cold_svg": {
+        "max": 1256.0453,
+        "mean": 945.79384,
+        "min": 730.6813,
+        "n": 5,
+        "p50": 912.0083,
+        "p95": 1201.87286,
+        "samples": [
+          912.0083,
+          845.0512,
+          985.1831,
+          1256.0453,
+          730.6813
+        ],
+        "stdev": 176.279,
+        "unit": "ms"
+      },
+      "downsample_2m": {
+        "max": 17.875,
+        "mean": 13.711267,
+        "min": 10.0279,
+        "n": 3,
+        "p50": 13.2309,
+        "p95": 17.41059,
+        "samples": [
+          13.2309,
+          10.0279,
+          17.875
+        ],
+        "stdev": 3.221522,
+        "unit": "ms"
+      },
+      "downsample_2m_memory": {
+        "peak_rss_mb": 143.167,
+        "rss_after_mb": 141.144,
+        "rss_before_mb": 143.167,
+        "rss_delta_mb": -2.023,
+        "tracemalloc_peak_mb": 10.81
+      },
+      "downsample_2m_peak_mb": 10.81,
+      "hot_autoscale": {
+        "max": 475.1271,
+        "mean": 383.23384,
+        "min": 323.9299,
+        "n": 5,
+        "p50": 345.6235,
+        "p95": 465.38916,
+        "samples": [
+          345.6235,
+          426.4374,
+          323.9299,
+          475.1271,
+          345.0513
+        ],
+        "stdev": 57.793287,
+        "unit": "ms"
+      },
+      "hot_blit": {
+        "max": 194.9027,
+        "mean": 132.39734,
+        "min": 82.4898,
+        "n": 5,
+        "p50": 115.2647,
+        "p95": 189.5864,
+        "samples": [
+          168.3212,
+          82.4898,
+          101.0083,
+          115.2647,
+          194.9027
+        ],
+        "stdev": 42.348567,
+        "unit": "ms"
+      },
+      "shape": "sine"
     },
     {
-      "shape": "noise",
-      "cold_png": [
-        149.02250000159256,
-        143.95369999692775
-      ],
-      "cold_svg": [
-        360.55040000064764,
-        359.5608000032371
-      ],
-      "cold_png_bytes": 17573,
-      "hot_blit": [
-        62.45460000354797,
-        60.999199995421804
-      ],
-      "hot_autoscale": [
-        140.93819999834523,
-        140.4679999977816
-      ],
-      "downsample_2m": [
-        12.462700004107319,
-        11.244399996940047
-      ],
-      "downsample_2m_peak_mb": 10.810168,
-      "append_total": [
-        45.60370001127012,
-        45.60370001127012
-      ],
-      "append_peak_mb": 60.244256,
+      "add_2m": {
+        "max": 5.8253,
+        "mean": 5.4946,
+        "min": 5.148,
+        "n": 3,
+        "p50": 5.5105,
+        "p95": 5.79382,
+        "samples": [
+          5.8253,
+          5.5105,
+          5.148
+        ],
+        "stdev": 0.276735,
+        "unit": "ms"
+      },
+      "add_2m_memory": {
+        "peak_rss_mb": 227.09,
+        "rss_after_mb": 227.09,
+        "rss_before_mb": 211.087,
+        "rss_delta_mb": 16.003,
+        "tracemalloc_peak_mb": 16.001
+      },
+      "add_2m_peak_mb": 16.001,
       "append_lines": 4000000,
-      "add_2m": [
-        6.357799997203983,
-        6.190000000060536
-      ],
-      "add_2m_peak_mb": 16.000898
+      "append_memory": {
+        "peak_rss_mb": 179.081,
+        "rss_after_mb": 179.081,
+        "rss_before_mb": 162.947,
+        "rss_delta_mb": 16.134,
+        "tracemalloc_peak_mb": 60.244
+      },
+      "append_peak_mb": 60.244,
+      "append_total": {
+        "max": 47.8697,
+        "mean": 47.8697,
+        "min": 47.8697,
+        "n": 1,
+        "p50": 47.8697,
+        "p95": 47.8697,
+        "samples": [
+          47.8697
+        ],
+        "stdev": 0.0,
+        "unit": "ms"
+      },
+      "cold_png": {
+        "max": 402.2053,
+        "mean": 313.62818,
+        "min": 206.0832,
+        "n": 5,
+        "p50": 329.6604,
+        "p95": 390.0175,
+        "samples": [
+          206.0832,
+          341.2663,
+          288.9257,
+          402.2053,
+          329.6604
+        ],
+        "stdev": 64.87363,
+        "unit": "ms"
+      },
+      "cold_png_bytes": 17573,
+      "cold_svg": {
+        "max": 970.9287,
+        "mean": 722.21948,
+        "min": 511.0071,
+        "n": 5,
+        "p50": 617.4406,
+        "p95": 955.87572,
+        "samples": [
+          970.9287,
+          511.0071,
+          617.4406,
+          895.6638,
+          616.0572
+        ],
+        "stdev": 178.21275,
+        "unit": "ms"
+      },
+      "downsample_2m": {
+        "max": 12.3947,
+        "mean": 11.7907,
+        "min": 11.2753,
+        "n": 3,
+        "p50": 11.7021,
+        "p95": 12.32544,
+        "samples": [
+          11.2753,
+          11.7021,
+          12.3947
+        ],
+        "stdev": 0.461267,
+        "unit": "ms"
+      },
+      "downsample_2m_memory": {
+        "peak_rss_mb": 133.734,
+        "rss_after_mb": 133.734,
+        "rss_before_mb": 133.734,
+        "rss_delta_mb": 0.0,
+        "tracemalloc_peak_mb": 10.81
+      },
+      "downsample_2m_peak_mb": 10.81,
+      "hot_autoscale": {
+        "max": 480.3903,
+        "mean": 369.97142,
+        "min": 182.4431,
+        "n": 5,
+        "p50": 456.7422,
+        "p95": 475.85416,
+        "samples": [
+          480.3903,
+          457.7096,
+          456.7422,
+          272.5719,
+          182.4431
+        ],
+        "stdev": 120.060837,
+        "unit": "ms"
+      },
+      "hot_blit": {
+        "max": 225.7363,
+        "mean": 181.64916,
+        "min": 108.1438,
+        "n": 5,
+        "p50": 219.9422,
+        "p95": 225.58694,
+        "samples": [
+          108.1438,
+          225.7363,
+          224.9895,
+          129.434,
+          219.9422
+        ],
+        "stdev": 51.803241,
+        "unit": "ms"
+      },
+      "shape": "noise"
     }
   ],
-  "budget": {
-    "cold_png": 400.0,
-    "cold_svg": 700.0,
-    "hot_blit": 120.0,
-    "hot_autoscale": 220.0,
-    "downsample_2m": 60.0,
-    "append_total": 200.0
+  "runner_version": "plotkit-bench/2",
+  "schema": "plotkit-bench/2",
+  "scipy": "1.16.3",
+  "threads": {
+    "MKL_NUM_THREADS": "default",
+    "NUMEXPR_NUM_THREADS": "default",
+    "OMP_NUM_THREADS": "default",
+    "OPENBLAS_NUM_THREADS": "default"
   }
 }

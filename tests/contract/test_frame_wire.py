@@ -138,3 +138,58 @@ def test_concurrent_encode_decode_has_no_length_mismatch():
         results = list(pool.map(one, range(1000)))
     assert len(results) == 1000
     assert all(results)
+
+
+def _mutated(blob: bytes, mutate) -> bytes:
+    (size,) = struct.unpack_from("<I", blob, 4)
+    header = json.loads(blob[8 : 8 + size].decode("utf-8"))
+    mutate(header)
+    packed = json.dumps(
+        header, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    ).encode("utf-8")
+    return frame_wire.FRAME_MAGIC + struct.pack("<I", len(packed)) + packed + blob[8 + size :]
+
+
+def test_decode_rejects_unsupported_schema():
+    blob = _mutated(
+        frame_wire.frame_golden_vector(),
+        lambda header: header.__setitem__("schema", "plotkit.frame/v0"),
+    )
+    with pytest.raises(ValueError, match="schema 不受支持"):
+        frame_wire.decode_frame(blob)
+
+
+def test_decode_rejects_duplicate_column_names():
+    blob = _mutated(
+        frame_wire.frame_golden_vector(),
+        lambda header: header["columns"][1].__setitem__("name", "t"),
+    )
+    with pytest.raises(ValueError, match="重复列名"):
+        frame_wire.decode_frame(blob)
+
+
+def test_decode_rejects_non_contiguous_offsets():
+    blob = _mutated(
+        frame_wire.frame_golden_vector(),
+        lambda header: header["columns"][1].__setitem__(
+            "offset", header["columns"][1]["offset"] + 4
+        ),
+    )
+    with pytest.raises(ValueError, match="区间不连续"):
+        frame_wire.decode_frame(blob)
+
+
+def test_decode_rejects_trailing_payload_bytes():
+    with pytest.raises(ValueError, match="尾部有多余字节"):
+        frame_wire.decode_frame(frame_wire.frame_golden_vector() + b"\x00")
+
+
+def test_decode_rejects_json_count_mismatch():
+    blob = frame_wire.encode_frame(
+        [
+            frame_wire.FrameColumn("labels", ({"a": 1},), encoding="json", count=1),
+        ]
+    )
+    bad = _mutated(blob, lambda header: header["columns"][0].__setitem__("count", 2))
+    with pytest.raises(ValueError, match="元素数与 count 不一致"):
+        frame_wire.decode_frame(bad)

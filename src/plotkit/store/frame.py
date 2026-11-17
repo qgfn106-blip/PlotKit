@@ -216,18 +216,33 @@ def decode_frame(data: bytes) -> Frame:
         raise ValueError(f"Frame header 不是合法 JSON：{exc}") from exc
     if not isinstance(header, dict):
         raise ValueError("Frame header 顶层必须是对象")
+    schema = header.get("schema")
+    if schema != frame_schema_id():
+        raise ValueError(f"Frame schema 不受支持：{schema!r}")
     payload = data[end:]
     columns: list[FrameColumn] = []
     raw_columns = header.get("columns", [])
+    if not isinstance(raw_columns, list):
+        raise ValueError("Frame columns 必须是数组")
+    seen: set[str] = set()
+    expected_offset = 0
     for column_index, raw in enumerate(raw_columns):
         if not isinstance(raw, dict):
             raise ValueError("Frame column 描述必须是对象")
-        offset = int(raw.get("offset", 0))
-        count = int(raw.get("count", 0))
-        byte_length = int(raw.get("byte_length", 0) or 0)
+        offset = _column_int(raw, "offset", 0)
+        count = _column_int(raw, "count", 0)
+        byte_length = _column_int(raw, "byte_length", 0)
         encoding = str(raw.get("encoding", "f4"))
+        name = raw.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError("Frame column 的 name 不能为空")
+        if name in seen:
+            raise ValueError(f"Frame 重复列名 {name!r}")
+        seen.add(name)
         if offset < 0 or count < 0:
             raise ValueError("Frame column 的 offset/count 不能为负")
+        if offset != expected_offset:
+            raise ValueError("Frame column 的区间不连续（offset 与前一列末尾不一致）")
         if offset > len(payload):
             raise ValueError("Frame column 的 offset 超出 payload")
         if byte_length < 0:
@@ -252,9 +267,12 @@ def decode_frame(data: bytes) -> Frame:
             else:
                 blob = payload[offset:]
         values = _decode_values(blob, encoding, count)
+        if encoding == "json" and len(values) != count:
+            raise ValueError("Frame JSON 列的元素数与 count 不一致")
+        expected_offset = offset + len(blob)
         columns.append(
             FrameColumn(
-                name=str(raw.get("name", "")),
+                name=name,
                 values=values,
                 unit=str(raw.get("unit", "")),
                 role=str(raw.get("role", "auto")),
@@ -265,16 +283,21 @@ def decode_frame(data: bytes) -> Frame:
                 byte_length=byte_length,
             )
         )
-    return Frame(
-        schema=str(header.get("schema", "")),
-        generation=int(header.get("generation", 0)),
-        cursor=int(header.get("cursor", 0)),
-        t0=float(header.get("t0", 0.0)),
-        dt=float(header.get("dt", 0.0)),
-        version=int(header.get("version", 0)),
-        columns=tuple(columns),
-        payload=payload,
-    )
+    if expected_offset != len(payload):
+        raise ValueError("Frame payload 尾部有多余字节")
+    try:
+        return Frame(
+            schema=schema,
+            generation=int(header.get("generation", 0)),
+            cursor=int(header.get("cursor", 0)),
+            t0=float(header.get("t0", 0.0)),
+            dt=float(header.get("dt", 0.0)),
+            version=int(header.get("version", 0)),
+            columns=tuple(columns),
+            payload=payload,
+        )
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Frame header 字段类型不合法：{exc}") from exc
 
 
 def _encoding_for(dtype: Any) -> str:
@@ -288,6 +311,13 @@ def _encoding_for(dtype: Any) -> str:
     return "f8"
 
 
+def _column_int(raw: Mapping[str, Any], key: str, default: int) -> int:
+    value = raw.get(key, default)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"Frame column 的 {key} 必须是整数")
+    return value
+
+
 def encode_frame_from_store(
     store: Any,
     names: Sequence[str],
@@ -298,20 +328,30 @@ def encode_frame_from_store(
     dt: float = 0.0,
     version: int = 0,
 ) -> bytes:
-    """从 DataStore 取列并编码；``store`` 只需提供 values(name) / meta(name)。"""
+    """从 DataStore 取列并编码。
+
+    DataStore 提供 snapshot_columns 时在 DATA_LOCK 下取一次一致快照，
+    避免多列之间被 push 插入；其它 store 仍按 values/meta 逐列读取。
+    """
+    snapshotter = getattr(store, "snapshot_columns", None)
+    if callable(snapshotter):
+        snapshot = snapshotter(list(names))
+    else:
+        snapshot = [
+            (name, np.asarray(store.values(name)), store.meta(name) or {})
+            for name in names
+        ]
     columns: list[FrameColumn] = []
-    for name in names:
-        values = np.asarray(store.values(name))
-        meta: Mapping[str, Any] = store.meta(name) or {}
-        encoding = _encoding_for(values.dtype)
+    for name, values, meta in snapshot:
+        array = np.asarray(values)
         columns.append(
             FrameColumn(
                 name=name,
-                values=tuple(values.ravel().tolist()),
+                values=tuple(array.ravel().tolist()),
                 unit=str(meta.get("unit", "")),
                 role=str(meta.get("role", "auto")),
-                dtype=str(values.dtype),
-                encoding=encoding,
+                dtype=str(array.dtype),
+                encoding=_encoding_for(array.dtype),
             )
         )
     return encode_frame(

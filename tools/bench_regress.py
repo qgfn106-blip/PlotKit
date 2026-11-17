@@ -12,11 +12,18 @@
 
 裁定 ⑧-3：CI 只用「相对回归带」，不设绝对毫秒硬阈值。BUDGET 仅保留为
 历史信息字段以维持 JSON 形状，任何闸门都不再拿它做毫秒比较。
+
+WP-4：指纹扩展为硬件 / OS / Python / NumPy / SciPy / BLAS-MKL / 线程 / 输入契约 /
+runner 版本；输出四态 PASS / DRIFT / INCOMPARABLE / ERROR；统计口径固定为
+p50 / p95 / min / max / 样本数与 RSS + tracemalloc 峰值。
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import math
+import os
 import platform
 import statistics
 import subprocess
@@ -43,6 +50,8 @@ W, H, DPI = 1200, 700, 100
 CH, NPTS = 6, 20_000
 WARM, REPEAT = 2, 5
 BASELINE = ROOT / "docs" / "bench_baseline.json"
+CONFIG_PATH = ROOT / "docs" / "bench_config.json"
+RUNNER_VERSION = "plotkit-bench/2"
 
 BUDGET = {
     "cold_png": 400.0,
@@ -53,17 +62,85 @@ BUDGET = {
     "append_total": 200.0,
 }
 
-# 参与相对回归带比较的计时键（值形如 [p50, min]，单位 ms）。
+# 参与相对回归带比较的计时键（新格式为统计 dict；旧格式 [p50, min] 仍可读）。
 TIMED_KEYS = tuple(BUDGET)
 # 同机重复跑的 p50 抖动来自 matplotlib 字体缓存、CPU 频率、预热与并行负载；
 # 本机与多个 agent 并行编译时实测抖动可达 ±70%。±100%（2 倍）放过这类噪声，
 # 只抓 2 倍以上的真实退化（docstring 里「正弦 vs 噪声」的倍数陷阱正是要防的）。
 # 相对比例随机型快慢同步缩放，不会把慢机器误判成回归；绝非绝对毫秒阈值。
-RELATIVE_BAND = 1.00
-# 硬件指纹不同（如共享 CI runner）时，绝对耗时不可直接比较：仍打印每条
-# 超带数字供人工复核，但降为「信息」，不据此判 drift。同指纹时 ×2 才是闸门。
-# G4「3 OS × 2 Python 冷启动矩阵」本轮未覆盖，如实标注而非假装跨机数字可比。
-FINGERPRINT_KEYS = ("cpu", "python", "matplotlib", "backend", "resolution")
+DEFAULT_RELATIVE_BAND = 1.00
+DEFAULT_MEMORY_BAND = 0.50
+DEFAULT_SIZE_BAND = 0.50
+
+#: 只有这些字段相同，性能数字才允许比较；captured_at / commit / generated_by
+#: 属于「哪次采集」而非「哪台机器 + 哪套输入」，不参与可比性判定。
+FINGERPRINT_KEYS = (
+    "runner_version",
+    "cpu",
+    "machine",
+    "cpu_count",
+    "os",
+    "os_release",
+    "python",
+    "python_implementation",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "backend",
+    "resolution",
+    "blas",
+    "mkl",
+    "threads",
+    "input_contract_sha256",
+)
+
+#: 固定输入契约：任何一项变化都必须让基线变为 INCOMPARABLE，而不是悄悄 PASS。
+INPUT_CONTRACT = {
+    "figure": {"width": W, "height": H, "dpi": DPI},
+    "channels": CH,
+    "points": NPTS,
+    "seed": 1234,
+    "warmup": {"default": WARM, "downsample_2m": 1, "append_total": 0, "add_2m": 1},
+    "repeat": {"default": REPEAT, "downsample_2m": 3, "append_total": 1, "add_2m": 3},
+    "timing": "time.perf_counter() 包住单次操作；先 warmup 再 repeat；样本统计 p50/p95/min/max",
+    "memory": "tracemalloc.reset_peak() 包住单次调用；可选 psutil RSS 前后采样",
+}
+
+MEMORY_KEYS = (
+    "downsample_2m_peak_mb",
+    "append_peak_mb",
+    "add_2m_peak_mb",
+)
+SIZE_KEYS = ("cold_png_bytes",)
+
+
+def _load_config() -> dict:
+    """退化方向与阈值统一由 docs/bench_config.json 提供，缺省值仅作兜底。"""
+    config = {
+        "relative_band": DEFAULT_RELATIVE_BAND,
+        "memory_band": DEFAULT_MEMORY_BAND,
+        "size_band": DEFAULT_SIZE_BAND,
+        "exit_codes": {"PASS": 0, "DRIFT": 1, "INCOMPARABLE": 2, "ERROR": 3},
+    }
+    try:
+        raw = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return config
+    if isinstance(raw, dict):
+        for key in ("relative_band", "memory_band", "size_band"):
+            value = raw.get(key)
+            if isinstance(value, (int, float)) and math.isfinite(float(value)):
+                config[key] = float(value)
+        codes = raw.get("exit_codes")
+        if isinstance(codes, dict):
+            for status in ("PASS", "DRIFT", "INCOMPARABLE", "ERROR"):
+                value = codes.get(status)
+                if isinstance(value, int) and value >= 0:
+                    config["exit_codes"][status] = value
+    return config
+
+
+CONFIG = _load_config()
 
 
 def _data(shape: str, n: int = NPTS, ch: int = CH):
@@ -85,24 +162,171 @@ def _figure(t, ys):
     return fig
 
 
-def _time(fn, warm=WARM, repeat=REPEAT):
-    for _ in range(warm):
+def _percentile(samples: list[float], fraction: float) -> float:
+    if not samples:
+        return float("nan")
+    ordered = sorted(float(v) for v in samples)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    low = int(math.floor(position))
+    high = int(math.ceil(position))
+    if low == high:
+        return ordered[low]
+    weight = position - low
+    return ordered[low] * (1.0 - weight) + ordered[high] * weight
+
+
+def _summary(samples: list[float], unit: str = "ms") -> dict:
+    clean = [float(v) for v in samples if math.isfinite(float(v))]
+    if not clean:
+        return {
+            "unit": unit,
+            "n": 0,
+            "samples": [],
+            "p50": None,
+            "p95": None,
+            "min": None,
+            "max": None,
+            "mean": None,
+            "stdev": None,
+        }
+    return {
+        "unit": unit,
+        "n": len(clean),
+        "samples": [round(v, 6) for v in clean],
+        "p50": round(statistics.median(clean), 6),
+        "p95": round(_percentile(clean, 0.95), 6),
+        "min": round(min(clean), 6),
+        "max": round(max(clean), 6),
+        "mean": round(statistics.fmean(clean), 6),
+        "stdev": round(statistics.pstdev(clean), 6) if len(clean) > 1 else 0.0,
+    }
+
+
+def _time(fn, warm: int = WARM, repeat: int = REPEAT) -> dict:
+    for _ in range(max(0, int(warm))):
         fn()
     samples = []
-    for _ in range(repeat):
+    for _ in range(max(1, int(repeat))):
         t0 = time.perf_counter()
         fn()
-        samples.append((time.perf_counter() - t0) * 1000)
-    return statistics.median(samples), min(samples)
+        samples.append((time.perf_counter() - t0) * 1000.0)
+    return _summary(samples)
 
 
-def _peak_mb(fn):
+def _rss_mb():
+    try:
+        import psutil  # type: ignore
+
+        return round(psutil.Process(os.getpid()).memory_info().rss / 1e6, 3)
+    except Exception:
+        return None
+
+
+def _peak_memory(fn) -> dict:
+    """单次调用的 tracemalloc 峰值 + 可选的进程 RSS 前后采样。"""
+    rss_before = _rss_mb()
     tracemalloc.start()
-    tracemalloc.reset_peak()
-    fn()
-    _, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-    return peak / 1e6
+    try:
+        tracemalloc.reset_peak()
+        fn()
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    rss_after = _rss_mb()
+    return {
+        "tracemalloc_peak_mb": round(peak / 1e6, 3),
+        "rss_before_mb": rss_before,
+        "rss_after_mb": rss_after,
+        "rss_delta_mb": (
+            round(rss_after - rss_before, 3)
+            if rss_before is not None and rss_after is not None
+            else None
+        ),
+        "peak_rss_mb": (
+            round(max(rss_before, rss_after), 3)
+            if rss_before is not None and rss_after is not None
+            else None
+        ),
+    }
+
+
+def _blas_name() -> str:
+    try:
+        config = np.__config__.CONFIG  # type: ignore[attr-defined]
+        dependencies = config.get("Build Dependencies", {}) if isinstance(config, dict) else {}
+        blas = dependencies.get("blas", {}) if isinstance(dependencies, dict) else {}
+        return str(blas.get("name", "unknown")) if isinstance(blas, dict) else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _mkl_version() -> str:
+    try:
+        import mkl  # type: ignore
+
+        return str(getattr(mkl, "get_version_string", lambda: "unknown")())
+    except Exception:
+        return "absent"
+
+
+def _package_version(name: str) -> str:
+    try:
+        module = __import__(name)
+        return str(getattr(module, "__version__", "unknown"))
+    except Exception:
+        return "absent"
+
+
+def _threads() -> dict:
+    keys = ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "NUMEXPR_NUM_THREADS")
+    return {key: os.environ.get(key, "default") for key in keys}
+
+
+def _input_contract_hash() -> str:
+    payload = json.dumps(INPUT_CONTRACT, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _git_commit() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return proc.stdout.strip() if proc.returncode == 0 else "unknown"
+    except OSError:
+        return "unknown"
+
+
+def _fingerprint() -> dict:
+    """采集真实的软硬件指纹；数值一律来自本机/本仓库，绝不编造。"""
+    return {
+        "generated_by": "tools/bench_regress.py --json",
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "captured_commit": _git_commit(),
+        "runner_version": RUNNER_VERSION,
+        "cpu": platform.processor() or platform.machine() or "unknown",
+        "machine": platform.machine() or "unknown",
+        "cpu_count": os.cpu_count() or 0,
+        "os": platform.system() or "unknown",
+        "os_release": platform.release() or "unknown",
+        "python": platform.python_version(),
+        "python_implementation": platform.python_implementation(),
+        "numpy": _package_version("numpy"),
+        "scipy": _package_version("scipy"),
+        "matplotlib": _package_version("matplotlib"),
+        "backend": str(matplotlib.get_backend()),
+        "resolution": f"{W}x{H}@{DPI}dpi",
+        "blas": _blas_name(),
+        "mkl": _mkl_version(),
+        "threads": _threads(),
+        "input_contract_sha256": _input_contract_hash(),
+    }
 
 
 def bench_shape(shape: str) -> dict:
@@ -163,7 +387,9 @@ def bench_shape(shape: str) -> dict:
     x2 = np.linspace(0.0, 10.0, n2, dtype=np.float32)
     y2 = np.sin(x2 * 100).astype(np.float32)
     out["downsample_2m"] = _time(lambda: ds.downsample_xy(x2, y2, W), warm=1, repeat=3)
-    out["downsample_2m_peak_mb"] = _peak_mb(lambda: ds.downsample_xy(x2, y2, W))
+    memory = _peak_memory(lambda: ds.downsample_xy(x2, y2, W))
+    out["downsample_2m_memory"] = memory
+    out["downsample_2m_peak_mb"] = memory["tracemalloc_peak_mb"]
 
     # --- 数据层：2000 次追加（每次 1000 点） ---
     store = pk.DataStore()
@@ -176,7 +402,9 @@ def bench_shape(shape: str) -> dict:
             store.push("y", c)
 
     out["append_total"] = _time(append_all, warm=0, repeat=1)
-    out["append_peak_mb"] = _peak_mb(append_all)
+    memory = _peak_memory(append_all)
+    out["append_memory"] = memory
+    out["append_peak_mb"] = memory["tracemalloc_peak_mb"]
     out["append_lines"] = int(store.get("y").values.size)
 
     # --- 数据层：入库复制成本 ---
@@ -185,48 +413,51 @@ def bench_shape(shape: str) -> dict:
     out["add_2m"] = _time(
         lambda: st.add("a", arr, role="series", overwrite=True), warm=1, repeat=3
     )
-    out["add_2m_peak_mb"] = _peak_mb(
-        lambda: st.add("b", arr, role="series", overwrite=True)
-    )
+    memory = _peak_memory(lambda: st.add("b", arr, role="series", overwrite=True))
+    out["add_2m_memory"] = memory
+    out["add_2m_peak_mb"] = memory["tracemalloc_peak_mb"]
     return out
 
 
-def _fmt(v):
-    return f"{v[0]:.1f} / {v[1]:.1f}" if isinstance(v, tuple) else f"{v:.1f}"
-
-
-def _fingerprint() -> dict[str, str]:
-    """采集真实的软硬件指纹；数值一律来自本机/本仓库，绝不编造。"""
-    try:
-        proc = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=str(ROOT),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        commit = proc.stdout.strip() if proc.returncode == 0 else ""
-    except OSError:
-        commit = ""
-    return {
-        "generated_by": "tools/bench_regress.py --json",
-        "captured_commit": commit or "unknown",
-        "captured_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "cpu": platform.processor() or platform.machine() or "unknown",
-        "python": platform.python_version(),
-        "matplotlib": matplotlib.__version__,
-        "backend": matplotlib.get_backend(),
-        "resolution": f"{W}x{H}@{DPI}dpi",
-    }
+def _fmt(metric) -> str:
+    if isinstance(metric, dict):
+        p50, p95 = metric.get("p50"), metric.get("p95")
+        if p50 is None:
+            return "n/a"
+        return f"{p50:.1f} / {p95:.1f}"
+    if isinstance(metric, (list, tuple)) and metric:
+        return f"{float(metric[0]):.1f} / {float(metric[1]):.1f}"
+    if isinstance(metric, (int, float)):
+        return f"{float(metric):.1f}"
+    return str(metric)
 
 
 def _payload(rows: list[dict]) -> dict:
     """机器结果，与 docs/bench_baseline.json 同形。"""
-    return {**_fingerprint(), "results": rows, "budget": BUDGET}
+    return {
+        "schema": "plotkit-bench/2",
+        **_fingerprint(),
+        "input_contract": INPUT_CONTRACT,
+        "results": rows,
+        "budget": BUDGET,
+    }
 
 
-def _compare(measured: list[dict], baseline: list[dict]) -> list[str]:
-    """相对回归带比较：每个形态/计时键的 p50 相对基线偏移超带即记录。"""
+def _metric_value(metric):
+    """兼容新统计 dict 与旧 [p50, min] 列表，返回 (p50, p95, n)。"""
+    if isinstance(metric, dict):
+        p50 = metric.get("p50")
+        p95 = metric.get("p95", p50)
+        n = metric.get("n", len(metric.get("samples", [])))
+        return p50, p95, n
+    if isinstance(metric, (list, tuple)) and metric:
+        return metric[0], metric[1] if len(metric) > 1 else metric[0], 1
+    return None, None, 0
+
+
+def _compare(measured: list[dict], baseline: list[dict], *, config: dict | None = None) -> list[str]:
+    """方向性回归：仅当指标变差且超出配置阈值时记录（变快不报）。"""
+    cfg = config or CONFIG
     base = {row.get("shape"): row for row in baseline}
     drifts: list[str] = []
     for row in measured:
@@ -236,93 +467,143 @@ def _compare(measured: list[dict], baseline: list[dict]) -> list[str]:
             drifts.append(f"{label}: 基线缺少该形态")
             continue
         for key in TIMED_KEYS:
-            cur, old = row.get(key), ref.get(key)
-            if not (
-                isinstance(cur, (list, tuple))
-                and isinstance(old, (list, tuple))
-                and cur
-                and old
-            ):
+            cur_p50, _, cur_n = _metric_value(row.get(key))
+            old_p50, _, _ = _metric_value(ref.get(key))
+            if cur_p50 is None or old_p50 is None:
                 drifts.append(f"{label}/{key}: 缺少 p50 计时")
                 continue
-            cur_p50, old_p50 = float(cur[0]), float(old[0])
+            if cur_n == 0:
+                drifts.append(f"{label}/{key}: 样本数为 0")
+                continue
             if old_p50 <= 0:
                 drifts.append(f"{label}/{key}: 基线 p50 非正，无法比较")
                 continue
-            delta = (cur_p50 - old_p50) / old_p50
-            if abs(delta) > RELATIVE_BAND:
+            delta = (float(cur_p50) - float(old_p50)) / float(old_p50)
+            if delta > float(cfg["relative_band"]):
                 drifts.append(
-                    f"{label}/{key}: {cur_p50:.1f}ms vs 基线 {old_p50:.1f}ms"
-                    f"（{delta:+.0%}，超出 ±{RELATIVE_BAND:.0%}）"
+                    f"{label}/{key}: {float(cur_p50):.1f}ms vs 基线 {float(old_p50):.1f}ms"
+                    f"（{delta:+.0%}，超出 +{float(cfg['relative_band']):.0%} 退化带）"
+                )
+        for key in MEMORY_KEYS:
+            cur = row.get(key)
+            old = ref.get(key)
+            if not isinstance(cur, (int, float)) or not isinstance(old, (int, float)):
+                continue
+            if float(old) <= 0:
+                continue
+            delta = (float(cur) - float(old)) / float(old)
+            if delta > float(cfg["memory_band"]):
+                drifts.append(
+                    f"{label}/{key}: {float(cur):.3f}MB vs 基线 {float(old):.3f}MB"
+                    f"（{delta:+.0%}，超出 +{float(cfg['memory_band']):.0%} 退化带）"
+                )
+        for key in SIZE_KEYS:
+            cur = row.get(key)
+            old = ref.get(key)
+            if not isinstance(cur, (int, float)) or not isinstance(old, (int, float)):
+                continue
+            if float(old) <= 0:
+                continue
+            delta = (float(cur) - float(old)) / float(old)
+            if delta > float(cfg["size_band"]):
+                drifts.append(
+                    f"{label}/{key}: {float(cur):.0f}B vs 基线 {float(old):.0f}B"
+                    f"（{delta:+.0%}，超出 +{float(cfg['size_band']):.0%} 退化带）"
                 )
     return drifts
 
 
+def _same_fingerprint(measured: dict, baseline: dict) -> tuple[bool, list[str]]:
+    missing = [key for key in FINGERPRINT_KEYS if measured.get(key) is None or baseline.get(key) is None]
+    if missing:
+        return False, missing
+    changed = []
+    for key in FINGERPRINT_KEYS:
+        if measured.get(key) != baseline.get(key):
+            changed.append(key)
+    return not changed, changed
+
+
+def _exit_code(status: str) -> int:
+    return int(CONFIG["exit_codes"].get(status, 1))
+
+
+def _print_status(status: str, detail: str = "") -> None:
+    suffix = f" {detail}" if detail else ""
+    token = "ok" if status == "PASS" else status.lower()
+    print(f"bench_regress: check={token} status={status}{suffix}")
+
+
 def _run_check(args: argparse.Namespace) -> int:
-    """CI 闸门：读基线 + 相对回归带；硬件指纹不同则只打印 info。"""
+    """CI 闸门：指纹 + 输入契约 + 线程配置全部相同才允许 PASS。"""
     baseline_path = Path(args.baseline)
     if not baseline_path.is_file():
         print(
-            f"bench_regress: check=error 缺少基线 {baseline_path}；"
+            f"bench_regress: check=error status=ERROR 缺少基线 {baseline_path}；"
             "先运行 python tools/bench_regress.py --json "
             "docs/bench_baseline.json",
             file=sys.stderr,
         )
-        return 1
+        return _exit_code("ERROR")
     try:
         baseline_doc = json.loads(baseline_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        print(f"bench_regress: check=error 基线不可读：{exc}", file=sys.stderr)
-        return 1
+        print(f"bench_regress: check=error status=ERROR 基线不可读：{exc}", file=sys.stderr)
+        return _exit_code("ERROR")
     baseline_rows = baseline_doc.get("results")
     if not isinstance(baseline_rows, list) or not baseline_rows:
-        print("bench_regress: check=error 基线 results 为空", file=sys.stderr)
-        return 1
+        print("bench_regress: check=error status=ERROR 基线 results 为空", file=sys.stderr)
+        return _exit_code("ERROR")
 
     if args.input:
         input_path = Path(args.input)
         if not input_path.is_file():
             print(
-                f"bench_regress: check=error 缺少测量结果 {input_path}",
+                f"bench_regress: check=error status=ERROR 缺少测量结果 {input_path}",
                 file=sys.stderr,
             )
-            return 1
+            return _exit_code("ERROR")
         try:
             measured_doc = json.loads(input_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeError, json.JSONDecodeError) as exc:
             print(
-                f"bench_regress: check=error 测量结果不可读：{exc}",
+                f"bench_regress: check=error status=ERROR 测量结果不可读：{exc}",
                 file=sys.stderr,
             )
-            return 1
+            return _exit_code("ERROR")
         measured_rows = measured_doc.get("results")
-        fingerprint = {k: measured_doc.get(k) for k in FINGERPRINT_KEYS}
+        measured_fingerprint = {k: measured_doc.get(k) for k in FINGERPRINT_KEYS}
+        measured_input = measured_doc.get("input_contract")
     else:
         shapes = [s.strip() for s in args.shapes.split(",") if s.strip()]
         measured_rows = [bench_shape(s) for s in shapes]
-        fingerprint = {k: v for k, v in _fingerprint().items() if k in FINGERPRINT_KEYS}
+        measured_fingerprint = {k: v for k, v in _fingerprint().items() if k in FINGERPRINT_KEYS}
+        measured_input = INPUT_CONTRACT
 
     if not isinstance(measured_rows, list) or not measured_rows:
-        print("bench_regress: check=error 测量结果 results 为空", file=sys.stderr)
-        return 1
+        print("bench_regress: check=error status=ERROR 测量结果 results 为空", file=sys.stderr)
+        return _exit_code("ERROR")
 
     ref_fingerprint = {k: baseline_doc.get(k) for k in FINGERPRINT_KEYS}
-    same_machine = fingerprint == ref_fingerprint and all(
-        value is not None for value in fingerprint.values()
-    )
+    same, changed = _same_fingerprint(measured_fingerprint, ref_fingerprint)
+    input_same = baseline_doc.get("input_contract") == measured_input
+    if not input_same:
+        changed = [*changed, "input_contract"]
+        same = False
     drifts = _compare(measured_rows, baseline_rows)
+    if not same:
+        for line in drifts:
+            print(f"  [info] {line}")
+        print(f"  指纹/输入契约不同：{', '.join(changed) or '未知字段'}；跨机或跨输入比较不可判定")
+        _print_status("INCOMPARABLE", f"incomparable_fields={','.join(changed) or 'unknown'}")
+        return _exit_code("INCOMPARABLE")
     for line in drifts:
-        print(f"  [{'drift' if same_machine else 'info'}] {line}")
-    if not same_machine:
-        print(
-            "  硬件指纹不同：跨机比较仅作参考"
-            "（G4 3OS×2Python 矩阵未覆盖），不据此判定 drift"
-        )
-    if drifts and same_machine:
-        print("bench_regress: check=drift")
-        return 1
-    print("bench_regress: check=ok")
-    return 0
+        print(f"  [drift] {line}")
+    if drifts:
+        _print_status("DRIFT")
+        return _exit_code("DRIFT")
+    _print_status("PASS")
+    return _exit_code("PASS")
 
 
 def main() -> int:
@@ -353,19 +634,19 @@ def main() -> int:
     print(
         f"\n{'case':30s} "
         + " ".join(f"{r['shape']:>18s}" for r in rows)
-        + "   p50/min(ms)"
+        + "   p50/p95(ms)"
     )
     for key, label in keys:
         cells = [f"{_fmt(r[key]):>18s}" for r in rows]
         print(f"{label:30s} " + " ".join(cells))
 
-    print("\n内存峰值（tracemalloc, MB）")
+    print("\n内存峰值（tracemalloc / RSS, MB）")
     for key, label in [
-        ("downsample_2m_peak_mb", "抽稀 2M"),
-        ("append_peak_mb", "追加 2000 次"),
-        ("add_2m_peak_mb", "入库 2M float64"),
+        ("downsample_2m_memory", "抽稀 2M"),
+        ("append_memory", "追加 2000 次"),
+        ("add_2m_memory", "入库 2M float64"),
     ]:
-        print(f"  {label:16s} " + "  ".join(f"{r[key]:.1f}" for r in rows))
+        print(f"  {label:16s} " + "  ".join(f"{r[key]['tracemalloc_peak_mb']:.1f}" for r in rows))
 
     # BUDGET 仅作历史信息保留在 JSON 中；唯一闸门是 --check 的相对回归带，
     # 不再有任何绝对毫秒硬阈值（裁定 ⑧-3）。

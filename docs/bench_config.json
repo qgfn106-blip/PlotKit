@@ -1,0 +1,13 @@
+{
+  "schema": "plotkit-bench-config/1",
+  "relative_band": 2,
+  "memory_band": 0.5,
+  "size_band": 0.5,
+  "exit_codes": {
+    "PASS": 0,
+    "DRIFT": 1,
+    "INCOMPARABLE": 2,
+    "ERROR": 3
+  },
+  "note": "退化方向：仅当测量值高于基线且超出对应 band 时判 DRIFT；变快不报。relative_band=2 表示 3 倍以上 p50 退化才判 DRIFT，用于吸收共享构建机的调度/字体缓存抖动；仍远小于故意放大 100 倍的回归测试。"
+}

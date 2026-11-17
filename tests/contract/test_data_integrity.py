@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import json
 import struct
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from plotkit.store import downsample
 from plotkit.store import frame as frame_wire
-from plotkit.store.registry import DataStore
+from plotkit.store.registry import DATA_LOCK, DataStore
 
 
 def test_dataset_values_are_read_only() -> None:
@@ -18,6 +21,44 @@ def test_dataset_values_are_read_only() -> None:
     assert values.flags.writeable is False
     with pytest.raises(ValueError):
         values[0] = 9.0
+
+
+def test_pyramid_cache_invalidated_on_push(monkeypatch) -> None:
+    monkeypatch.setattr(downsample, "PYRAMID_MIN_POINTS", 2)
+    store = DataStore()
+    store.add("x", list(range(8)))
+    store.add("y", list(range(8)))
+    first = store.pyramid("x", "y")
+    assert first is not None
+    assert store.pyramid("x", "y") is first
+
+    store.push("y", [99])
+    second = store.pyramid("x", "y")
+    assert second is not None
+    assert second is not first
+
+
+def test_pyramid_cache_invalidated_on_overwrite(monkeypatch) -> None:
+    monkeypatch.setattr(downsample, "PYRAMID_MIN_POINTS", 2)
+    store = DataStore()
+    store.add("x", list(range(8)))
+    store.add("y", list(range(8)))
+    first = store.pyramid("x", "y")
+    store.add("y", list(range(8, 16)), overwrite=True)
+    second = store.pyramid("x", "y")
+    assert second is not None
+    assert second is not first
+
+
+def test_pyramid_removed_with_dataset(monkeypatch) -> None:
+    monkeypatch.setattr(downsample, "PYRAMID_MIN_POINTS", 2)
+    store = DataStore()
+    store.add("x", list(range(8)))
+    store.add("y", list(range(8)))
+    assert store.pyramid("x", "y") is not None
+    store.remove("y")
+    with pytest.raises(KeyError):
+        store.pyramid("x", "y")
 
 
 def test_pkf1_multiple_json_columns_roundtrip() -> None:
@@ -61,3 +102,62 @@ def test_pkf1_legacy_json_last_column_remains_compatible() -> None:
     ]
     decoded = frame_wire.decode_frame(_frame_without_byte_length(columns, 1))
     assert tuple(decoded.column("meta").values) == ({"x": 1},)
+
+
+def test_pyramid_cache_invalidated_on_trim(monkeypatch) -> None:
+    monkeypatch.setattr(downsample, "PYRAMID_MIN_POINTS", 2)
+    store = DataStore()
+    store.add("x", list(range(8)))
+    store.add("y", list(range(8)))
+    first = store.pyramid("x", "y")
+    assert first is not None
+    store.trim("y", 4)
+    second = store.pyramid("x", "y")
+    assert second is not None
+    assert second is not first
+
+
+def test_large_frame_roundtrip_from_store_preserves_boundary() -> None:
+    n = 200_000
+    store = DataStore()
+    store.add("t", list(range(n)))
+    store.add("v", [index * 0.5 for index in range(n)])
+    decoded = frame_wire.decode_frame(
+        frame_wire.encode_frame_from_store(store, ["t", "v"], generation=9)
+    )
+    assert decoded.generation == 9
+    assert decoded.column("t").count == n
+    assert decoded.column("v").count == n
+    assert decoded.column("t").values[-1] == n - 1
+    assert decoded.column("v").values[-1] == (n - 1) * 0.5
+    assert len(decoded.payload) == n * 8 + n * 8
+
+
+def test_encode_frame_from_store_snapshot_is_consistent_under_push() -> None:
+    store = DataStore()
+    store.add("t", [0.0])
+    store.add("v", [0.0])
+    stop = threading.Event()
+
+    def writer() -> None:
+        for index in range(1, 3000):
+            if stop.is_set():
+                return
+            with DATA_LOCK:
+                store.push("t", [float(index)])
+                store.push("v", [float(index)])
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(writer)
+        try:
+            for _ in range(30):
+                decoded = frame_wire.decode_frame(
+                    frame_wire.encode_frame_from_store(store, ["t", "v"])
+                )
+                times = tuple(decoded.column("t").values)
+                values = tuple(decoded.column("v").values)
+                assert len(times) == len(values)
+                assert times == values
+        finally:
+            stop.set()
+            future.result(timeout=5)
