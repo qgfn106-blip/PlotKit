@@ -2,9 +2,9 @@
 
 <!-- UPDATE:LATEST:BEGIN -->
 - 日期：2026-11-18
-- 版本/ref：76f0084
-- 更新内容：修复 python-tests CI：刷新 589 收集基线；性能门禁在共享 runner 显式 --allow-incomparable，保留本地严格闸门
-- 证据：docs/BENCHMARKS.md、reports/test_baseline.json
+- 版本/ref：dd2bea2
+- 更新内容：收紧共享 runner 性能门禁：只放行机器指纹差异，runner/输入契约变化仍不可比较；非数值内存/尺寸指标记 DRIFT
+- 证据：docs/BENCHMARKS.md
 - 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
 <!-- UPDATE:LATEST:END -->
 
