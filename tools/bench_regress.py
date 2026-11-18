@@ -112,6 +112,12 @@ MEMORY_KEYS = (
     "add_2m_peak_mb",
 )
 SIZE_KEYS = ("cold_png_bytes",)
+# CI 共享 runner 只允许跳过“机器本身”的差异；runner 版本或输入契约变化仍必须
+# 判为不可比较，避免把测量工具/输入变化当成硬件差异悄悄放行。
+SMOKE_TOLERATED_FINGERPRINT_KEYS = frozenset(FINGERPRINT_KEYS) - {
+    "runner_version",
+    "input_contract_sha256",
+}
 
 
 def _load_config() -> dict:
@@ -488,8 +494,13 @@ def _compare(measured: list[dict], baseline: list[dict], *, config: dict | None 
             cur = row.get(key)
             old = ref.get(key)
             if not isinstance(cur, (int, float)) or not isinstance(old, (int, float)):
+                drifts.append(
+                    f"{label}/{key}: 缺少可比较的数值（当前 {type(cur).__name__}，"
+                    f"基线 {type(old).__name__}）"
+                )
                 continue
             if float(old) <= 0:
+                drifts.append(f"{label}/{key}: 基线值非正，无法比较")
                 continue
             delta = (float(cur) - float(old)) / float(old)
             if delta > float(cfg["memory_band"]):
@@ -501,8 +512,13 @@ def _compare(measured: list[dict], baseline: list[dict], *, config: dict | None 
             cur = row.get(key)
             old = ref.get(key)
             if not isinstance(cur, (int, float)) or not isinstance(old, (int, float)):
+                drifts.append(
+                    f"{label}/{key}: 缺少可比较的数值（当前 {type(cur).__name__}，"
+                    f"基线 {type(old).__name__}）"
+                )
                 continue
             if float(old) <= 0:
+                drifts.append(f"{label}/{key}: 基线值非正，无法比较")
                 continue
             delta = (float(cur) - float(old)) / float(old)
             if delta > float(cfg["size_band"]):
@@ -597,6 +613,23 @@ def _run_check(args: argparse.Namespace) -> int:
         print(f"  指纹/输入契约不同：{', '.join(changed) or '未知字段'}；跨机或跨输入比较不可判定")
         _print_status("INCOMPARABLE", f"incomparable_fields={','.join(changed) or 'unknown'}")
         if getattr(args, "allow_incomparable", False):
+            missing_fields = [
+                key
+                for key in FINGERPRINT_KEYS
+                if measured_fingerprint.get(key) is None
+                or ref_fingerprint.get(key) is None
+            ]
+            blockers = [
+                key
+                for key in [*changed, *missing_fields]
+                if key not in SMOKE_TOLERATED_FINGERPRINT_KEYS
+            ]
+            if blockers:
+                print(
+                    "  [ci] --allow-incomparable 不能放行："
+                    f"{', '.join(sorted(set(blockers)))} 变化不属于机器差异"
+                )
+                return _exit_code("INCOMPARABLE")
             # CI 共享 runner 无法与本地基线同指纹；显式放行但保留 INCOMPARABLE
             # 状态与字段差异，回归比较仍只在同指纹机器上执行。
             print("  [ci] --allow-incomparable：共享 runner 跳过跨机比较，本地严格闸门不变")

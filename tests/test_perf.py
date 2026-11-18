@@ -78,6 +78,25 @@ def test_bench_regress_check_exit_code_contract(tmp_path: Path) -> None:
     assert "status=INCOMPARABLE" in allowed.stdout
     assert "[ci] --allow-incomparable" in allowed.stdout
 
+    # 放行只覆盖机器差异；runner 版本变化仍不可比较。
+    version_bump = json.loads(json.dumps(incompatible))
+    version_bump["runner_version"] = "plotkit-bench/999"
+    version_input = tmp_path / "runner-version.json"
+    version_input.write_text(json.dumps(version_bump, ensure_ascii=False), encoding="utf-8")
+    blocked = _run("--input", str(version_input), "--allow-incomparable")
+    assert blocked.returncode != 0, blocked.stdout + blocked.stderr
+    assert "不能放行" in blocked.stdout
+
+    # 非数值内存/尺寸指标必须显式报 drift，而不是静默 continue。
+    malformed = json.loads(json.dumps(baseline))
+    malformed["results"][0]["downsample_2m_peak_mb"] = "n/a"
+    malformed_input = tmp_path / "malformed-memory.json"
+    malformed_input.write_text(json.dumps(malformed, ensure_ascii=False), encoding="utf-8")
+    bad_metric = _run("--input", str(malformed_input))
+    assert bad_metric.returncode != 0, bad_metric.stdout + bad_metric.stderr
+    assert "缺少可比较的数值" in bad_metric.stdout
+    assert "check=drift" in bad_metric.stdout
+
     # 基线缺失：必须非零且明确报出缺少基线，而不是 return 0 或跳过。
     missing = _run("--baseline", str(tmp_path / "no-baseline.json"))
     assert missing.returncode != 0

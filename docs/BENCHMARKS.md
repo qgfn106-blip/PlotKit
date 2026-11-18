@@ -31,7 +31,11 @@ OS、Python 实现、NumPy/SciPy/matplotlib 版本、BLAS/MKL 线程变量、后
 CI 的 `ubuntu-latest` 共享 runner 与本地基线必然指纹不同，因此工作流使用
 `--allow-incomparable`：仍然完整运行基准、打印 INCOMPARABLE 与字段差异，但把
 跨机比较按 0 退出；严格回归门（默认退出码 2）只在同指纹的参考机器上执行。
-该开关不会把 DRIFT/ERROR 当成通过，也不改变 `docs/bench_config.json` 的退出码契约。
+该开关只跳过“机器本身”的指纹差异（CPU、OS、Python、依赖、BLAS 线程等）；
+`runner_version`、`input_contract_sha256` 或任一指纹字段缺失时仍返回不可比较，
+不会把工具/输入变化当成硬件差异放行。该开关不会把 DRIFT/ERROR 当成通过，
+也不改变 `docs/bench_config.json` 的退出码契约。非数值或缺失的内存/尺寸指标
+会记为 DRIFT，不再静默跳过。
 
 ## 统计与内存口径
 
