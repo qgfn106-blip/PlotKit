@@ -2,9 +2,9 @@
 
 <!-- UPDATE:LATEST:BEGIN -->
 - 日期：2026-11-18
-- 版本/ref：9048666
-- 更新内容：完成 WP-4/5/7：selector/dispatch 单一决策源、PKF1 边界与一致快照、基准四态/渲染 oracle；全量 589 passed
-- 证据：docs/REQUIREMENTS_AND_PROGRESS.md、docs/WP7_DECISION_SOURCE_2026-11-18.md
+- 版本/ref：76f0084
+- 更新内容：修复 python-tests CI：刷新 589 收集基线；性能门禁在共享 runner 显式 --allow-incomparable，保留本地严格闸门
+- 证据：docs/BENCHMARKS.md、reports/test_baseline.json
 - 完整记录：[docs/UPDATE_LOG.md](docs/UPDATE_LOG.md)
 <!-- UPDATE:LATEST:END -->
 
