@@ -596,6 +596,11 @@ def _run_check(args: argparse.Namespace) -> int:
             print(f"  [info] {line}")
         print(f"  指纹/输入契约不同：{', '.join(changed) or '未知字段'}；跨机或跨输入比较不可判定")
         _print_status("INCOMPARABLE", f"incomparable_fields={','.join(changed) or 'unknown'}")
+        if getattr(args, "allow_incomparable", False):
+            # CI 共享 runner 无法与本地基线同指纹；显式放行但保留 INCOMPARABLE
+            # 状态与字段差异，回归比较仍只在同指纹机器上执行。
+            print("  [ci] --allow-incomparable：共享 runner 跳过跨机比较，本地严格闸门不变")
+            return 0
         return _exit_code("INCOMPARABLE")
     for line in drifts:
         print(f"  [drift] {line}")
@@ -609,9 +614,14 @@ def _run_check(args: argparse.Namespace) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="PlotKit 性能回归基准")
     ap.add_argument("--json", default="", help="落盘机器结果 JSON（与基线同形）")
-    ap.add_argument("--check", action="store_true", help="相对回归带闸门（CI 用）")
+    ap.add_argument("--check", action="store_true", help="严格回归闸门（同指纹参考机器）")
     ap.add_argument("--shapes", default="sine,noise")
     ap.add_argument("--baseline", default=str(BASELINE), help="基线 JSON 路径")
+    ap.add_argument(
+        "--allow-incomparable",
+        action="store_true",
+        help="CI 共享 runner 专用：指纹不同时保留 INCOMPARABLE 输出但按 0 退出；默认仍为 2",
+    )
     ap.add_argument(
         "--input", default="", help="已有测量结果 JSON；不跑基准直接复算（测试用）"
     )

@@ -28,8 +28,8 @@ jobs:
       - name: Render baseline tests
         run: python -m pytest -o addopts= -q tests/render --disable-warnings
 
-      - name: Performance regression band
-        run: python tools/bench_regress.py --check
+      - name: Performance smoke (shared runner, cross-machine comparison skipped)
+        run: python tools/bench_regress.py --check --allow-incomparable
 
       - name: Update record consistency
         run: python tools/record_update.py --check

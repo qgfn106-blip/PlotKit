@@ -72,6 +72,12 @@ def test_bench_regress_check_exit_code_contract(tmp_path: Path) -> None:
     assert "bench_regress: check=incomparable" in incomparable.stdout
     assert "status=INCOMPARABLE" in incomparable.stdout
 
+    # CI 共享 runner 只能显式放行；状态与差异仍必须打印，本地默认仍为非零。
+    allowed = _run("--input", str(incompatible_input), "--allow-incomparable")
+    assert allowed.returncode == 0, allowed.stdout + allowed.stderr
+    assert "status=INCOMPARABLE" in allowed.stdout
+    assert "[ci] --allow-incomparable" in allowed.stdout
+
     # 基线缺失：必须非零且明确报出缺少基线，而不是 return 0 或跳过。
     missing = _run("--baseline", str(tmp_path / "no-baseline.json"))
     assert missing.returncode != 0

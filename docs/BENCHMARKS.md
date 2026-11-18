@@ -28,6 +28,11 @@ INCOMPARABLE，禁止把不同机器的数字当作回归。指纹覆盖 CPU、m
 OS、Python 实现、NumPy/SciPy/matplotlib 版本、BLAS/MKL 线程变量、后端、分辨率、
 输入契约 SHA-256 与 runner 版本。
 
+CI 的 `ubuntu-latest` 共享 runner 与本地基线必然指纹不同，因此工作流使用
+`--allow-incomparable`：仍然完整运行基准、打印 INCOMPARABLE 与字段差异，但把
+跨机比较按 0 退出；严格回归门（默认退出码 2）只在同指纹的参考机器上执行。
+该开关不会把 DRIFT/ERROR 当成通过，也不改变 `docs/bench_config.json` 的退出码契约。
+
 ## 统计与内存口径
 
 - 每案固定输入、随机种子、预热次数和重复次数；计时边界是单次操作
@@ -40,7 +45,8 @@ OS、Python 实现、NumPy/SciPy/matplotlib 版本、BLAS/MKL 线程变量、后
 
 ```bash
 python tools/bench_regress.py                 # 产品路径打表
-python tools/bench_regress.py --check         # CI 闸门：PASS/DRIFT/INCOMPARABLE/ERROR
+python tools/bench_regress.py --check         # 严格闸门：PASS/DRIFT/INCOMPARABLE/ERROR
+python tools/bench_regress.py --check --allow-incomparable  # CI 共享 runner：跨机比较跳过
 python tools/bench_layers.py                  # 渲染分层打表
 python tools/bench_layers.py --check          # 渲染分层闸门
 ```
