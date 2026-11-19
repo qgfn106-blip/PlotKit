@@ -1,6 +1,6 @@
 # PlotKit 需求 · 决策 · 进度 · 经验（单一入口）
 
-> 最后修改：2026-11-18（当前基线 589 passed；WP-7 收口 PKF1 边界与单一决策源）
+> 最后修改：2026-11-19（0.3.0 分析宿主能力；上一基线 2026-11-18 589 passed）
 > 用途：新会话先读这一份，再动手。设计细节看 [DESIGN_v0.md](DESIGN_v0.md)，用法看 [../README.md](../README.md)，
 > 与 netlab 的接口口径看 `NetlabHome/netlab/docs/REQUIREMENTS_AND_RULES.md` 的 **R32 / D66 / D67 / P12**；
 > **PlotKit 自己的需求、决策、计划、进度与经验全部在本文件**（§1 需求 / §2 决策 / §3 计划 / §4 进度 / §5 经验），不写进 netlab 的文档。
@@ -454,3 +454,15 @@
 - 实测（无头 Edge + CDP，15 项断言全 PASS）：浮出搬运、拖标题栏 −120/+80、拖右下角 380×418→450×468、收起归位、刷新保持收起、再浮出后刷新还原 450×468。
 - 回归：`PlotKit/tests/test_layer_window.py` 5 项全绿；用 P4 备份的旧静态文件对照，8 个关键标记全缺（能红）。
 - 方案 B（独立浏览器窗口 + BroadcastChannel）留作 A 之上的「弹出」按钮，未做；C 依赖桌面壳，不做。
+
+## 10. 0.3.0：分析工作台宿主能力（2026-11-19）
+
+NetLab 的统一分析工作台要求 PlotKit 作为**必需插件**参与启动门禁，并在 0.3 代次声明分析相关能力。本次只提升代次与能力契约，不改变 `FigureDocument`/`Frame`/`PlotSpec` 的绘图语义。
+
+- 版本：`plotkit.__version__ = "0.3.0"`；`host_api` 版本窗改为 `>=0.3,<0.4`；`schema/compat_matrix.json` 的 `package_version`、`package_version_min`、`max_exclusive`、`hosts.netlab` 同步为 0.3–0.4。
+- 能力：兼容矩阵新增 `analysis_markers`、`analysis_envelopes`、`linked_cursor`。含义是宿主可依赖 PlotKit 的标记图层、由分析信封驱动的曲线/标记渲染，以及联动光标所需的坐标换算与重绘能力；能力列表是**宿主集成契约**，不新增公开 PlotSpec 字段。
+- 兼容：0.2.x 的 API（`render2d` 静态入口、图层/视图/样式、`savefig`）保持；NetLab 只接受 `>=0.3,<0.4`，启动期校验版本与三项能力，缺失时给出实际版本、期望范围与缺失能力。
+- NetLab 消费：`plotkit_bridge.required_capability_issues()` 读取 `plotkit.probe()` 的 `version`/`features`；`REQUIRED_PLUGIN_IDS` 与 `PLOTKIT_REQUIRED_CAPABILITIES` 由 `tools/gen_contracts.py` 生成，前端拿到同名常量。
+- 测试：本工作树 `pytest -q` 结果见 `plotkit_pytest.log`；0.3.0 仅版本、兼容矩阵与能力元数据变更，绘图测试应维持既有基线。
+
+**边界**：本次不实现分析算法（线性化、环路拆解、Nyquist 判定在 NetLab 后端）；PlotKit 只提供渲染与导出。分析信封的字段语义以 NetLab `netlab-analysis-result/1` 为准。

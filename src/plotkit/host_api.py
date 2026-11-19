@@ -18,8 +18,8 @@ from typing import Any
 
 API_VERSION = "1"
 
-_MIN_VERSION = (0, 2)
-_MAX_VERSION = (0, 3)
+_MIN_VERSION = (0, 3)
+_MAX_VERSION = (0, 4)
 
 # P0 契约冻结：schema/ 是兼容矩阵与能力矩阵的唯一主人（X5），宿主只读。
 # 用 pathlib 直接读 JSON，避免 import 任何绘制后端，probe() 在缺依赖时依然能返回。

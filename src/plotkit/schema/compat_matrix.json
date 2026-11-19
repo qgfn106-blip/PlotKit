@@ -1,9 +1,9 @@
 {
   "schema": "plotkit.compat/v1",
   "api_version": "1",
-  "package_version": "0.2.1",
-  "package_version_min": "0.2",
-  "package_version_max_exclusive": "0.3",
+  "package_version": "0.3.0",
+  "package_version_min": "0.3",
+  "package_version_max_exclusive": "0.4",
   "schema_versions": {
     "figure": ["plotkit.figure/v1"],
     "frame": ["plotkit.frame/v1"],
@@ -24,7 +24,10 @@
     "capability_matrix",
     "document_roundtrip",
     "migration",
-    "host_probe"
+    "host_probe",
+    "analysis_markers",
+    "analysis_envelopes",
+    "linked_cursor"
   ],
   "extra_requirements": {
     "three": {
@@ -45,18 +48,18 @@
   },
   "hosts": {
     "netlab": {
-      "min": "0.2",
-      "max_exclusive": "0.3",
+      "min": "0.3",
+      "max_exclusive": "0.4",
       "api_version": "1"
     }
   },
   "compat": {
-    "min": "0.2",
-    "max_exclusive": "0.3",
+    "min": "0.3",
+    "max_exclusive": "0.4",
     "hosts": {
       "netlab": {
-        "min": "0.2",
-        "max_exclusive": "0.3",
+        "min": "0.3",
+        "max_exclusive": "0.4",
         "api_version": "1"
       }
     }

@@ -43,7 +43,7 @@ from .host_api import (
     store_lock,
 )
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 
 class _DataProxy:
