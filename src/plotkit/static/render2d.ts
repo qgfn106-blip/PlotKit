@@ -154,8 +154,9 @@ import { niceStep, ticksLinear, ticksLog, fmtNum, extent, padRange, union, quant
     const nrows = Math.max(1, Math.ceil(slots.length / ncols));
     const gapX = 26, gapY = 30;
     const left = pad.left, right = pad.right, top = pad.top, bottom = pad.bottom;
-    const cw = (W - left - right - gapX * (ncols - 1)) / ncols;
-    const ch = (H - top - bottom - gapY * (nrows - 1)) / nrows;
+    // 窗口被压得很小时也要保留合法盒尺寸，避免负宽高导致子图互相覆盖。
+    const cw = Math.max(1, (W - left - right - gapX * (ncols - 1)) / ncols);
+    const ch = Math.max(1, (H - top - bottom - gapY * (nrows - 1)) / nrows);
     const boxes = new Map();
     slots.forEach((slot, i) => {
       const r = Math.floor(i / ncols), c = i % ncols;
@@ -188,7 +189,8 @@ import { niceStep, ticksLinear, ticksLog, fmtNum, extent, padRange, union, quant
 
     const fig = spec.figure || {};
     const layers = (spec.layers || []).filter((l) => !l.hidden);
-    const pad = { left: 62, right: 18, top: fig.title ? 40 : 24, bottom: 46 };
+    const compact = cssH < 320;
+    const pad = { left: compact ? 52 : 62, right: compact ? 12 : 18, top: fig.title ? (compact ? 30 : 40) : (compact ? 16 : 24), bottom: compact ? 34 : 46 };
     const layout = gridLayout(spec, cssW, cssH, pad);
     const t = opts.t == null ? Infinity : opts.t;
     const axesOut: Axis[] = [];
@@ -226,6 +228,11 @@ import { niceStep, ticksLinear, ticksLog, fmtNum, extent, padRange, union, quant
       axesOut.push(axis);
 
       drawFrame(ctx, axis, tokens, view);
+      // 每条曲线严格裁到自己的子图框内：平移/缩放后越界的线段不能盖到相邻子图或网格外。
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(box.x, box.y, box.w, box.h);
+      ctx.clip();
       drawn.forEach((item) => {
         const color = (item.layer.style && item.layer.style.color) || PALETTE[colorIndex++ % PALETTE.length];
         drawLayer(ctx, item, axis, color, tokens, opts);
@@ -233,6 +240,7 @@ import { niceStep, ticksLinear, ticksLog, fmtNum, extent, padRange, union, quant
           pickables.push({ slot, layer: item.layer, series: item.series, axis, color });
         }
       });
+      ctx.restore();
       drawLegend(ctx, drawn, axis, tokens);
       drawAxisTitles(ctx, axis, view, tokens);
     }

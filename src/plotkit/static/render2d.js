@@ -62,8 +62,8 @@ import { ticksLinear, ticksLog, fmtNum, extent, padRange, union, quantile, hexAl
     const nrows = Math.max(1, Math.ceil(slots.length / ncols));
     const gapX = 26, gapY = 30;
     const left = pad.left, right = pad.right, top = pad.top, bottom = pad.bottom;
-    const cw = (W - left - right - gapX * (ncols - 1)) / ncols;
-    const ch = (H - top - bottom - gapY * (nrows - 1)) / nrows;
+    const cw = Math.max(1, (W - left - right - gapX * (ncols - 1)) / ncols);
+    const ch = Math.max(1, (H - top - bottom - gapY * (nrows - 1)) / nrows);
     const boxes = /* @__PURE__ */ new Map();
     slots.forEach((slot, i) => {
       const r = Math.floor(i / ncols), c = i % ncols;
@@ -93,7 +93,8 @@ import { ticksLinear, ticksLog, fmtNum, extent, padRange, union, quantile, hexAl
     ctx.fillRect(0, 0, cssW, cssH);
     const fig = spec.figure || {};
     const layers = (spec.layers || []).filter((l) => !l.hidden);
-    const pad = { left: 62, right: 18, top: fig.title ? 40 : 24, bottom: 46 };
+    const compact = cssH < 320;
+    const pad = { left: compact ? 52 : 62, right: compact ? 12 : 18, top: fig.title ? compact ? 30 : 40 : compact ? 16 : 24, bottom: compact ? 34 : 46 };
     const layout = gridLayout(spec, cssW, cssH, pad);
     const t = opts.t == null ? Infinity : opts.t;
     const axesOut = [];
@@ -126,6 +127,10 @@ import { ticksLinear, ticksLog, fmtNum, extent, padRange, union, quantile, hexAl
       const axis = { slot, box, xlim, ylim, xscale: sx.kind, yscale: sy.kind, sx, sy };
       axesOut.push(axis);
       drawFrame(ctx, axis, tokens, view);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(box.x, box.y, box.w, box.h);
+      ctx.clip();
       drawn.forEach((item) => {
         const color = item.layer.style && item.layer.style.color || PALETTE[colorIndex++ % PALETTE.length];
         drawLayer(ctx, item, axis, color, tokens, opts);
@@ -133,6 +138,7 @@ import { ticksLinear, ticksLog, fmtNum, extent, padRange, union, quantile, hexAl
           pickables.push({ slot, layer: item.layer, series: item.series, axis, color });
         }
       });
+      ctx.restore();
       drawLegend(ctx, drawn, axis, tokens);
       drawAxisTitles(ctx, axis, view, tokens);
     }
